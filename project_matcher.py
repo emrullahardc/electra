@@ -158,6 +158,7 @@ def match_project_components(
     project_description: str,
     custom_requirements: Optional[List[str]] = None,
     check_robotistan: bool = True,
+    auto_create_draft_order: bool = False,
     db_path: str = electro_db.DB_PATH
 ) -> Dict[str, Any]:
     """

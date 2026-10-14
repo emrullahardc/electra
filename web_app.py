@@ -147,11 +147,14 @@ class ElectroRequestHandler(http.server.SimpleHTTPRequestHandler):
 
         # 5. API: Robotistan Canlı Arama
         elif path == "/api/robotistan/search":
-            q = params.get("q", [""])[0]
-            only_stock = params.get("only_in_stock", ["1"])[0] in ("1", "true")
-            limit = int(params.get("limit", ["10"])[0])
-            res = scraper.search(query=q, only_in_stock=only_stock, limit=limit)
-            self.send_json(res)
+            try:
+                q = params.get("q", [""])[0]
+                only_stock = params.get("only_in_stock", ["1"])[0] in ("1", "true")
+                limit = int(params.get("limit", ["10"])[0])
+                res = scraper.search(query=q, only_in_stock=only_stock, limit=limit)
+                self.send_json(res)
+            except Exception as e:
+                self.send_json({"error": f"Robotistan arama hatası: {str(e)}", "results": []}, status=500)
             return
 
         # 6. API: Veritabanı Yedeği Dışa Aktarma (Export)
@@ -295,14 +298,19 @@ class ElectroRequestHandler(http.server.SimpleHTTPRequestHandler):
 
         # 3. API: Proje Analizi & Robotistan Eşleştirme
         elif path == "/api/match-project":
-            desc = data.get("project_description", "")
-            check_rob = bool(data.get("check_robotistan", True))
-            analysis = project_matcher.match_project_components(
-                project_description=desc,
-                check_robotistan=check_rob
-            )
-            analysis["markdown_report"] = project_matcher.format_project_analysis_markdown(analysis)
-            self.send_json(analysis)
+            try:
+                desc = data.get("project_description", "")
+                check_rob = bool(data.get("check_robotistan", True))
+                auto_draft = bool(data.get("auto_create_draft_order", False))
+                analysis = project_matcher.match_project_components(
+                    project_description=desc,
+                    check_robotistan=check_rob,
+                    auto_create_draft_order=auto_draft
+                )
+                analysis["markdown_report"] = project_matcher.format_project_analysis_markdown(analysis)
+                self.send_json(analysis)
+            except Exception as e:
+                self.send_json({"error": f"Proje analizi sırasında sunucu hatası: {str(e)}"}, status=500)
             return
 
         # 4. API: Tüm Verileri Temizle / Sıfırla

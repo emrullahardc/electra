@@ -563,6 +563,15 @@ async function analyzeProject() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ project_description: desc, check_robotistan: true })
     });
+    if (!res.ok) {
+      const errText = await res.text();
+      let errMsg = `Sunucu hatası (${res.status})`;
+      try {
+        const errJson = JSON.parse(errText);
+        if (errJson.error) errMsg = errJson.error;
+      } catch (_) {}
+      throw new Error(errMsg);
+    }
     const analysis = await res.json();
 
     // 1. Sağlam Olanlar
@@ -687,6 +696,15 @@ async function searchRobotistanDirect() {
     url.searchParams.set("limit", "15");
 
     const res = await fetch(url);
+    if (!res.ok) {
+      const errText = await res.text();
+      let errMsg = `Sunucu hatası (${res.status})`;
+      try {
+        const errJson = JSON.parse(errText);
+        if (errJson.error) errMsg = errJson.error;
+      } catch (_) {}
+      throw new Error(errMsg);
+    }
     const data = await res.json();
     const results = data.results || [];
 
