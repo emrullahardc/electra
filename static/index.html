@@ -27,6 +27,75 @@
         }
       }
     }
+
+    // Global Kopyalama Fonksiyonları (Erken Yükleme / Fail-proof)
+    function copyCode(elementId, btn) {
+      const el = document.getElementById(elementId);
+      if (!el) return;
+      const text = (el.innerText || el.textContent || "").trim();
+      const targetBtn = btn || (window.event ? (window.event.currentTarget || (window.event.target ? window.event.target.closest("button") : null)) : null);
+      copyText(text, targetBtn);
+    }
+
+    function copyText(text, btn) {
+      if (!text) return;
+      const targetBtn = btn || (window.event ? (window.event.currentTarget || (window.event.target ? window.event.target.closest("button") : null)) : null);
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(text).then(() => {
+          showCopySuccess(targetBtn);
+        }).catch(() => {
+          fallbackCopy(text, targetBtn);
+        });
+        return;
+      }
+      fallbackCopy(text, targetBtn);
+    }
+
+    function fallbackCopy(text, btn) {
+      const textarea = document.createElement("textarea");
+      textarea.value = text;
+      textarea.setAttribute("readonly", "");
+      textarea.style.position = "fixed";
+      textarea.style.top = "0";
+      textarea.style.left = "0";
+      textarea.style.width = "2em";
+      textarea.style.height = "2em";
+      textarea.style.opacity = "0.01";
+      textarea.style.zIndex = "-1";
+      document.body.appendChild(textarea);
+      textarea.focus();
+      textarea.select();
+      textarea.setSelectionRange(0, 99999);
+      let success = false;
+      try {
+        success = document.execCommand("copy");
+      } catch (e) {
+        success = false;
+      }
+      document.body.removeChild(textarea);
+      if (success) {
+        showCopySuccess(btn);
+      } else {
+        window.prompt("Kopyalamak için Ctrl+C tuşlayın:", text);
+      }
+    }
+
+    function showCopySuccess(btn) {
+      if (typeof showToast === "function") {
+        showToast("Panoya kopyalandı! 📋");
+      }
+      if (btn) {
+        const origHtml = btn.dataset.origHtml || btn.innerHTML;
+        btn.dataset.origHtml = origHtml;
+        btn.innerHTML = '<i class="fa-solid fa-check text-emerald-400"></i> <span class="text-emerald-400 font-semibold">Kopyalandı!</span>';
+        btn.classList.add("border-emerald-500", "bg-emerald-950/60");
+        clearTimeout(btn._copyTimeout);
+        btn._copyTimeout = setTimeout(() => {
+          btn.innerHTML = origHtml;
+          btn.classList.remove("border-emerald-500", "bg-emerald-950/60");
+        }, 2200);
+      }
+    }
   </script>
 </head>
 <body class="bg-[#0b1120] text-slate-100 min-h-screen flex flex-col font-sans selection:bg-emerald-500 selection:text-white">
@@ -1175,6 +1244,6 @@
     ElectroStock & AI MCP Server • Robotistan Canlı Stok Entegrasyonu • %100 Yerel ve Güvenli
   </footer>
 
-  <script src="/app.js"></script>
+  <script src="/app.js?v=2.6.0"></script>
 </body>
 </html>

@@ -1410,5 +1410,11 @@ function showCopySuccess(btn) {
   }
 }
 
+// Explicit window bindings
+window.copyCode = copyCode;
+window.copyText = copyText;
+window.fallbackCopy = fallbackCopy;
+window.showCopySuccess = showCopySuccess;
+
 
 
