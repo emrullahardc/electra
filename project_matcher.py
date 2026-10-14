@@ -363,7 +363,8 @@ def format_project_analysis_markdown(analysis: Dict[str, Any]) -> str:
                     md.append(f"- Robotistan'da '{rec['searched_query']}' araması için doğrudan stok bulunamadı.")
             
             if analysis.get("estimated_robotistan_cost_tl", 0) > 0:
-                md.append(f"\n💰 **Robotistan Tahmini Eksik Parça Sepet Tutarı:** ~{analysis['estimated_robotistan_cost_tl']} TL")
+                cost_val = float(analysis['estimated_robotistan_cost_tl'])
+                md.append(f"\n💰 **Robotistan Tahmini Eksik Parça Sepet Tutarı:** ~{cost_val:.2f} TL")
 
         if analysis.get("draft_order_id"):
             md.append(f"\n📋 **Taslak Sipariş Listesi Kaydedildi:** `Draft #{analysis['draft_order_id']}`\n*Bu listeyi web arayüzündeki 'Draft Siparişler' sekmesinden görebilir veya tek tıkla doğrudan Robotistan sepetinize aktarabilirsiniz.*")

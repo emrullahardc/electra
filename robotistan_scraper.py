@@ -23,7 +23,7 @@ def clean_price(price_str: str) -> Optional[float]:
     try:
         cleaned = price_str.replace("TL", "").replace("₺", "").strip()
         cleaned = cleaned.replace(".", "").replace(",", ".")
-        return float(cleaned)
+        return round(float(cleaned), 2)
     except Exception:
         return None
 

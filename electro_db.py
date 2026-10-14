@@ -208,6 +208,11 @@ def init_db(db_path: str = DB_PATH) -> None:
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_comp_value ON components(value)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_session_token ON sessions(token)")
 
+        # Fiyat yuvarlama ve veri tutarlılığı temizliği
+        cursor.execute("UPDATE draft_orders SET total_estimated_price = ROUND(total_estimated_price, 2)")
+        cursor.execute("UPDATE draft_order_items SET price_value = ROUND(price_value, 2)")
+        cursor.execute("UPDATE cart_items SET price_value = ROUND(price_value, 2)")
+
         conn.commit()
 
 
@@ -510,7 +515,7 @@ def add_to_cart(
             cursor.execute("""
                 INSERT INTO cart_items (product_id, title, price, price_value, url, quantity)
                 VALUES (?, ?, ?, ?, ?, ?)
-            """, (product_id, title, price, price_value or 0.0, url, quantity))
+            """, (product_id, title, price, round(float(price_value or 0.0), 2), url, quantity))
             conn.commit()
             return cursor.lastrowid
 
@@ -522,6 +527,9 @@ def get_cart_items(db_path: str = DB_PATH) -> Dict[str, Any]:
         cursor.execute("SELECT * FROM cart_items ORDER BY created_at DESC")
         items = [dict(r) for r in cursor.fetchall()]
         
+        for it in items:
+            it["price_value"] = round(float(it.get("price_value") or 0.0), 2)
+
         total_qty = sum(item["quantity"] for item in items)
         total_price = sum((item["price_value"] or 0.0) * item["quantity"] for item in items)
 
@@ -581,8 +589,8 @@ def create_draft_order(
         total_price = 0.0
         if items:
             for it in items:
-                pv = it.get("price_value") or 0.0
-                qty = it.get("quantity", 1)
+                pv = round(float(it.get("price_value") or 0.0), 2)
+                qty = int(it.get("quantity", 1))
                 total_price += pv * qty
 
         cursor.execute("""
@@ -605,7 +613,7 @@ def create_draft_order(
                     it.get("product_id"),
                     it.get("url", "").strip(),
                     it.get("price", "").strip(),
-                    it.get("price_value") or 0.0,
+                    round(float(it.get("price_value") or 0.0), 2),
                     int(it.get("quantity", 1)),
                     1 if it.get("in_stock", True) else 0,
                     it.get("source", "robotistan"),
@@ -641,6 +649,7 @@ def get_draft_orders(status: str = "", limit: int = 50, db_path: str = DB_PATH) 
             agg = cursor.fetchone()
             o["item_count"] = agg["item_count"] or 0
             o["total_quantity"] = agg["total_qty"] or 0
+            o["total_estimated_price"] = round(float(o.get("total_estimated_price") or 0.0), 2)
 
         return orders
 
@@ -655,8 +664,11 @@ def get_draft_order_by_id(draft_id: int, db_path: str = DB_PATH) -> Optional[Dic
             return None
 
         order = dict(order_row)
+        order["total_estimated_price"] = round(float(order.get("total_estimated_price") or 0.0), 2)
         cursor.execute("SELECT * FROM draft_order_items WHERE draft_order_id = ? ORDER BY id ASC", (draft_id,))
         items = [dict(r) for r in cursor.fetchall()]
+        for it in items:
+            it["price_value"] = round(float(it.get("price_value") or 0.0), 2)
         order["items"] = items
         order["item_count"] = len(items)
         order["total_quantity"] = sum(it["quantity"] for it in items)
@@ -678,7 +690,7 @@ def add_item_to_draft_order(draft_id: int, item: Dict[str, Any], db_path: str = 
             item.get("product_id"),
             item.get("url", "").strip(),
             item.get("price", "").strip(),
-            item.get("price_value") or 0.0,
+            round(float(item.get("price_value") or 0.0), 2),
             int(item.get("quantity", 1)),
             1 if item.get("in_stock", True) else 0,
             item.get("source", "robotistan"),
@@ -690,9 +702,9 @@ def add_item_to_draft_order(draft_id: int, item: Dict[str, Any], db_path: str = 
         # Taslak siparişin toplam tutarını ve updated_at tarihini güncelle
         cursor.execute("""
             UPDATE draft_orders 
-            SET total_estimated_price = (
+            SET total_estimated_price = ROUND(COALESCE((
                 SELECT SUM(price_value * quantity) FROM draft_order_items WHERE draft_order_id = ?
-            ), updated_at = ?
+            ), 0.0), 2), updated_at = ?
             WHERE id = ?
         """, (draft_id, datetime.now().isoformat(), draft_id))
 
@@ -724,9 +736,9 @@ def delete_draft_order_item(item_id: int, db_path: str = DB_PATH) -> bool:
         now = datetime.now().isoformat()
         cursor.execute("""
             UPDATE draft_orders 
-            SET total_estimated_price = COALESCE((
+            SET total_estimated_price = ROUND(COALESCE((
                 SELECT SUM(price_value * quantity) FROM draft_order_items WHERE draft_order_id = ?
-            ), 0.0), updated_at = ?
+            ), 0.0), 2), updated_at = ?
             WHERE id = ?
         """, (draft_id, now, draft_id))
         conn.commit()
@@ -749,9 +761,9 @@ def update_draft_order_item_quantity(item_id: int, quantity: int, db_path: str =
         now = datetime.now().isoformat()
         cursor.execute("""
             UPDATE draft_orders 
-            SET total_estimated_price = COALESCE((
+            SET total_estimated_price = ROUND(COALESCE((
                 SELECT SUM(price_value * quantity) FROM draft_order_items WHERE draft_order_id = ?
-            ), 0.0), updated_at = ?
+            ), 0.0), 2), updated_at = ?
             WHERE id = ?
         """, (draft_id, now, draft_id))
         conn.commit()

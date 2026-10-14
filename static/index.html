@@ -96,6 +96,30 @@
         }, 2200);
       }
     }
+
+    // Global Para / Fiyat Formatlama Yardımcısı (2 Ondalık Kesinlik)
+    function formatPrice(val) {
+      if (val === null || val === undefined || val === '') return "0.00 TL";
+      if (typeof val === "number") {
+        if (isNaN(val)) return "0.00 TL";
+        return val.toFixed(2) + " TL";
+      }
+      let s = String(val).trim();
+      if (/^-?\d+(\.\d+)?$/.test(s)) {
+        return parseFloat(s).toFixed(2) + " TL";
+      }
+      const cleanTL = s.replace(/TL|₺/g, "").trim();
+      if (/^-?\d+(\.\d+)?$/.test(cleanTL)) {
+        return parseFloat(cleanTL).toFixed(2) + " TL";
+      }
+      if (cleanTL.includes(",")) {
+        const trClean = cleanTL.replace(/\./g, "").replace(",", ".");
+        const parsed = parseFloat(trClean);
+        if (!isNaN(parsed)) return parsed.toFixed(2) + " TL";
+      }
+      const parsed = parseFloat(cleanTL);
+      return isNaN(parsed) ? String(val) : parsed.toFixed(2) + " TL";
+    }
   </script>
 </head>
 <body class="bg-[#0b1120] text-slate-100 min-h-screen flex flex-col font-sans selection:bg-emerald-500 selection:text-white">
@@ -1244,6 +1268,6 @@
     ElectroStock & AI MCP Server • Robotistan Canlı Stok Entegrasyonu • %100 Yerel ve Güvenli
   </footer>
 
-  <script src="/app.js?v=2.8.0"></script>
+  <script src="/app.js?v=2.9.0"></script>
 </body>
 </html>

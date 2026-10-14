@@ -654,7 +654,7 @@ class MCPServer:
                         pid_str = f" [PID: {it['product_id']}]" if it.get("product_id") else ""
                         md.append(f"- **{it['title']}**{pid_str}")
                         md.append(f"  Adet: {it['quantity']} | Birim Fiyat: {it['price']} | [Ürün Sayfası]({it['url']})\n")
-                    md.append(f"💰 **Toplam Tutar:** ~{cart.get('total_price_tl', 0)} TL ({cart.get('total_quantity', 0)} parça)")
+                    md.append(f"💰 **Toplam Tutar:** ~{float(cart.get('total_price_tl') or 0):.2f} TL ({cart.get('total_quantity', 0)} parça)")
 
                 return {
                     "jsonrpc": "2.0",
@@ -721,7 +721,7 @@ class MCPServer:
                 else:
                     for o in orders:
                         md.append(f"- **#{o['id']} - {o['title']}** [{o['status']}]")
-                        md.append(f"  Tahmini Tutar: ~{o['total_estimated_price']} TL | Kalem Sayısı: {o['item_count']} | Tarih: {o['updated_at'][:16]}")
+                        md.append(f"  Tahmini Tutar: ~{float(o.get('total_estimated_price') or 0):.2f} TL | Kalem Sayısı: {o['item_count']} | Tarih: {o['updated_at'][:16]}")
                         if o.get("description"):
                             md.append(f"  *Proje:* {o['description']}")
                         md.append("")
@@ -748,7 +748,7 @@ class MCPServer:
                 md.append(f"- **Durum:** {order['status']}")
                 md.append(f"- **Açıklama:** {order.get('description', '-')}")
                 md.append(f"- **Toplam Kalem:** {order['item_count']} ({order['total_quantity']} adet)")
-                md.append(f"- **Tahmini Toplam Tutar:** ~{order['total_estimated_price']} TL\n")
+                md.append(f"- **Tahmini Toplam Tutar:** ~{float(order.get('total_estimated_price') or 0):.2f} TL\n")
                 md.append("### Kalemler:")
                 for it in order.get("items", []):
                     stok_badge = "🟢 Stokta Var" if it.get("in_stock") else "🔴 Tükendi"

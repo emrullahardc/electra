@@ -658,7 +658,7 @@ async function analyzeProject() {
 
     // 3. Eksik Parçalar ve Robotistan Canlı Fiyatları
     const robList = document.getElementById("project-robotistan-list");
-    document.getElementById("project-cost-badge").innerText = `Tahmini Robotistan Tutarı: ~${analysis.estimated_robotistan_cost_tl || 0} TL`;
+    document.getElementById("project-cost-badge").innerText = `Tahmini Robotistan Tutarı: ~${formatPrice(analysis.estimated_robotistan_cost_tl)}`;
 
     if (!analysis.missing_items || analysis.missing_items.length === 0) {
       robList.innerHTML = `
@@ -689,7 +689,7 @@ async function analyzeProject() {
                       ${p.stock_status}
                     </span>
                   </div>
-                  <p class="text-sm font-bold text-emerald-400 mt-2">${p.price}</p>
+                  <p class="text-sm font-bold text-emerald-400 mt-2">${formatPrice(p.price_value || p.price)}</p>
                 </div>
                 <div class="mt-2.5 flex items-center gap-1.5">
                   <button onclick="addToCartFromProduct('${escapeHtml(p.title)}', '${p.url}', '${p.price}', ${p.price_value || 0}, ${p.product_id || 'null'})" class="flex-1 text-center text-xs py-1.5 px-2 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-medium transition">
@@ -771,7 +771,7 @@ async function searchRobotistanDirect() {
               ${item.stock_status}
             </span>
           </div>
-          <p class="text-base font-bold text-emerald-400 font-mono">${item.price}</p>
+          <p class="text-base font-bold text-emerald-400 font-mono">${formatPrice(item.price_value || item.price)}</p>
         </div>
 
         <div class="pt-2 border-t border-slate-800/80 flex items-center justify-between gap-1.5">
@@ -960,6 +960,29 @@ function escapeHtml(str) {
     .replace(/'/g, "&#039;");
 }
 
+function formatPrice(val) {
+  if (val === null || val === undefined || val === '') return "0.00 TL";
+  if (typeof val === "number") {
+    if (isNaN(val)) return "0.00 TL";
+    return val.toFixed(2) + " TL";
+  }
+  let s = String(val).trim();
+  if (/^-?\d+(\.\d+)?$/.test(s)) {
+    return parseFloat(s).toFixed(2) + " TL";
+  }
+  const cleanTL = s.replace(/TL|₺/g, "").trim();
+  if (/^-?\d+(\.\d+)?$/.test(cleanTL)) {
+    return parseFloat(cleanTL).toFixed(2) + " TL";
+  }
+  if (cleanTL.includes(",")) {
+    const trClean = cleanTL.replace(/\./g, "").replace(",", ".");
+    const parsed = parseFloat(trClean);
+    if (!isNaN(parsed)) return parsed.toFixed(2) + " TL";
+  }
+  const parsed = parseFloat(cleanTL);
+  return isNaN(parsed) ? String(val) : parsed.toFixed(2) + " TL";
+}
+
 // ==========================================
 // 🛒 ROBOTİSTAN ATÖLYE SEPETİ YÖNETİMİ
 // ==========================================
@@ -989,7 +1012,7 @@ async function loadCart() {
 
     document.getElementById("cart-summary-items").innerText = data.total_items_count || 0;
     document.getElementById("cart-summary-qty").innerText = data.total_quantity || 0;
-    document.getElementById("cart-summary-total").innerText = `${data.total_price_tl || 0} TL`;
+    document.getElementById("cart-summary-total").innerText = formatPrice(data.total_price_tl);
 
     const badge = document.getElementById("badge-cart-count");
     if (badge) badge.innerText = data.total_quantity || 0;
@@ -1019,7 +1042,7 @@ async function loadCart() {
             </a>
             ${item.product_id ? `<span class="text-[10px] text-slate-500 font-mono">T-Soft PID: ${item.product_id}</span>` : ''}
           </td>
-          <td class="py-3 px-3 font-mono text-slate-300 text-xs">${item.price}</td>
+          <td class="py-3 px-3 font-mono text-slate-300 text-xs">${formatPrice(item.price_value || item.price)}</td>
           <td class="py-3 px-3">
             <div class="flex items-center justify-center gap-1.5">
               <button onclick="updateCartItemQty(${item.id}, ${item.quantity - 1})" class="w-6 h-6 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center text-xs transition">-</button>
@@ -1027,7 +1050,7 @@ async function loadCart() {
               <button onclick="updateCartItemQty(${item.id}, ${item.quantity + 1})" class="w-6 h-6 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center text-xs transition">+</button>
             </div>
           </td>
-          <td class="py-3 px-3 font-mono text-emerald-400 font-bold">${itemTotal} TL</td>
+          <td class="py-3 px-3 font-mono text-emerald-400 font-bold">${formatPrice(itemTotal)}</td>
           <td class="py-3 px-4 text-right">
             <button onclick="deleteCartItem(${item.id})" class="p-1.5 rounded hover:bg-slate-800 text-slate-400 hover:text-rose-400 transition" title="Sepetten Çıkar">
               <i class="fa-solid fa-trash"></i>
@@ -1230,7 +1253,7 @@ async function loadDraftOrders() {
               <p class="text-xs text-slate-400 mt-1">${escapeHtml(o.description || 'Açıklama yok')} • <i class="fa-regular fa-clock text-[10px]"></i> ${o.updated_at.slice(0, 16).replace('T', ' ')}</p>
             </div>
             <div class="text-right">
-              <span class="text-xl font-bold text-emerald-400">~${o.total_estimated_price || 0} TL</span>
+              <span class="text-xl font-bold text-emerald-400">~${formatPrice(o.total_estimated_price)}</span>
               <span class="text-xs text-slate-500 block">${o.item_count} Kalem (${o.total_quantity} Adet)</span>
             </div>
           </div>
@@ -1244,7 +1267,7 @@ async function loadDraftOrders() {
                   <div class="min-w-0 flex-1">
                     <p class="font-medium text-slate-200 truncate" title="${escapeHtml(it.title)}">${escapeHtml(it.title)}</p>
                     <div class="flex items-center gap-2 text-[11px] text-slate-400 mt-1">
-                      <span class="text-emerald-400 font-mono font-medium">${it.price || 'Fiyat Yok'}</span>
+                      <span class="text-emerald-400 font-mono font-medium">${formatPrice(it.price_value || it.price)}</span>
                       <span class="flex items-center gap-1 bg-slate-900 px-1.5 py-0.5 rounded border border-slate-800">
                         <button onclick="changeDraftItemQuantity(${it.id}, ${it.quantity - 1})" class="w-4 h-4 rounded hover:bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center font-bold" title="1 Azalt">-</button>
                         <span class="text-slate-200 font-semibold px-1">${it.quantity}</span>
