@@ -241,8 +241,102 @@ TOOLS = [
             "type": "object",
             "properties": {}
         }
+    },
+    {
+        "name": "electro_plan_project_draft_order",
+        "description": (
+            "Kullanıcının proje fikrini analiz eder, stoktaki sağlam/arızalı parçaları kontrol eder, "
+            "eksik parçaları Robotistan'da canlı tarar ve doğrudan bir 'Draft (Taslak) Sipariş Listesi' oluşturup kaydeder. "
+            "Kullanıcı bu taslağı web arayüzünde inceleyebilir ve tek tıkla sepete aktarabilir."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "project_description": {
+                    "type": "string",
+                    "description": "Proje fikri veya devre gereksinimi (örn: 'ESP32 ile WiFi kontrollü otomatik çiçek sulama sistemi')"
+                },
+                "auto_create_draft": {
+                    "type": "boolean",
+                    "description": "Eksik parçalar için taslak sipariş listesi otomatik oluşturulup kaydedilsin mi (varsayılan: true)",
+                    "default": True
+                }
+            },
+            "required": ["project_description"]
+        }
+    },
+    {
+        "name": "electro_create_draft_order",
+        "description": (
+            "Robotistan'dan veya başka kaynaklardan alınacak parçalar için yeni bir taslak (draft) sipariş listesi oluşturur."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "title": {"type": "string", "description": "Sipariş taslağının başlığı (örn: 'Akıllı Sera Parça Listesi')"},
+                "description": {"type": "string", "description": "Proje veya sipariş açıklaması"},
+                "items": {
+                    "type": "array",
+                    "description": "Sipariş kalemleri listesi",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "title": {"type": "string", "description": "Ürün adı"},
+                            "product_id": {"type": "integer", "description": "Robotistan PID (varsa)"},
+                            "url": {"type": "string", "description": "Ürün linki"},
+                            "price": {"type": "string", "description": "Fiyat (örn: '45,20 TL')"},
+                            "price_value": {"type": "number", "description": "Sayısal fiyat"},
+                            "quantity": {"type": "integer", "description": "Adet", "default": 1},
+                            "notes": {"type": "string", "description": "Rol veya kullanım notu"}
+                        },
+                        "required": ["title"]
+                    }
+                },
+                "notes": {"type": "string", "description": "Ek notlar"}
+            },
+            "required": ["title"]
+        }
+    },
+    {
+        "name": "electro_list_draft_orders",
+        "description": (
+            "Daha önce AI veya kullanıcı tarafından oluşturulmuş tüm taslak (draft) sipariş listelerini özetler."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "status": {"type": "string", "description": "Filtre: 'draft', 'ready', 'ordered', 'all'", "default": "all"}
+            }
+        }
+    },
+    {
+        "name": "electro_get_draft_order",
+        "description": (
+            "Belirli bir taslak sipariş listesinin tüm kalemlerini, ürün linklerini, fiyatlarını ve stok durumlarını getirir."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "draft_id": {"type": "integer", "description": "Taslak sipariş ID numarası"}
+            },
+            "required": ["draft_id"]
+        }
+    },
+    {
+        "name": "electro_apply_draft_order_to_cart",
+        "description": (
+            "Belirtilen taslak sipariş listesindeki tüm Robotistan ürünlerini tek hamlede aktif alışveriş sepetine aktarır."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "draft_id": {"type": "integer", "description": "Aktarılacak taslak sipariş ID numarası"}
+            },
+            "required": ["draft_id"]
+        }
     }
 ]
+
 
 
 RESOURCES = [
@@ -565,12 +659,125 @@ class MCPServer:
                     }
                 }
 
+            elif tool_name == "electro_plan_project_draft_order":
+                desc = args.get("project_description", "")
+                auto_draft = args.get("auto_create_draft", True)
+                analysis = project_matcher.match_project_components(
+                    project_description=desc,
+                    check_robotistan=True,
+                    auto_create_draft_order=auto_draft
+                )
+                formatted_md = project_matcher.format_project_analysis_markdown(analysis)
+                return {
+                    "jsonrpc": "2.0",
+                    "id": msg_id,
+                    "result": {
+                        "content": [{"type": "text", "text": formatted_md}],
+                        "analysis": analysis,
+                        "draft_order_id": analysis.get("draft_order_id")
+                    }
+                }
+
+            elif tool_name == "electro_create_draft_order":
+                title = args.get("title", "Taslak Sipariş")
+                desc = args.get("description", "")
+                items = args.get("items", [])
+                notes = args.get("notes", "")
+                draft_id = electro_db.create_draft_order(
+                    title=title, description=desc, items=items, notes=notes
+                )
+                msg = f"📋 Taslak sipariş listesi başarıyla oluşturuldu!\n- **ID:** #{draft_id}\n- **Başlık:** {title}\n- **Kalem Sayısı:** {len(items)}\nWeb arayüzünde 'Draft Siparişler' sekmesinden görebilir veya sepete aktarabilirsiniz."
+                return {
+                    "jsonrpc": "2.0",
+                    "id": msg_id,
+                    "result": {
+                        "content": [{"type": "text", "text": msg}],
+                        "draft_order_id": draft_id
+                    }
+                }
+
+            elif tool_name == "electro_list_draft_orders":
+                st = args.get("status", "")
+                orders = electro_db.get_draft_orders(status=st)
+                md = ["# 📋 Kayıtlı Taslak Sipariş Listeleri (Draft Orders)\n"]
+                if not orders:
+                    md.append("Kayıtlı herhangi bir taslak sipariş listesi bulunmuyor.")
+                else:
+                    for o in orders:
+                        md.append(f"- **#{o['id']} - {o['title']}** [{o['status']}]")
+                        md.append(f"  Tahmini Tutar: ~{o['total_estimated_price']} TL | Kalem Sayısı: {o['item_count']} | Tarih: {o['updated_at'][:16]}")
+                        if o.get("description"):
+                            md.append(f"  *Proje:* {o['description']}")
+                        md.append("")
+                return {
+                    "jsonrpc": "2.0",
+                    "id": msg_id,
+                    "result": {
+                        "content": [{"type": "text", "text": "\n".join(md)}],
+                        "draft_orders": orders
+                    }
+                }
+
+            elif tool_name == "electro_get_draft_order":
+                did = args.get("draft_id")
+                order = electro_db.get_draft_order_by_id(did)
+                if not order:
+                    return {
+                        "jsonrpc": "2.0",
+                        "id": msg_id,
+                        "error": {"code": -32602, "message": f"Draft order #{did} bulunamadı."}
+                    }
+
+                md = [f"# 📋 Taslak Sipariş Detayı: #{order['id']} - {order['title']}\n"]
+                md.append(f"- **Durum:** {order['status']}")
+                md.append(f"- **Açıklama:** {order.get('description', '-')}")
+                md.append(f"- **Toplam Kalem:** {order['item_count']} ({order['total_quantity']} adet)")
+                md.append(f"- **Tahmini Toplam Tutar:** ~{order['total_estimated_price']} TL\n")
+                md.append("### Kalemler:")
+                for it in order.get("items", []):
+                    stok_badge = "🟢 Stokta Var" if it.get("in_stock") else "🔴 Tükendi"
+                    link_str = f" | [Robotistan Linki]({it['url']})" if it.get("url") else ""
+                    pid_str = f" [PID: {it['product_id']}]" if it.get("product_id") else ""
+                    md.append(f"- **{it['title']}**{pid_str} — {it['quantity']} Adet x {it.get('price', 'Fiyat Yok')} ({stok_badge}){link_str}")
+                    if it.get("notes"):
+                        md.append(f"  *Not:* {it['notes']}")
+
+                return {
+                    "jsonrpc": "2.0",
+                    "id": msg_id,
+                    "result": {
+                        "content": [{"type": "text", "text": "\n".join(md)}],
+                        "draft_order": order
+                    }
+                }
+
+            elif tool_name == "electro_apply_draft_order_to_cart":
+                did = args.get("draft_id")
+                res = electro_db.apply_draft_order_to_cart(did)
+                if not res.get("success"):
+                    return {
+                        "jsonrpc": "2.0",
+                        "id": msg_id,
+                        "error": {"code": -32602, "message": res.get("error", "Aktarım başarısız")}
+                    }
+
+                msg = f"🛒 **{res['title']}** taslağındaki {res['added_items_count']} parça Robotistan alışveriş sepetinize aktarıldı!"
+                return {
+                    "jsonrpc": "2.0",
+                    "id": msg_id,
+                    "result": {
+                        "content": [{"type": "text", "text": msg}],
+                        "result": res
+                    }
+                }
+
             else:
                 return {
                     "jsonrpc": "2.0",
                     "id": msg_id,
                     "error": {"code": -32601, "message": f"Bilinmeyen tool: {tool_name}"}
                 }
+
 
         except Exception as e:
             logging.error(f"Tool yürütme hatası: {e}", exc_info=True)

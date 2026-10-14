@@ -261,6 +261,40 @@ def match_project_components(
                 "in_stock_found": len(recommended_products) > 0
             })
 
+    draft_order_id = None
+    if auto_create_draft_order and missing_items:
+        draft_items = []
+        for rec in robotistan_recommendations:
+            prods = rec.get("found_products", [])
+            if prods:
+                best = prods[0]
+                draft_items.append({
+                    "title": best.get("title", rec["missing_part_role"]),
+                    "product_id": best.get("product_id"),
+                    "url": best.get("url", ""),
+                    "price": best.get("price", ""),
+                    "price_value": best.get("price_value", 0.0),
+                    "quantity": 1,
+                    "in_stock": best.get("in_stock", True),
+                    "source": "robotistan",
+                    "notes": f"Gereksinim: {rec['missing_part_role']}"
+                })
+            else:
+                draft_items.append({
+                    "title": rec["missing_part_role"],
+                    "source": "other",
+                    "notes": f"Robotistan'da doğrudan stok bulunamadı ({rec['searched_query']})"
+                })
+
+        short_title = project_description[:45] + ("..." if len(project_description) > 45 else "")
+        draft_order_id = electro_db.create_draft_order(
+            title=f"{short_title} (BOM Taslağı)",
+            description=project_description,
+            items=draft_items,
+            notes="AI proje analizi tarafından otomatik oluşturulan eksik parça taslak siparişi.",
+            db_path=db_path
+        )
+
     return {
         "project_description": project_description,
         "available_working_count": len(available_working),
@@ -276,8 +310,10 @@ def match_project_components(
             } for mi in missing_items
         ],
         "robotistan_recommendations": robotistan_recommendations,
-        "estimated_robotistan_cost_tl": round(total_estimated_cost, 2)
+        "estimated_robotistan_cost_tl": round(total_estimated_cost, 2),
+        "draft_order_id": draft_order_id
     }
+
 
 
 def format_project_analysis_markdown(analysis: Dict[str, Any]) -> str:
@@ -327,8 +363,12 @@ def format_project_analysis_markdown(analysis: Dict[str, Any]) -> str:
             
             if analysis.get("estimated_robotistan_cost_tl", 0) > 0:
                 md.append(f"\n💰 **Robotistan Tahmini Eksik Parça Sepet Tutarı:** ~{analysis['estimated_robotistan_cost_tl']} TL")
+
+        if analysis.get("draft_order_id"):
+            md.append(f"\n📋 **Taslak Sipariş Listesi Kaydedildi:** `Draft #{analysis['draft_order_id']}`\n*Bu listeyi web arayüzündeki 'Draft Siparişler' sekmesinden görebilir veya tek tıkla doğrudan Robotistan sepetinize aktarabilirsiniz.*")
     else:
         md.append("\n## 🛒 Eksik Parçalar")
         md.append("Tebrikler! Proje için gereken tüm parçalar elinizdeki sağlam stokta mevcut! 🎉\n")
 
     return "\n".join(md)
+

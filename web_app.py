@@ -110,6 +110,23 @@ class ElectroRequestHandler(http.server.SimpleHTTPRequestHandler):
             self.send_json(cart_data)
             return
 
+        # 8. API: Draft (Taslak) Sipariş Listesi & Detayı
+        elif path == "/api/draft-orders":
+            st = params.get("status", [""])[0]
+            orders = electro_db.get_draft_orders(status=st)
+            self.send_json(orders)
+            return
+        elif path.startswith("/api/draft-orders/"):
+            parts = path.split("/")
+            draft_id = int(parts[3])
+            order = electro_db.get_draft_order_by_id(draft_id)
+            if order:
+                self.send_json(order)
+            else:
+                self.send_json({"error": "Taslak sipariş bulunamadı"}, status=404)
+            return
+
+
         # Statik dosya sunumu (HTML, CSS, JS)
         if path == "/" or not os.path.exists(os.path.join(STATIC_DIR, path.lstrip("/"))):
             self.path = "/index.html"
@@ -192,6 +209,34 @@ class ElectroRequestHandler(http.server.SimpleHTTPRequestHandler):
             self.send_json({"success": True, "id": item_id, "message": "Ürün sepete eklendi"})
             return
 
+        # 6. API: Draft Sipariş Oluştur
+        elif path == "/api/draft-orders":
+            title = data.get("title", "Yeni Taslak Sipariş")
+            desc = data.get("description", "")
+            items = data.get("items", [])
+            notes = data.get("notes", "")
+            draft_id = electro_db.create_draft_order(
+                title=title, description=desc, items=items, notes=notes
+            )
+            self.send_json({"success": True, "draft_id": draft_id, "message": "Taslak sipariş listesi oluşturuldu"})
+            return
+
+        # 7. API: Draft Siparişe Kalem Ekle
+        elif path.startswith("/api/draft-orders/") and path.endswith("/items"):
+            parts = path.split("/")
+            draft_id = int(parts[3])
+            item_id = electro_db.add_item_to_draft_order(draft_id, data)
+            self.send_json({"success": True, "item_id": item_id, "message": "Kalem eklendi"})
+            return
+
+        # 8. API: Draft Siparişi Sepete Aktar
+        elif path.startswith("/api/draft-orders/") and path.endswith("/apply-to-cart"):
+            parts = path.split("/")
+            draft_id = int(parts[3])
+            result = electro_db.apply_draft_order_to_cart(draft_id)
+            self.send_json(result)
+            return
+
         self.send_json({"error": "Not found"}, status=404)
 
     def do_PUT(self):
@@ -223,6 +268,21 @@ class ElectroRequestHandler(http.server.SimpleHTTPRequestHandler):
                 self.send_json({"error": str(e)}, status=400)
             return
 
+        elif path.startswith("/api/draft-orders/") and path.endswith("/status"):
+            parts = path.split("/")
+            draft_id = int(parts[3])
+            length = int(self.headers.get("Content-Length", 0))
+            body = self.rfile.read(length).decode("utf-8") if length > 0 else "{}"
+            try:
+                data = json.loads(body)
+                st = data.get("status", "draft")
+                notes = data.get("notes", "")
+                success = electro_db.update_draft_order_status(draft_id, st, notes)
+                self.send_json({"success": success})
+            except Exception as e:
+                self.send_json({"error": str(e)}, status=400)
+            return
+
         self.send_json({"error": "Not found"}, status=404)
 
     def do_DELETE(self):
@@ -246,7 +306,14 @@ class ElectroRequestHandler(http.server.SimpleHTTPRequestHandler):
             self.send_json({"success": success})
             return
 
+        elif path.startswith("/api/draft-orders/"):
+            draft_id = int(path.split("/")[3])
+            success = electro_db.delete_draft_order(draft_id)
+            self.send_json({"success": success})
+            return
+
         self.send_json({"error": "Not found"}, status=404)
+
 
 
 def run_server(port: int = PORT):

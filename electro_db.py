@@ -118,6 +118,38 @@ def init_db(db_path: str = DB_PATH) -> None:
             )
         """)
 
+        # AI Destekli Draft (Taslak) Sipariş ve Parça Listeleri
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS draft_orders (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                title TEXT NOT NULL,
+                description TEXT DEFAULT '',
+                status TEXT NOT NULL DEFAULT 'draft', -- 'draft', 'ready', 'ordered', 'archived'
+                total_estimated_price REAL DEFAULT 0.0,
+                notes TEXT DEFAULT '',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS draft_order_items (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                draft_order_id INTEGER NOT NULL,
+                title TEXT NOT NULL,
+                product_id INTEGER,
+                url TEXT DEFAULT '',
+                price TEXT DEFAULT '',
+                price_value REAL DEFAULT 0.0,
+                quantity INTEGER NOT NULL DEFAULT 1,
+                in_stock BOOLEAN DEFAULT 1,
+                source TEXT DEFAULT 'robotistan', -- 'robotistan', 'inventory', 'other'
+                matched_inventory_id INTEGER,
+                notes TEXT DEFAULT '',
+                FOREIGN KEY (draft_order_id) REFERENCES draft_orders(id) ON DELETE CASCADE
+            )
+        """)
+
         # Arama ve hız için indeksler
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_comp_name ON components(name)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_comp_category ON components(category)")
@@ -387,11 +419,14 @@ def clear_all_data(db_path: str = DB_PATH) -> None:
         cursor.execute("DELETE FROM stock_logs")
         cursor.execute("DELETE FROM components")
         cursor.execute("DELETE FROM cart_items")
+        cursor.execute("DELETE FROM draft_order_items")
+        cursor.execute("DELETE FROM draft_orders")
         try:
-            cursor.execute("DELETE FROM sqlite_sequence WHERE name IN ('components', 'stock_logs', 'projects', 'project_components', 'cart_items')")
+            cursor.execute("DELETE FROM sqlite_sequence WHERE name IN ('components', 'stock_logs', 'projects', 'project_components', 'cart_items', 'draft_orders', 'draft_order_items')")
         except sqlite3.OperationalError:
             pass
         conn.commit()
+
 
 
 # --- Robotistan Atölye Sepeti Fonksiyonları ---
@@ -474,4 +509,198 @@ def clear_cart(db_path: str = DB_PATH) -> None:
         cursor = conn.cursor()
         cursor.execute("DELETE FROM cart_items")
         conn.commit()
+
+
+# --- AI Destekli Draft (Taslak) Sipariş ve Parça Listesi Fonksiyonları ---
+
+def create_draft_order(
+    title: str,
+    description: str = "",
+    items: Optional[List[Dict[str, Any]]] = None,
+    notes: str = "",
+    status: str = "draft",
+    db_path: str = DB_PATH
+) -> int:
+    """Yeni bir taslak sipariş / parça listesi oluşturur."""
+    with get_connection(db_path) as conn:
+        cursor = conn.cursor()
+        now = datetime.now().isoformat()
+        
+        # Toplam tahmini tutarı hesapla
+        total_price = 0.0
+        if items:
+            for it in items:
+                pv = it.get("price_value") or 0.0
+                qty = it.get("quantity", 1)
+                total_price += pv * qty
+
+        cursor.execute("""
+            INSERT INTO draft_orders (title, description, status, total_estimated_price, notes, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, (title.strip(), description.strip(), status, round(total_price, 2), notes.strip(), now, now))
+        draft_id = cursor.lastrowid
+
+        # Kalemleri ekle
+        if items:
+            for it in items:
+                cursor.execute("""
+                    INSERT INTO draft_order_items (
+                        draft_order_id, title, product_id, url, price, price_value,
+                        quantity, in_stock, source, matched_inventory_id, notes
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    draft_id,
+                    it.get("title", "").strip(),
+                    it.get("product_id"),
+                    it.get("url", "").strip(),
+                    it.get("price", "").strip(),
+                    it.get("price_value") or 0.0,
+                    int(it.get("quantity", 1)),
+                    1 if it.get("in_stock", True) else 0,
+                    it.get("source", "robotistan"),
+                    it.get("matched_inventory_id"),
+                    it.get("notes", "").strip()
+                ))
+
+        conn.commit()
+        return draft_id
+
+
+def get_draft_orders(status: str = "", limit: int = 50, db_path: str = DB_PATH) -> List[Dict[str, Any]]:
+    """Tüm taslak siparişleri getirir."""
+    with get_connection(db_path) as conn:
+        cursor = conn.cursor()
+        if status and status != "all":
+            cursor.execute("""
+                SELECT * FROM draft_orders 
+                WHERE status = ? 
+                ORDER BY updated_at DESC LIMIT ?
+            """, (status, limit))
+        else:
+            cursor.execute("""
+                SELECT * FROM draft_orders 
+                ORDER BY updated_at DESC LIMIT ?
+            """, (limit,))
+        
+        orders = [dict(r) for r in cursor.fetchall()]
+        
+        # Her siparişin kalem sayısını ekle
+        for o in orders:
+            cursor.execute("SELECT COUNT(*) as item_count, SUM(quantity) as total_qty FROM draft_order_items WHERE draft_order_id = ?", (o["id"],))
+            agg = cursor.fetchone()
+            o["item_count"] = agg["item_count"] or 0
+            o["total_quantity"] = agg["total_qty"] or 0
+
+        return orders
+
+
+def get_draft_order_by_id(draft_id: int, db_path: str = DB_PATH) -> Optional[Dict[str, Any]]:
+    """Belirli bir taslak siparişin detaylarını ve tüm ürün kalemlerini getirir."""
+    with get_connection(db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM draft_orders WHERE id = ?", (draft_id,))
+        order_row = cursor.fetchone()
+        if not order_row:
+            return None
+
+        order = dict(order_row)
+        cursor.execute("SELECT * FROM draft_order_items WHERE draft_order_id = ? ORDER BY id ASC", (draft_id,))
+        items = [dict(r) for r in cursor.fetchall()]
+        order["items"] = items
+        order["item_count"] = len(items)
+        order["total_quantity"] = sum(it["quantity"] for it in items)
+        return order
+
+
+def add_item_to_draft_order(draft_id: int, item: Dict[str, Any], db_path: str = DB_PATH) -> int:
+    """Mevcut bir taslak siparişe yeni ürün kalemi ekler."""
+    with get_connection(db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO draft_order_items (
+                draft_order_id, title, product_id, url, price, price_value,
+                quantity, in_stock, source, matched_inventory_id, notes
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            draft_id,
+            item.get("title", "").strip(),
+            item.get("product_id"),
+            item.get("url", "").strip(),
+            item.get("price", "").strip(),
+            item.get("price_value") or 0.0,
+            int(item.get("quantity", 1)),
+            1 if item.get("in_stock", True) else 0,
+            item.get("source", "robotistan"),
+            item.get("matched_inventory_id"),
+            item.get("notes", "").strip()
+        ))
+        item_id = cursor.lastrowid
+
+        # Taslak siparişin toplam tutarını ve updated_at tarihini güncelle
+        cursor.execute("""
+            UPDATE draft_orders 
+            SET total_estimated_price = (
+                SELECT SUM(price_value * quantity) FROM draft_order_items WHERE draft_order_id = ?
+            ), updated_at = ?
+            WHERE id = ?
+        """, (draft_id, datetime.now().isoformat(), draft_id))
+
+        conn.commit()
+        return item_id
+
+
+def delete_draft_order(draft_id: int, db_path: str = DB_PATH) -> bool:
+    """Taslak siparişi siler."""
+    with get_connection(db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM draft_order_items WHERE draft_order_id = ?", (draft_id,))
+        cursor.execute("DELETE FROM draft_orders WHERE id = ?", (draft_id,))
+        conn.commit()
+        return cursor.rowcount > 0
+
+
+def update_draft_order_status(draft_id: int, status: str, notes: str = "", db_path: str = DB_PATH) -> bool:
+    """Taslak sipariş durumunu günceller (draft, ready, ordered, archived)."""
+    with get_connection(db_path) as conn:
+        cursor = conn.cursor()
+        now = datetime.now().isoformat()
+        if notes:
+            cursor.execute("UPDATE draft_orders SET status = ?, notes = ?, updated_at = ? WHERE id = ?", (status, notes, now, draft_id))
+        else:
+            cursor.execute("UPDATE draft_orders SET status = ?, updated_at = ? WHERE id = ?", (status, now, draft_id))
+        conn.commit()
+        return cursor.rowcount > 0
+
+
+def apply_draft_order_to_cart(draft_id: int, db_path: str = DB_PATH) -> Dict[str, Any]:
+    """Taslak siparişteki tüm Robotistan ürünlerini doğrudan sepete aktarır."""
+    order = get_draft_order_by_id(draft_id, db_path=db_path)
+    if not order:
+        return {"success": False, "error": "Taslak sipariş bulunamadı"}
+
+    added_count = 0
+    for it in order.get("items", []):
+        if it.get("source") == "robotistan" or it.get("url"):
+            add_to_cart(
+                title=it["title"],
+                url=it.get("url", ""),
+                price=it.get("price", "Fiyat Yok"),
+                price_value=it.get("price_value", 0.0),
+                product_id=it.get("product_id"),
+                quantity=it.get("quantity", 1),
+                db_path=db_path
+            )
+            added_count += 1
+
+    # Durumu 'ready' veya güncel yap
+    update_draft_order_status(draft_id, "ready", notes="Sepete aktarıldı", db_path=db_path)
+
+    return {
+        "success": True,
+        "draft_id": draft_id,
+        "title": order["title"],
+        "added_items_count": added_count,
+        "message": f"'{order['title']}' taslağındaki {added_count} ürün Robotistan sepetine aktarıldı!"
+    }
+
 

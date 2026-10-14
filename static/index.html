@@ -82,8 +82,13 @@
         <i class="fa-solid fa-cart-shopping text-emerald-400"></i> Robotistan Sepetim
         <span id="badge-cart-count" class="text-xs bg-emerald-500/20 text-emerald-300 px-1.5 py-0.2 rounded-full border border-emerald-500/30">0</span>
       </button>
+      <button onclick="switchTab('drafts')" id="tab-btn-drafts" class="tab-btn px-4 py-2 text-sm font-medium rounded-lg flex items-center gap-2 transition">
+        <i class="fa-solid fa-clipboard-list text-purple-400"></i> Draft Siparişler
+        <span id="badge-drafts-count" class="text-xs bg-purple-500/20 text-purple-300 px-1.5 py-0.2 rounded-full border border-purple-500/30">0</span>
+      </button>
     </div>
   </header>
+
 
   <!-- Ana İçerik -->
   <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-1 w-full space-y-6">
@@ -443,7 +448,29 @@
         </div>
       </div>
     </section>
+
+    <!-- TAB 7: AI VE KULLANICI DRAFT SİPARİŞLERİ -->
+    <section id="tab-drafts" class="tab-content hidden space-y-6">
+      <div class="bg-gradient-to-r from-slate-900 to-slate-900/90 border border-slate-800 rounded-2xl p-6 shadow-xl relative overflow-hidden">
+        <div class="max-w-3xl">
+          <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-purple-500/10 text-purple-400 border border-purple-500/20 mb-3">
+            <i class="fa-solid fa-clipboard-list"></i> AI Destekli Taslak Siparişler & BOM Listeleri
+          </span>
+          <h2 class="text-xl font-bold text-white">Draft Sipariş Listeleri</h2>
+          <p class="text-sm text-slate-300 mt-1">
+            Yapay zeka botları (Cursor, Claude Desktop vb.) veya sizin tarafınızdan oluşturulan proje bazlı malzeme ve sipariş taslakları burada saklanır. 
+            Tek tıkla inceleyebilir, ürünleri Robotistan sepetinize aktarabilir veya sipariş durumunu takip edebilirsiniz.
+          </p>
+        </div>
+      </div>
+
+      <!-- Taslak Siparişler Listesi Container -->
+      <div id="draft-orders-container" class="space-y-4">
+        <!-- JS ile dolacak -->
+      </div>
+    </section>
   </main>
+
 
 
   <!-- Parça Ekleme / Düzenleme Modalı -->

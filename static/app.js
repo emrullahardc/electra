@@ -31,6 +31,7 @@ document.addEventListener("DOMContentLoaded", () => {
   loadStats();
   loadComponents();
   loadCartBadge();
+  loadDraftsBadge();
 });
 
 // Sekme Değiştirme
@@ -49,7 +50,9 @@ function switchTab(tabId) {
   else if (tabId === "defective") loadDefectiveComponents();
   else if (tabId === "lowstock") loadLowStockComponents();
   else if (tabId === "cart") loadCart();
+  else if (tabId === "drafts") loadDraftOrders();
 }
+
 
 // İstatistikleri Yükle
 async function loadStats() {
@@ -867,7 +870,6 @@ if (typeof addToCart === 'function') {
   // Modal veya prompt ile kullanıcıya seçenek sun
   const bookmarkletCode = `javascript:(function(){const pids=${JSON.stringify(pids)};const qtys=${JSON.stringify(qtys)};if(typeof addToCart==='function'){addToCart({productId:pids,variantId:pids.map(()=>0),quantity:qtys,redirect:'/sepet'});}else{window.location.href='https://www.robotistan.com';}})();`;
 
-  // Panoya kopyala
   navigator.clipboard.writeText(scriptCode).then(() => {
     alert(
       "⚡ Robotistan Çoklu Sepet Kodu Panoya Kopyalandı!\n\n" +
@@ -881,4 +883,208 @@ if (typeof addToCart === 'function') {
     window.open("https://www.robotistan.com/sepet", "_blank");
   });
 }
+
+// ==========================================
+// 📋 DRAFT (TASLAK) SİPARİŞ YÖNETİMİ
+// ==========================================
+
+async function loadDraftsBadge() {
+  try {
+    const res = await fetch("/api/draft-orders");
+    const data = await res.json();
+    const badge = document.getElementById("badge-drafts-count");
+    if (badge) badge.innerText = (data && data.length) ? data.length : 0;
+  } catch (err) {
+    console.error("Draft rozet hatası:", err);
+  }
+}
+
+async function loadDraftOrders() {
+  const container = document.getElementById("draft-orders-container");
+  container.innerHTML = '<div class="py-12 text-center text-slate-500"><i class="fa-solid fa-spinner fa-spin text-2xl text-purple-500 mb-2"></i><p>Taslak siparişler yükleniyor...</p></div>';
+
+  try {
+    const res = await fetch("/api/draft-orders");
+    const orders = await res.json();
+
+    loadDraftsBadge();
+
+    if (!orders || orders.length === 0) {
+      container.innerHTML = `
+        <div class="bg-slate-900 border border-slate-800 rounded-xl py-12 px-4 text-center text-slate-500 space-y-2">
+          <i class="fa-solid fa-clipboard-question text-4xl mb-2 text-slate-600"></i>
+          <p class="font-medium text-slate-300">Henüz kayıtlı bir taslak sipariş listeniz bulunmuyor.</p>
+          <p class="text-xs text-slate-400 max-w-md mx-auto">
+            AI Asistanına (Cursor, Claude vb.) <i>"Şu proje için eksikleri çıkar ve Robotistan taslak siparişi oluştur"</i> diyebilir veya Proje Asistanı sekmesinden analiz yapıp taslak olarak kaydedebilirsiniz.
+          </p>
+        </div>
+      `;
+      return;
+    }
+
+    // Her taslağın detayını çekerek kart oluştur
+    const orderCards = await Promise.all(orders.map(async (o) => {
+      const detailRes = await fetch(`/api/draft-orders/${o.id}`);
+      const detail = await detailRes.json();
+      const items = detail.items || [];
+
+      const statusMap = {
+        draft: { text: "Taslak (Draft)", class: "bg-purple-500/20 text-purple-300 border-purple-500/30" },
+        ready: { text: "Sepete Aktarıldı", class: "bg-emerald-500/20 text-emerald-300 border-emerald-500/30" },
+        ordered: { text: "Sipariş Verildi", class: "bg-cyan-500/20 text-cyan-300 border-cyan-500/30" },
+        archived: { text: "Arşiv", class: "bg-slate-700/40 text-slate-400 border-slate-600/30" }
+      };
+      const st = statusMap[o.status] || statusMap.draft;
+
+      return `
+        <div class="bg-slate-900 border border-slate-800 hover:border-purple-500/40 rounded-xl p-5 space-y-4 transition shadow-sm">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-3">
+            <div>
+              <div class="flex items-center gap-2">
+                <h3 class="font-bold text-white text-base">#${o.id} - ${escapeHtml(o.title)}</h3>
+                <span class="text-xs px-2 py-0.5 rounded border font-medium ${st.class}">${st.text}</span>
+              </div>
+              <p class="text-xs text-slate-400 mt-1">${escapeHtml(o.description || 'Açıklama yok')} • <i class="fa-regular fa-clock text-[10px]"></i> ${o.updated_at.slice(0, 16).replace('T', ' ')}</p>
+            </div>
+            <div class="text-right">
+              <span class="text-xl font-bold text-emerald-400">~${o.total_estimated_price || 0} TL</span>
+              <span class="text-xs text-slate-500 block">${o.item_count} Kalem (${o.total_quantity} Adet)</span>
+            </div>
+          </div>
+
+          <!-- Ürün Kalemleri Listesi -->
+          <div class="space-y-2">
+            <h4 class="text-xs font-semibold text-slate-400 uppercase tracking-wide">Sipariş Edilecek Kalemler:</h4>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
+              ${items.map(it => `
+                <div class="bg-slate-950 p-2.5 rounded-lg border border-slate-800 flex items-center justify-between gap-2">
+                  <div class="min-w-0 flex-1">
+                    <p class="font-medium text-slate-200 truncate" title="${escapeHtml(it.title)}">${escapeHtml(it.title)}</p>
+                    <div class="flex items-center gap-2 text-[11px] text-slate-400 mt-0.5">
+                      <span class="text-emerald-400 font-mono">${it.price || 'Fiyat Yok'}</span>
+                      <span>• Adet: <b>${it.quantity}</b></span>
+                      ${it.notes ? `<span class="text-slate-500 italic truncate">• ${escapeHtml(it.notes)}</span>` : ''}
+                    </div>
+                  </div>
+                  ${it.url ? `
+                    <a href="${it.url}" target="_blank" class="p-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300" title="Robotistan'da Gör">
+                      <i class="fa-solid fa-arrow-up-right-from-square text-[10px]"></i>
+                    </a>
+                  ` : ''}
+                </div>
+              `).join("")}
+            </div>
+          </div>
+
+          <!-- Aksiyonlar -->
+          <div class="pt-3 border-t border-slate-800 flex flex-wrap items-center justify-between gap-2">
+            <div class="flex items-center gap-2">
+              <button onclick="applyDraftOrderToCart(${o.id})" class="px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-xs flex items-center gap-1.5 shadow transition">
+                <i class="fa-solid fa-cart-plus"></i> Bu Listeyi Sepete Aktar
+              </button>
+            </div>
+            <button onclick="deleteDraftOrderPrompt(${o.id})" class="p-2 rounded hover:bg-rose-950/30 text-slate-400 hover:text-rose-400 transition" title="Taslağı Sil">
+              <i class="fa-solid fa-trash"></i>
+            </button>
+          </div>
+        </div>
+      `;
+    }));
+
+    container.innerHTML = orderCards.join("");
+
+  } catch (err) {
+    console.error("Draft yükleme hatası:", err);
+    container.innerHTML = `<div class="py-8 text-center text-rose-400">Taslak siparişler yüklenirken hata oluştu: ${err.message}</div>`;
+  }
+}
+
+async function applyDraftOrderToCart(draftId) {
+  try {
+    const res = await fetch(`/api/draft-orders/${draftId}/apply-to-cart`, { method: "POST" });
+    const data = await res.json();
+    if (data.success) {
+      loadCartBadge();
+      loadDraftsBadge();
+      showToast(data.message || "Taslak sipariş sepete aktarıldı!");
+      switchTab("cart");
+    } else {
+      alert("Hata: " + (data.error || "Aktarım başarısız"));
+    }
+  } catch (err) {
+    console.error("Sepete aktarma hatası:", err);
+  }
+}
+
+async function deleteDraftOrderPrompt(draftId) {
+  if (!confirm(`Draft #${draftId} numaralı taslak sipariş listesini silmek istediğinize emin misiniz?`)) return;
+  try {
+    const res = await fetch(`/api/draft-orders/${draftId}`, { method: "DELETE" });
+    if (res.ok) {
+      loadDraftOrders();
+      loadDraftsBadge();
+      showToast("Taslak sipariş listesi silindi");
+    }
+  } catch (err) {
+    console.error("Taslak silme hatası:", err);
+  }
+}
+
+async function saveDraftFromAnalysis() {
+  if (!window.lastProjectAnalysis || !window.lastProjectAnalysis.missing_items) {
+    alert("Kayıt edilecek analiz bulunamadı.");
+    return;
+  }
+
+  const analysis = window.lastProjectAnalysis;
+  const draftItems = [];
+  (analysis.robotistan_recommendations || []).forEach(rec => {
+    const prods = rec.found_products || [];
+    if (prods.length > 0) {
+      const best = prods[0];
+      draftItems.append ? null : draftItems.push({
+        title: best.title,
+        product_id: best.product_id,
+        url: best.url,
+        price: best.price,
+        price_value: best.price_value || 0.0,
+        quantity: 1,
+        in_stock: best.in_stock,
+        source: "robotistan",
+        notes: `Gereksinim: ${rec.missing_part_role}`
+      });
+    } else {
+      draftItems.push({
+        title: rec.missing_part_role,
+        source: "other",
+        notes: `Robotistan'da stok yok (${rec.searched_query})`
+      });
+    }
+  });
+
+  const title = prompt("Taslak sipariş listesi için bir başlık girin:", `${analysis.project_description.slice(0, 35)}... (BOM)`);
+  if (!title) return;
+
+  try {
+    const res = await fetch("/api/draft-orders", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title: title.trim(),
+        description: analysis.project_description,
+        items: draftItems,
+        notes: "Proje Asistanı üzerinden kaydedildi."
+      })
+    });
+    const data = await res.json();
+    if (data.success) {
+      loadDraftsBadge();
+      showToast("Taslak sipariş listesi oluşturuldu!");
+      switchTab("drafts");
+    }
+  } catch (err) {
+    console.error("Taslak kaydetme hatası:", err);
+  }
+}
+
 
