@@ -604,7 +604,7 @@
         <span class="font-mono text-emerald-400/80 text-xs">256-bit Korumalı</span>
       </div>
 
-      <form id="login-form" onsubmit="handleLoginSubmit(event)" class="space-y-4">
+      <form id="login-form" onsubmit="event.preventDefault(); handleLoginSubmit(event); return false;" class="space-y-4">
         <div id="login-error-box" class="hidden p-3 rounded-xl bg-rose-950/40 border border-rose-500/40 text-rose-300 text-xs flex items-center gap-2">
           <i class="fa-solid fa-triangle-exclamation text-rose-400"></i>
           <span id="login-error-msg">Hatalı kullanıcı adı veya şifre!</span>
@@ -628,6 +628,7 @@
               <i class="fa-solid fa-key text-xs"></i>
             </span>
             <input type="password" id="login-password" required placeholder="••••••••"
+                   onkeydown="if(event.key==='Enter'){event.preventDefault(); handleLoginSubmit(event);}"
                    class="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-10 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-emerald-500 transition">
             <button type="button" onclick="togglePasswordVisibility('login-password')" class="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-500 hover:text-slate-300">
               <i class="fa-solid fa-eye text-xs" id="login-password-eye"></i>
@@ -635,7 +636,7 @@
           </div>
         </div>
 
-        <button type="submit" id="login-submit-btn" class="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-medium text-sm shadow-lg shadow-emerald-600/30 flex items-center justify-center gap-2 transition mt-2">
+        <button type="button" onclick="handleLoginSubmit(event)" id="login-submit-btn" class="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-medium text-sm shadow-lg shadow-emerald-600/30 flex items-center justify-center gap-2 transition mt-2 cursor-pointer">
           <i class="fa-solid fa-arrow-right-to-bracket"></i>
           <span>Giriş Yap</span>
         </button>
@@ -653,7 +654,7 @@
         <button onclick="closeChangePasswordModal()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
       </div>
 
-      <form id="change-password-form" onsubmit="handleChangePasswordSubmit(event)" class="p-6 space-y-4 text-sm">
+      <form id="change-password-form" onsubmit="event.preventDefault(); handleChangePasswordSubmit(event); return false;" class="p-6 space-y-4 text-sm">
         <div id="cp-error-box" class="hidden p-3 rounded-xl bg-rose-950/40 border border-rose-500/40 text-rose-300 text-xs flex items-center gap-2">
           <i class="fa-solid fa-triangle-exclamation"></i>
           <span id="cp-error-msg">Hata oluştu</span>

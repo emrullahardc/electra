@@ -29,29 +29,43 @@ let allComponentsCache = [];
 
 // Fetch Interceptor: Her isteğe otomatik Bearer token ekler ve 401 durumunda login ekranını açar
 const originalFetch = window.fetch;
-window.fetch = async function(input, init = {}) {
+window.fetch = async function(input, init) {
   init = init || {};
-  init.headers = init.headers || {};
   
   const token = localStorage.getItem("electra_auth_token");
   if (token) {
-    if (init.headers instanceof Headers) {
-      if (!init.headers.has("Authorization")) {
-        init.headers.set("Authorization", `Bearer ${token}`);
+    if (typeof input === "object" && input instanceof Request) {
+      if (!input.headers.has("Authorization")) {
+        input.headers.set("Authorization", `Bearer ${token}`);
       }
-    } else if (Array.isArray(init.headers)) {
-      init.headers.push(["Authorization", `Bearer ${token}`]);
     } else {
-      if (!init.headers["Authorization"]) {
-        init.headers["Authorization"] = `Bearer ${token}`;
+      if (!init.headers) {
+        init.headers = {};
+      }
+      if (init.headers instanceof Headers) {
+        if (!init.headers.has("Authorization")) {
+          init.headers.set("Authorization", `Bearer ${token}`);
+        }
+      } else if (Array.isArray(init.headers)) {
+        init.headers.push(["Authorization", `Bearer ${token}`]);
+      } else {
+        if (!init.headers["Authorization"]) {
+          init.headers["Authorization"] = `Bearer ${token}`;
+        }
       }
     }
   }
 
   const res = await originalFetch(input, init);
+
   if (res.status === 401) {
-    const urlStr = typeof input === "string" ? input : (input.url || "");
+    let urlStr = "";
+    if (typeof input === "string") urlStr = input;
+    else if (input instanceof URL) urlStr = input.pathname;
+    else if (typeof input === "object" && input) urlStr = input.url || input.href || "";
+
     if (!urlStr.includes("/api/auth/login") && !urlStr.includes("/api/auth/check")) {
+      console.warn("401 Unauthorized for URL:", urlStr);
       localStorage.removeItem("electra_auth_token");
       showLoginScreen("Oturum süreniz doldu veya giriş yapmanız gerekiyor.");
     }
@@ -83,7 +97,10 @@ async function checkAuthStatus() {
 
 function showLoginScreen(errorMsg = "") {
   const screen = document.getElementById("login-screen");
-  if (screen) screen.classList.remove("hidden");
+  if (screen) {
+    screen.style.setProperty("display", "flex", "important");
+    screen.classList.remove("hidden");
+  }
   const badge = document.getElementById("auth-user-badge");
   if (badge) badge.classList.add("hidden");
   
@@ -99,7 +116,10 @@ function showLoginScreen(errorMsg = "") {
 
 function hideLoginScreen(username = "admin") {
   const screen = document.getElementById("login-screen");
-  if (screen) screen.classList.add("hidden");
+  if (screen) {
+    screen.style.setProperty("display", "none", "important");
+    screen.classList.add("hidden");
+  }
   const badge = document.getElementById("auth-user-badge");
   if (badge) badge.classList.remove("hidden");
   const userSpan = document.getElementById("current-username");
@@ -107,24 +127,27 @@ function hideLoginScreen(username = "admin") {
 }
 
 async function handleLoginSubmit(e) {
-  e.preventDefault();
+  if (e) {
+    e.preventDefault();
+    e.stopPropagation();
+  }
   const usernameInput = document.getElementById("login-username");
   const passwordInput = document.getElementById("login-password");
   const errBox = document.getElementById("login-error-box");
   const errMsg = document.getElementById("login-error-msg");
   const submitBtn = document.getElementById("login-submit-btn");
 
-  const username = usernameInput.value.trim();
-  const password = passwordInput.value;
+  const username = usernameInput ? usernameInput.value.trim() : "admin";
+  const password = passwordInput ? passwordInput.value : "";
 
-  if (!username || !password) return;
+  if (!username || !password) return false;
 
   submitBtn.disabled = true;
   submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Giriş Yapılıyor...';
-  errBox.classList.add("hidden");
+  if (errBox) errBox.classList.add("hidden");
 
   try {
-    const res = await fetch("/api/auth/login", {
+    const res = await originalFetch("/api/auth/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ username, password })
@@ -140,16 +163,18 @@ async function handleLoginSubmit(e) {
       loadCartBadge();
       loadDraftsBadge();
     } else {
-      errBox.classList.remove("hidden");
-      errMsg.innerText = data.error || "Giriş başarısız. Lütfen bilgilerinizi kontrol edin.";
+      if (errBox) errBox.classList.remove("hidden");
+      if (errMsg) errMsg.innerText = data.error || "Giriş başarısız. Lütfen bilgilerinizi kontrol edin.";
     }
   } catch (err) {
-    errBox.classList.remove("hidden");
-    errMsg.innerText = "Sunucuya bağlanılamadı. Lütfen tekrar deneyin.";
+    console.error("Login hatası:", err);
+    if (errBox) errBox.classList.remove("hidden");
+    if (errMsg) errMsg.innerText = "Sunucuya bağlanılamadı. Lütfen tekrar deneyin.";
   } finally {
     submitBtn.disabled = false;
     submitBtn.innerHTML = '<i class="fa-solid fa-arrow-right-to-bracket"></i> <span>Giriş Yap</span>';
   }
+  return false;
 }
 
 async function logout() {
