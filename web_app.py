@@ -185,6 +185,12 @@ class ElectroRequestHandler(http.server.SimpleHTTPRequestHandler):
                 self.send_json({"error": "Taslak sipariş bulunamadı"}, status=404)
             return
 
+        # 9. API: MCP Araçları Dokümantasyon Şeması
+        elif path == "/api/mcp/tools":
+            import mcp_server
+            self.send_json({"tools": mcp_server.TOOLS})
+            return
+
 
         # Statik dosya sunumu (HTML, CSS, JS)
         if path == "/" or not os.path.exists(os.path.join(STATIC_DIR, path.lstrip("/"))):

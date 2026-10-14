@@ -99,6 +99,9 @@
         <i class="fa-solid fa-clipboard-list text-purple-400"></i> Draft Siparişler
         <span id="badge-drafts-count" class="text-xs bg-purple-500/20 text-purple-300 px-1.5 py-0.2 rounded-full border border-purple-500/30">0</span>
       </button>
+      <button onclick="switchTab('developer')" id="tab-btn-developer" class="tab-btn px-4 py-2 text-sm font-medium rounded-lg flex items-center gap-2 transition">
+        <i class="fa-solid fa-code text-indigo-400"></i> Developer & MCP API
+      </button>
     </div>
   </header>
 
@@ -481,6 +484,421 @@
       <div id="draft-orders-container" class="space-y-4">
         <!-- JS ile dolacak -->
       </div>
+    </section>
+
+    <!-- TAB 8: GELİŞTİRİCİ & MCP API DOKÜMANTASYONU -->
+    <section id="tab-developer" class="tab-content hidden space-y-8">
+      
+      <!-- Başlık & Giriş Banner -->
+      <div class="bg-gradient-to-r from-slate-900 via-indigo-950/40 to-slate-900 border border-indigo-500/30 rounded-2xl p-6 shadow-xl relative overflow-hidden">
+        <div class="max-w-3xl">
+          <div class="flex items-center gap-2 mb-3">
+            <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-indigo-500/10 text-indigo-400 border border-indigo-500/30">
+              <i class="fa-solid fa-terminal"></i> Model Context Protocol (MCP)
+            </span>
+            <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+              <i class="fa-solid fa-circle text-[8px]"></i> 15 Araç Aktif
+            </span>
+          </div>
+          <h2 class="text-2xl font-bold text-white flex items-center gap-2">
+            Geliştirici & AI Entegrasyon Rehberi
+          </h2>
+          <p class="text-sm text-slate-300 mt-2 leading-relaxed">
+            Electra, harici yapay zeka asistanlarının (Cursor, Claude Desktop, Antigravity, Windsurf vb.) atölye stoklarınızı sorgulayabilmesi, sağlam/arızalı parçalarınızı kontrol edebilmesi ve Robotistan üzerinden eksikleri tespit edip taslak siparişler oluşturabilmesi için tam donanımlı bir <b>Model Context Protocol (MCP)</b> sunucusuna sahiptir.
+          </p>
+        </div>
+      </div>
+
+      <!-- Hızlı Kurulum Konfigürasyonları -->
+      <div class="space-y-4">
+        <h3 class="text-lg font-bold text-white flex items-center gap-2">
+          <i class="fa-solid fa-sliders text-indigo-400"></i> AI Asistanı Yapılandırması (Config)
+        </h3>
+        <p class="text-xs text-slate-400">
+          Aşağıdaki JSON yapılandırmalarını AI editörünüzün ayar dosyasına ekleyerek Electra MCP sunucusunu anında aktif edebilirsiniz.
+        </p>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <!-- Cursor IDE -->
+          <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-3">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <i class="fa-solid fa-computer text-emerald-400 text-lg"></i>
+                <h4 class="font-bold text-white text-sm">Cursor IDE (Yerel / Local)</h4>
+              </div>
+              <button onclick="copyCode('code-cursor-local')" class="px-2.5 py-1 text-xs rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 flex items-center gap-1.5 transition">
+                <i class="fa-solid fa-copy"></i> Kopyala
+              </button>
+            </div>
+            <p class="text-xs text-slate-400">
+              Dosya Konumu: <code class="text-indigo-300 bg-slate-950 px-1.5 py-0.5 rounded">.cursor/mcp.json</code> veya Global Cursor Ayarları
+            </p>
+            <pre class="bg-slate-950 p-3 rounded-lg border border-slate-800 text-xs font-mono text-emerald-300 overflow-x-auto"><code id="code-cursor-local">{
+  "mcpServers": {
+    "electra": {
+      "command": "python3",
+      "args": [
+        "/Users/emrullahardic/Documents/antigravity/nifty-tesla/mcp_server.py"
+      ]
+    }
+  }
+}</code></pre>
+          </div>
+
+          <!-- Claude Desktop -->
+          <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-3">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <i class="fa-solid fa-brain text-amber-400 text-lg"></i>
+                <h4 class="font-bold text-white text-sm">Claude Desktop</h4>
+              </div>
+              <button onclick="copyCode('code-claude')" class="px-2.5 py-1 text-xs rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 flex items-center gap-1.5 transition">
+                <i class="fa-solid fa-copy"></i> Kopyala
+              </button>
+            </div>
+            <p class="text-xs text-slate-400">
+              MacOS: <code class="text-amber-300 bg-slate-950 px-1.5 py-0.5 rounded">~/Library/Application Support/Claude/claude_desktop_config.json</code>
+            </p>
+            <pre class="bg-slate-950 p-3 rounded-lg border border-slate-800 text-xs font-mono text-amber-300 overflow-x-auto"><code id="code-claude">{
+  "mcpServers": {
+    "electra": {
+      "command": "python3",
+      "args": [
+        "/Users/emrullahardic/Documents/antigravity/nifty-tesla/mcp_server.py"
+      ]
+    }
+  }
+}</code></pre>
+          </div>
+
+          <!-- Remote SSH -->
+          <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-3 lg:col-span-2">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <i class="fa-solid fa-network-wired text-cyan-400 text-lg"></i>
+                <h4 class="font-bold text-white text-sm">Sunucu Üzerinden Uzak Bağlantı (SSH Bridge)</h4>
+              </div>
+              <button onclick="copyCode('code-remote-ssh')" class="px-2.5 py-1 text-xs rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 flex items-center gap-1.5 transition">
+                <i class="fa-solid fa-copy"></i> Kopyala
+              </button>
+            </div>
+            <p class="text-xs text-slate-400">
+              Eğer projenizi sunucudaki merkezi veritabanına bağlamak isterseniz SSH tüneli üzerinden doğrudan uzaktaki sunucu çalıştırılabilir:
+            </p>
+            <pre class="bg-slate-950 p-3 rounded-lg border border-slate-800 text-xs font-mono text-cyan-300 overflow-x-auto"><code id="code-remote-ssh">{
+  "mcpServers": {
+    "electra-prod": {
+      "command": "ssh",
+      "args": [
+        "ms",
+        "python3",
+        "/var/www/electra/mcp_server.py"
+      ]
+    }
+  }
+}</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <!-- Kullanılabilir MCP Araçları (Tools Kataloğu) -->
+      <div class="space-y-4">
+        <h3 class="text-lg font-bold text-white flex items-center gap-2">
+          <i class="fa-solid fa-toolbox text-indigo-400"></i> Dahili MCP Araçları (15 Tools)
+        </h3>
+        <p class="text-xs text-slate-400">
+          AI asistanınız bu araçları otomatik olarak algılar ve sohbette ihtiyaç duyulduğunda arka planda çalıştırır.
+        </p>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+          
+          <!-- Tool 1 -->
+          <div class="bg-slate-900/90 border border-indigo-500/30 rounded-xl p-4 space-y-2 hover:border-indigo-500/60 transition">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-mono font-bold text-indigo-300">electro_plan_project_draft_order</span>
+              <span class="text-[10px] bg-indigo-500/20 text-indigo-300 px-1.5 py-0.5 rounded border border-indigo-500/30">AI Planlama</span>
+            </div>
+            <p class="text-xs text-slate-300">
+              Proje fikrini analiz eder, eldeki sağlam/arızalı parçaları eşleştirir, eksikler için Robotistan'da stok ve fiyat arar ve otomatik bir <b>Draft Sipariş</b> kaydeder.
+            </p>
+            <div class="text-[11px] text-slate-400 pt-1 border-t border-slate-800">
+              <b>Parametreler:</b> <code class="text-slate-300">project_description (str)</code>
+            </div>
+          </div>
+
+          <!-- Tool 2 -->
+          <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-4 space-y-2 hover:border-slate-700 transition">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-mono font-bold text-emerald-400">electro_suggest_project_components</span>
+              <span class="text-[10px] bg-emerald-500/20 text-emerald-300 px-1.5 py-0.5 rounded border border-emerald-500/30">Stok Analizi</span>
+            </div>
+            <p class="text-xs text-slate-300">
+              Devre fikrini dinler; elinizdeki sağlam parçaları, yerlerini ve adetlerini çıkarır. Arızalı parçalar hakkında kullanıcıyı uyarır.
+            </p>
+            <div class="text-[11px] text-slate-400 pt-1 border-t border-slate-800">
+              <b>Parametreler:</b> <code class="text-slate-300">project_description, check_robotistan</code>
+            </div>
+          </div>
+
+          <!-- Tool 3 -->
+          <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-4 space-y-2 hover:border-slate-700 transition">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-mono font-bold text-cyan-400">electro_search_inventory</span>
+              <span class="text-[10px] bg-cyan-500/20 text-cyan-300 px-1.5 py-0.5 rounded border border-cyan-500/30">Arama</span>
+            </div>
+            <p class="text-xs text-slate-300">
+              İsim, değer (10k, 100nF), kılıf (DIP-8, 0805) veya saklama konumuna göre atölye stoğunda akıllı arama yapar.
+            </p>
+            <div class="text-[11px] text-slate-400 pt-1 border-t border-slate-800">
+              <b>Parametreler:</b> <code class="text-slate-300">query, category, status, location</code>
+            </div>
+          </div>
+
+          <!-- Tool 4 -->
+          <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-4 space-y-2 hover:border-slate-700 transition">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-mono font-bold text-purple-400">electro_create_draft_order</span>
+              <span class="text-[10px] bg-purple-500/20 text-purple-300 px-1.5 py-0.5 rounded border border-purple-500/30">Draft</span>
+            </div>
+            <p class="text-xs text-slate-300">
+              AI veya kullanıcı tarafından belirlenen ürün kalemleriyle yeni bir taslak sipariş listesi oluşturur.
+            </p>
+            <div class="text-[11px] text-slate-400 pt-1 border-t border-slate-800">
+              <b>Parametreler:</b> <code class="text-slate-300">title, description, items[]</code>
+            </div>
+          </div>
+
+          <!-- Tool 5 -->
+          <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-4 space-y-2 hover:border-slate-700 transition">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-mono font-bold text-purple-400">electro_list_draft_orders</span>
+              <span class="text-[10px] bg-purple-500/20 text-purple-300 px-1.5 py-0.5 rounded border border-purple-500/30">Draft</span>
+            </div>
+            <p class="text-xs text-slate-300">
+              Kayıtlı tüm taslak sipariş listelerini, tahmini tutarlarını ve durumlarını getirir.
+            </p>
+            <div class="text-[11px] text-slate-400 pt-1 border-t border-slate-800">
+              <b>Parametreler:</b> <code class="text-slate-300">status (draft, ready, ordered)</code>
+            </div>
+          </div>
+
+          <!-- Tool 6 -->
+          <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-4 space-y-2 hover:border-slate-700 transition">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-mono font-bold text-purple-400">electro_apply_draft_order_to_cart</span>
+              <span class="text-[10px] bg-purple-500/20 text-purple-300 px-1.5 py-0.5 rounded border border-purple-500/30">Aktarım</span>
+            </div>
+            <p class="text-xs text-slate-300">
+              Belirtilen taslak siparişteki tüm ürünleri tek tıkla canlı Robotistan sepetine dönüştürür.
+            </p>
+            <div class="text-[11px] text-slate-400 pt-1 border-t border-slate-800">
+              <b>Parametreler:</b> <code class="text-slate-300">draft_id (int)</code>
+            </div>
+          </div>
+
+          <!-- Tool 7 -->
+          <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-4 space-y-2 hover:border-slate-700 transition">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-mono font-bold text-orange-400">electro_search_robotistan</span>
+              <span class="text-[10px] bg-orange-500/20 text-orange-300 px-1.5 py-0.5 rounded border border-orange-500/30">Scraper</span>
+            </div>
+            <p class="text-xs text-slate-300">
+              Robotistan üzerinde canlı arama yapar. Ürün linki, aktif stok durumu ve anlık TL fiyatını çeker.
+            </p>
+            <div class="text-[11px] text-slate-400 pt-1 border-t border-slate-800">
+              <b>Parametreler:</b> <code class="text-slate-300">query, only_in_stock, limit</code>
+            </div>
+          </div>
+
+          <!-- Tool 8 -->
+          <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-4 space-y-2 hover:border-slate-700 transition">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-mono font-bold text-amber-400">electro_get_defective_parts</span>
+              <span class="text-[10px] bg-amber-500/20 text-amber-300 px-1.5 py-0.5 rounded border border-amber-500/30">Arıza Takibi</span>
+            </div>
+            <p class="text-xs text-slate-300">
+              Arızalı, bozuk veya test bekleyen parçaları ve arıza notlarını listeler.
+            </p>
+            <div class="text-[11px] text-slate-400 pt-1 border-t border-slate-800">
+              <b>Parametreler:</b> <code class="text-slate-300">Yok</code>
+            </div>
+          </div>
+
+          <!-- Tool 9 -->
+          <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-4 space-y-2 hover:border-slate-700 transition">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-mono font-bold text-emerald-400">electro_add_component</span>
+              <span class="text-[10px] bg-emerald-500/20 text-emerald-300 px-1.5 py-0.5 rounded border border-emerald-500/30">Envanter</span>
+            </div>
+            <p class="text-xs text-slate-300">
+              Sohbet sırasında kullanıcının atölyesine yeni bir elektronik parça ve saklama konumu ekler.
+            </p>
+            <div class="text-[11px] text-slate-400 pt-1 border-t border-slate-800">
+              <b>Parametreler:</b> <code class="text-slate-300">name, category, value, quantity, location</code>
+            </div>
+          </div>
+
+          <!-- Tool 10 -->
+          <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-4 space-y-2 hover:border-slate-700 transition">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-mono font-bold text-emerald-400">electro_update_stock</span>
+              <span class="text-[10px] bg-emerald-500/20 text-emerald-300 px-1.5 py-0.5 rounded border border-emerald-500/30">Envanter</span>
+            </div>
+            <p class="text-xs text-slate-300">
+              Stok miktarını artırır/azaltır veya parça durumunu (working, defective, salvage) günceller.
+            </p>
+            <div class="text-[11px] text-slate-400 pt-1 border-t border-slate-800">
+              <b>Parametreler:</b> <code class="text-slate-300">component_id, delta, status</code>
+            </div>
+          </div>
+
+          <!-- Tool 11 -->
+          <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-4 space-y-2 hover:border-slate-700 transition">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-mono font-bold text-emerald-400">electro_get_inventory_summary</span>
+              <span class="text-[10px] bg-emerald-500/20 text-emerald-300 px-1.5 py-0.5 rounded border border-emerald-500/30">Özet</span>
+            </div>
+            <p class="text-xs text-slate-300">
+              Atölyenin toplam çeşit, sağlam/arızalı sayıları ve kritik stok uyarılarını markdown formatında özetler.
+            </p>
+            <div class="text-[11px] text-slate-400 pt-1 border-t border-slate-800">
+              <b>Parametreler:</b> <code class="text-slate-300">Yok</code>
+            </div>
+          </div>
+
+          <!-- Tool 12 -->
+          <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-4 space-y-2 hover:border-slate-700 transition">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-mono font-bold text-emerald-400">electro_add_to_cart</span>
+              <span class="text-[10px] bg-emerald-500/20 text-emerald-300 px-1.5 py-0.5 rounded border border-emerald-500/30">Sepet</span>
+            </div>
+            <p class="text-xs text-slate-300">
+              Robotistan sepetine doğrudan ürün ekler (fiyat, link ve ürün ID bilgisiyle).
+            </p>
+            <div class="text-[11px] text-slate-400 pt-1 border-t border-slate-800">
+              <b>Parametreler:</b> <code class="text-slate-300">title, url, price, product_id</code>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Örnek AI Sohbet Promptları -->
+      <div class="space-y-4">
+        <h3 class="text-lg font-bold text-white flex items-center gap-2">
+          <i class="fa-solid fa-lightbulb text-amber-400"></i> AI Botunuza Sorabileceğiniz Örnek Promptlar
+        </h3>
+        <p class="text-xs text-slate-400">
+          MCP sunucusu bağlandıktan sonra Cursor veya Claude sohbette şu tarz cümleler kurabilirsiniz:
+        </p>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-2 hover:border-indigo-500/40 transition">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-bold text-indigo-400 flex items-center gap-1.5">
+                <i class="fa-solid fa-wand-magic-sparkles"></i> Proje Planlama & BOM Çıkarma
+              </span>
+              <button onclick="copyText('Elimdeki parçaları inceleyerek bir ESP32 hava kalitesi ölçüm istasyonu tasarla. Eksik parçaları Robotistan\'dan kontrol edip bir draft sipariş listesi oluştur.')" class="text-slate-400 hover:text-white text-xs">
+                <i class="fa-solid fa-copy"></i>
+              </button>
+            </div>
+            <p class="text-xs text-slate-300 bg-slate-950 p-2.5 rounded-lg border border-slate-800/80 italic">
+              "Elimdeki parçaları inceleyerek bir ESP32 hava kalitesi ölçüm istasyonu tasarla. Eksik parçaları Robotistan'dan kontrol edip bir draft sipariş listesi oluştur."
+            </p>
+          </div>
+
+          <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-2 hover:border-indigo-500/40 transition">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-bold text-amber-400 flex items-center gap-1.5">
+                <i class="fa-solid fa-triangle-exclamation"></i> Arızalı Parça Sorgulama
+              </span>
+              <button onclick="copyText('Atölyemde arızalı ya da hurda işaretlenmiş hangi sensörler ve parçalar var? Neden bozulmuşlar ve nerede duruyorlar?')" class="text-slate-400 hover:text-white text-xs">
+                <i class="fa-solid fa-copy"></i>
+              </button>
+            </div>
+            <p class="text-xs text-slate-300 bg-slate-950 p-2.5 rounded-lg border border-slate-800/80 italic">
+              "Atölyemde arızalı ya da hurda işaretlenmiş hangi sensörler ve parçalar var? Neden bozulmuşlar ve nerede duruyorlar?"
+            </p>
+          </div>
+
+          <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-2 hover:border-indigo-500/40 transition">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-bold text-emerald-400 flex items-center gap-1.5">
+                <i class="fa-solid fa-boxes-packing"></i> Hızlı Parça Ekleme
+              </span>
+              <button onclick="copyText('Stoka 10 adet 220 Ohm direnç (Direnç Organizeri 1) ve 2 adet ESP32-WROOM ekle.')" class="text-slate-400 hover:text-white text-xs">
+                <i class="fa-solid fa-copy"></i>
+              </button>
+            </div>
+            <p class="text-xs text-slate-300 bg-slate-950 p-2.5 rounded-lg border border-slate-800/80 italic">
+              "Stoka 10 adet 220 Ohm direnç (Direnç Organizeri 1) ve 2 adet ESP32-WROOM ekle."
+            </p>
+          </div>
+
+          <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-2 hover:border-indigo-500/40 transition">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-bold text-purple-400 flex items-center gap-1.5">
+                <i class="fa-solid fa-clipboard-check"></i> Draft Sipariş Yönetimi
+              </span>
+              <button onclick="copyText('Kayıtlı taslak siparişlerimi listele ve ilk sıradaki siparişi doğrudan Robotistan sepetine aktar.')" class="text-slate-400 hover:text-white text-xs">
+                <i class="fa-solid fa-copy"></i>
+              </button>
+            </div>
+            <p class="text-xs text-slate-300 bg-slate-950 p-2.5 rounded-lg border border-slate-800/80 italic">
+              "Kayıtlı taslak siparişlerimi listele ve ilk sıradaki siparişi doğrudan Robotistan sepetine aktar."
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- REST API & cURL Rehberi -->
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <i class="fa-solid fa-code text-indigo-400 text-lg"></i>
+            <h3 class="text-lg font-bold text-white">REST API & Kimlik Doğrulama (cURL)</h3>
+          </div>
+          <span class="text-xs bg-indigo-500/10 text-indigo-300 px-2.5 py-1 rounded-full border border-indigo-500/20">
+            HTTP Basic & Bearer Token
+          </span>
+        </div>
+        <p class="text-xs text-slate-300">
+          Kendi Python / Node.js scriptlerinizden veya cURL üzerinden Electra REST API'sine erişirken kimlik doğrulama başlığı gereklidir.
+        </p>
+
+        <div class="space-y-3">
+          <div>
+            <div class="flex items-center justify-between mb-1">
+              <span class="text-xs font-semibold text-slate-300">1. Stok İstatistiklerini Çekme (Basic Auth):</span>
+              <button onclick="copyCode('curl-stats')" class="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-1">
+                <i class="fa-solid fa-copy"></i> Kopyala
+              </button>
+            </div>
+            <pre class="bg-slate-950 p-2.5 rounded-lg border border-slate-800 text-xs font-mono text-slate-300 overflow-x-auto"><code id="curl-stats">curl -s -u admin:alp236330 https://electra.matelab.dev/api/stats</code></pre>
+          </div>
+
+          <div>
+            <div class="flex items-center justify-between mb-1">
+              <span class="text-xs font-semibold text-slate-300">2. Parça Arama:</span>
+              <button onclick="copyCode('curl-search')" class="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-1">
+                <i class="fa-solid fa-copy"></i> Kopyala
+              </button>
+            </div>
+            <pre class="bg-slate-950 p-2.5 rounded-lg border border-slate-800 text-xs font-mono text-slate-300 overflow-x-auto"><code id="curl-search">curl -s -u admin:alp236330 "https://electra.matelab.dev/api/components?q=ESP32"</code></pre>
+          </div>
+
+          <div>
+            <div class="flex items-center justify-between mb-1">
+              <span class="text-xs font-semibold text-slate-300">3. Taslak Siparişleri Getirme:</span>
+              <button onclick="copyCode('curl-drafts')" class="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-1">
+                <i class="fa-solid fa-copy"></i> Kopyala
+              </button>
+            </div>
+            <pre class="bg-slate-950 p-2.5 rounded-lg border border-slate-800 text-xs font-mono text-slate-300 overflow-x-auto"><code id="curl-drafts">curl -s -u admin:alp236330 https://electra.matelab.dev/api/draft-orders</code></pre>
+          </div>
+        </div>
+      </div>
+
     </section>
   </main>
 

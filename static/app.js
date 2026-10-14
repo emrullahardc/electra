@@ -87,6 +87,10 @@ async function checkAuthStatus() {
       loadComponents();
       loadCartBadge();
       loadDraftsBadge();
+
+      if (window.location.hash === "#developer" || window.location.pathname === "/developer") {
+        switchTab("developer");
+      }
     } else {
       showLoginScreen();
     }
@@ -1303,5 +1307,43 @@ async function saveDraftFromAnalysis() {
     console.error("Taslak kaydetme hatası:", err);
   }
 }
+
+
+// ==========================================
+// KOD & METİN KOPYALAMA YARDIMCILARI (DEVELOPER TAB)
+// ==========================================
+
+function copyCode(elementId) {
+  const el = document.getElementById(elementId);
+  if (!el) return;
+  copyText(el.innerText);
+}
+
+function copyText(text) {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(() => {
+      showToast("Panoya kopyalandı! 📋");
+    }).catch(() => fallbackCopy(text));
+  } else {
+    fallbackCopy(text);
+  }
+}
+
+function fallbackCopy(text) {
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.style.position = "fixed";
+  textarea.style.opacity = "0";
+  document.body.appendChild(textarea);
+  textarea.select();
+  try {
+    document.execCommand("copy");
+    showToast("Panoya kopyalandı! 📋");
+  } catch (err) {
+    prompt("Kopyalamak için Ctrl+C tuşlayın:", text);
+  }
+  document.body.removeChild(textarea);
+}
+
 
 
