@@ -437,25 +437,32 @@ class ElectroRequestHandler(http.server.SimpleHTTPRequestHandler):
 
 
 
+class ReusableTCPServer(socketserver.TCPServer):
+    allow_reuse_address = True
+
+
 def run_server(port: int = PORT):
     electro_db.init_db()
     os.makedirs(STATIC_DIR, exist_ok=True)
-    
-    # Port meşgulse alternatif port dene
-    for p in [port, port + 1, port + 2, 8888, 9000]:
+
+    # SO_REUSEADDR ile belirlenen porta bağlan (gerekirse kısa bekleme ile)
+    for attempt in range(5):
         try:
-            with socketserver.TCPServer(("", p), ElectroRequestHandler) as httpd:
-                print(f"🚀 ElectroStock Web Arayüzü Başlatıldı: http://localhost:{p}")
+            with ReusableTCPServer(("", port), ElectroRequestHandler) as httpd:
+                print(f"🚀 ElectroStock Web Arayüzü Başlatıldı: http://localhost:{port}")
                 print("Durdurmak için Ctrl+C tuşlayabilirsiniz.\n")
                 httpd.serve_forever()
                 break
         except OSError as e:
-            if p == 9000:
-                print(f"Port hatası: {e}")
+            if attempt < 4:
+                import time
+                time.sleep(0.5)
+            else:
+                print(f"Port hatası ({port}): {e}")
                 sys.exit(1)
-            continue
 
 
 if __name__ == "__main__":
     port_arg = int(sys.argv[1]) if len(sys.argv) > 1 else PORT
     run_server(port_arg)
+
