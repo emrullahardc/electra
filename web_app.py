@@ -11,7 +11,8 @@ import json
 import urllib.parse
 import os
 import sys
-from typing import Dict, Any
+import base64
+from typing import Dict, Any, Optional
 import electro_db
 import project_matcher
 from robotistan_scraper import scraper
@@ -28,14 +29,18 @@ class ElectroRequestHandler(http.server.SimpleHTTPRequestHandler):
         # Temiz terminal çıktısı
         sys.stderr.write(f"[Web] {args[0]} {args[1]} -> {args[2]}\n")
 
-    def send_json(self, data: Any, status: int = 200):
+    def send_json(self, data: Any, status: int = 200, cookie: Optional[str] = None):
         body = json.dumps(data, ensure_ascii=False).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
+        if cookie:
+            self.send_header("Set-Cookie", cookie)
+        if status == 401:
+            self.send_header("WWW-Authenticate", 'Basic realm="Electra Atolye Envanteri"')
         self.end_headers()
         self.wfile.write(body)
 
@@ -43,13 +48,67 @@ class ElectroRequestHandler(http.server.SimpleHTTPRequestHandler):
         self.send_response(204)
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
         self.end_headers()
+
+    def get_authenticated_user(self) -> Optional[str]:
+        """
+        Gelen istekteki Bearer token, Basic Auth veya Cookie'yi kontrol ederek
+        doğrulanmış kullanıcı adını döndürür. Yetkisiz ise None döner.
+        """
+        # 1. Authorization Başlığı (Bearer Token veya Basic Auth)
+        auth_header = self.headers.get("Authorization", "").strip()
+        if auth_header.startswith("Bearer "):
+            token = auth_header[7:].strip()
+            user = electro_db.verify_session(token)
+            if user:
+                return user
+        elif auth_header.startswith("Basic "):
+            try:
+                raw_b64 = auth_header[6:].strip()
+                decoded = base64.b64decode(raw_b64).decode("utf-8")
+                if ":" in decoded:
+                    u, p = decoded.split(":", 1)
+                    if electro_db.verify_user_credentials(u, p):
+                        return u
+            except Exception:
+                pass
+
+        # 2. Cookie Başlığı (electra_session=<token>)
+        cookie_header = self.headers.get("Cookie", "")
+        if "electra_session=" in cookie_header:
+            for item in cookie_header.split(";"):
+                item = item.strip()
+                if item.startswith("electra_session="):
+                    parts = item.split("=", 1)
+                    if len(parts) == 2:
+                        token = parts[1].strip()
+                        user = electro_db.verify_session(token)
+                        if user:
+                            return user
+
+        return None
 
     def do_GET(self):
         parsed = urllib.parse.urlparse(self.path)
         path = parsed.path
         params = urllib.parse.parse_qs(parsed.query)
+
+        # 0. API: Kimlik Doğrulama Durumu (Herkese açık kontrol)
+        if path == "/api/auth/check":
+            user = self.get_authenticated_user()
+            if user:
+                self.send_json({"authenticated": True, "username": user})
+            else:
+                self.send_json({"authenticated": False, "username": None})
+            return
+
+        # Tüm diğer /api/ istekleri kimlik doğrulama gerektirir
+        if path.startswith("/api/"):
+            user = self.get_authenticated_user()
+            if not user:
+                self.send_json({"error": "Kimlik doğrulaması gerekli.", "authenticated": False}, status=401)
+                return
 
         # 1. API: İstatistikler
         if path == "/api/stats":
@@ -144,8 +203,60 @@ class ElectroRequestHandler(http.server.SimpleHTTPRequestHandler):
         except Exception:
             data = {}
 
+        # 0. API: Giriş Yap (Login)
+        if path == "/api/auth/login":
+            u = str(data.get("username", "")).strip()
+            p = str(data.get("password", ""))
+            if electro_db.verify_user_credentials(u, p):
+                token = electro_db.create_session(u)
+                cookie = f"electra_session={token}; Path=/; Max-Age=2592000; SameSite=Lax"
+                self.send_json({
+                    "success": True,
+                    "token": token,
+                    "username": u,
+                    "message": "Giriş başarılı!"
+                }, cookie=cookie)
+            else:
+                self.send_json({"error": "Kullanıcı adı veya şifre hatalı!"}, status=401)
+            return
+
+        # 0. API: Çıkış Yap (Logout)
+        elif path == "/api/auth/logout":
+            auth_header = self.headers.get("Authorization", "").strip()
+            if auth_header.startswith("Bearer "):
+                token = auth_header[7:].strip()
+                electro_db.delete_session(token)
+            cookie_header = self.headers.get("Cookie", "")
+            if "electra_session=" in cookie_header:
+                for item in cookie_header.split(";"):
+                    item = item.strip()
+                    if item.startswith("electra_session="):
+                        parts = item.split("=", 1)
+                        if len(parts) == 2:
+                            electro_db.delete_session(parts[1].strip())
+            cookie = "electra_session=; Path=/; Max-Age=0; SameSite=Lax"
+            self.send_json({"success": True, "message": "Çıkış yapıldı"}, cookie=cookie)
+            return
+
+        # Diğer tüm POST işlemleri kimlik doğrulama gerektirir
+        user = self.get_authenticated_user()
+        if not user:
+            self.send_json({"error": "Kimlik doğrulaması gerekli.", "authenticated": False}, status=401)
+            return
+
+        # 0. API: Şifre Değiştir
+        if path == "/api/auth/change-password":
+            old_p = str(data.get("old_password", ""))
+            new_p = str(data.get("new_password", ""))
+            success, msg = electro_db.change_user_password(user, old_p, new_p)
+            if success:
+                self.send_json({"success": True, "message": msg})
+            else:
+                self.send_json({"error": msg}, status=400)
+            return
+
         # 1. API: Yeni Parça Ekle
-        if path == "/api/components":
+        elif path == "/api/components":
             if not data.get("name") or not data.get("category"):
                 self.send_json({"error": "name ve category zorunludur"}, status=400)
                 return
@@ -243,6 +354,11 @@ class ElectroRequestHandler(http.server.SimpleHTTPRequestHandler):
         parsed = urllib.parse.urlparse(self.path)
         path = parsed.path
 
+        user = self.get_authenticated_user()
+        if not user:
+            self.send_json({"error": "Kimlik doğrulaması gerekli.", "authenticated": False}, status=401)
+            return
+
         if path.startswith("/api/components/"):
             comp_id = int(path.split("/")[3])
             length = int(self.headers.get("Content-Length", 0))
@@ -288,6 +404,11 @@ class ElectroRequestHandler(http.server.SimpleHTTPRequestHandler):
     def do_DELETE(self):
         parsed = urllib.parse.urlparse(self.path)
         path = parsed.path
+
+        user = self.get_authenticated_user()
+        if not user:
+            self.send_json({"error": "Kimlik doğrulaması gerekli.", "authenticated": False}, status=401)
+            return
 
         if path.startswith("/api/components/"):
             comp_id = int(path.split("/")[3])

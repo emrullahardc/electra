@@ -47,6 +47,19 @@
       </div>
 
       <div class="flex items-center space-x-2">
+        <div id="auth-user-badge" class="hidden flex items-center gap-1.5 mr-1">
+          <span class="text-xs bg-slate-800 text-slate-300 px-2.5 py-1.5 rounded-lg border border-slate-700 flex items-center gap-1.5 shadow-sm">
+            <i class="fa-solid fa-user-shield text-emerald-400"></i>
+            <span id="current-username" class="font-medium">admin</span>
+          </span>
+          <button onclick="openChangePasswordModal()" title="Şifre Değiştir" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition">
+            <i class="fa-solid fa-key"></i>
+          </button>
+          <button onclick="logout()" title="Güvenli Çıkış Yap" class="px-2.5 py-1.5 rounded-lg bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 border border-rose-800/40 text-xs font-medium flex items-center gap-1.5 transition">
+            <i class="fa-solid fa-right-from-bracket"></i> <span>Çıkış</span>
+          </button>
+        </div>
+
         <button onclick="openAddModal()" class="px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-sm flex items-center gap-2 shadow-md shadow-emerald-600/30 transition">
           <i class="fa-solid fa-plus"></i> <span>Yeni Parça Ekle</span>
         </button>
@@ -562,6 +575,109 @@
         <div class="pt-2 flex justify-end gap-2 border-t border-slate-800">
           <button type="button" onclick="closeModal()" class="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium">İptal</button>
           <button type="submit" class="px-5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-medium shadow-md">Kaydet</button>
+        </div>
+      </form>
+    </div>
+  <!-- GÜVENLİK VE GİRİŞ EKRANI (AUTH OVERLAY) -->
+  <div id="login-screen" class="fixed inset-0 z-50 bg-[#0b1120]/95 backdrop-blur-md flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-md p-8 shadow-2xl relative overflow-hidden animate-fade-in">
+      <!-- Glow effect -->
+      <div class="absolute -top-12 -right-12 w-32 h-32 bg-emerald-500/10 rounded-full blur-2xl pointer-events-none"></div>
+      <div class="absolute -bottom-12 -left-12 w-32 h-32 bg-cyan-500/10 rounded-full blur-2xl pointer-events-none"></div>
+
+      <div class="text-center mb-6">
+        <div class="w-16 h-16 mx-auto rounded-2xl bg-gradient-to-tr from-emerald-500 to-cyan-500 flex items-center justify-center text-slate-950 text-2xl font-black shadow-lg shadow-emerald-500/20 mb-3">
+          <i class="fa-solid fa-lock"></i>
+        </div>
+        <h2 class="text-xl font-bold text-white">ElectroStock Girişi</h2>
+        <p class="text-xs text-slate-400 mt-1">Atölye envanteri ve sipariş yönetimine erişin</p>
+      </div>
+
+      <!-- Bilgi İpucu Kutusu -->
+      <div class="bg-slate-950/80 border border-slate-800 rounded-xl p-3 mb-5 text-xs text-slate-400 flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <i class="fa-solid fa-shield-halved text-emerald-400 text-sm"></i>
+          <span>Varsayılan Giriş:</span>
+        </div>
+        <span class="font-mono text-emerald-400 font-semibold bg-emerald-950/40 px-2 py-0.5 rounded border border-emerald-500/20">admin / electra2026</span>
+      </div>
+
+      <form id="login-form" onsubmit="handleLoginSubmit(event)" class="space-y-4">
+        <div id="login-error-box" class="hidden p-3 rounded-xl bg-rose-950/40 border border-rose-500/40 text-rose-300 text-xs flex items-center gap-2">
+          <i class="fa-solid fa-triangle-exclamation text-rose-400"></i>
+          <span id="login-error-msg">Hatalı kullanıcı adı veya şifre!</span>
+        </div>
+
+        <div>
+          <label class="block text-xs font-medium text-slate-300 mb-1">Kullanıcı Adı</label>
+          <div class="relative">
+            <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-500 pointer-events-none">
+              <i class="fa-solid fa-user text-xs"></i>
+            </span>
+            <input type="text" id="login-username" value="admin" required
+                   class="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-emerald-500 transition">
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-medium text-slate-300 mb-1">Şifre</label>
+          <div class="relative">
+            <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-500 pointer-events-none">
+              <i class="fa-solid fa-key text-xs"></i>
+            </span>
+            <input type="password" id="login-password" required placeholder="••••••••"
+                   class="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-10 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-emerald-500 transition">
+            <button type="button" onclick="togglePasswordVisibility('login-password')" class="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-500 hover:text-slate-300">
+              <i class="fa-solid fa-eye text-xs" id="login-password-eye"></i>
+            </button>
+          </div>
+        </div>
+
+        <button type="submit" id="login-submit-btn" class="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-medium text-sm shadow-lg shadow-emerald-600/30 flex items-center justify-center gap-2 transition mt-2">
+          <i class="fa-solid fa-arrow-right-to-bracket"></i>
+          <span>Giriş Yap</span>
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Şifre Değiştirme Modalı -->
+  <div id="change-password-modal" onclick="if(event.target === this) closeChangePasswordModal()" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl animate-fade-in">
+      <div class="px-6 py-4 border-b border-slate-800 flex items-center justify-between">
+        <h3 class="font-bold text-white text-base flex items-center gap-2">
+          <i class="fa-solid fa-key text-emerald-400"></i> Şifre Değiştir
+        </h3>
+        <button onclick="closeChangePasswordModal()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+      </div>
+
+      <form id="change-password-form" onsubmit="handleChangePasswordSubmit(event)" class="p-6 space-y-4 text-sm">
+        <div id="cp-error-box" class="hidden p-3 rounded-xl bg-rose-950/40 border border-rose-500/40 text-rose-300 text-xs flex items-center gap-2">
+          <i class="fa-solid fa-triangle-exclamation"></i>
+          <span id="cp-error-msg">Hata oluştu</span>
+        </div>
+
+        <div>
+          <label class="block text-xs font-medium text-slate-300 mb-1">Mevcut Şifre *</label>
+          <input type="password" id="cp-old-password" required
+                 class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:border-emerald-500">
+        </div>
+
+        <div>
+          <label class="block text-xs font-medium text-slate-300 mb-1">Yeni Şifre (En az 4 karakter) *</label>
+          <input type="password" id="cp-new-password" required minlength="4"
+                 class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:border-emerald-500">
+        </div>
+
+        <div>
+          <label class="block text-xs font-medium text-slate-300 mb-1">Yeni Şifre Tekrar *</label>
+          <input type="password" id="cp-confirm-password" required minlength="4"
+                 class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:border-emerald-500">
+        </div>
+
+        <div class="pt-2 flex justify-end gap-2 border-t border-slate-800">
+          <button type="button" onclick="closeChangePasswordModal()" class="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium">İptal</button>
+          <button type="submit" class="px-5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-medium shadow-md">Güncelle</button>
         </div>
       </form>
     </div>

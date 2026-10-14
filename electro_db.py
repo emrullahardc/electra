@@ -5,8 +5,11 @@ SQLite tabanlı, elektronik bileşenlere özel alanlar (değer, kılıf/paket, d
 
 import sqlite3
 import json
-from datetime import datetime
-from typing import List, Dict, Any, Optional
+import hashlib
+import secrets
+import os
+from datetime import datetime, timedelta
+from typing import List, Dict, Any, Optional, Tuple
 
 DB_PATH = "electro_stock.db"
 
@@ -36,6 +39,20 @@ def get_connection(db_path: str = DB_PATH) -> sqlite3.Connection:
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
     return conn
+
+
+def hash_password(password: str, salt: Optional[str] = None) -> Tuple[str, str]:
+    """PBKDF2 HMAC-SHA256 ile güvenli parola özetleme."""
+    if not salt:
+        salt = secrets.token_hex(16)
+    hashed = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt.encode("utf-8"), 100_000).hex()
+    return hashed, salt
+
+
+def verify_password(password: str, salt: str, expected_hash: str) -> bool:
+    """Zamanlama saldırılarına karşı güvenli parola doğrulama."""
+    hashed = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt.encode("utf-8"), 100_000).hex()
+    return secrets.compare_digest(hashed, expected_hash)
 
 
 def init_db(db_path: str = DB_PATH) -> None:
@@ -150,12 +167,46 @@ def init_db(db_path: str = DB_PATH) -> None:
             )
         """)
 
+        # Kullanıcılar Tablosu (Güvenlik / Auth)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT UNIQUE NOT NULL,
+                password_hash TEXT NOT NULL,
+                salt TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+        # Oturumlar Tablosu (Session Tokens)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS sessions (
+                token TEXT PRIMARY KEY,
+                username TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                expires_at TIMESTAMP NOT NULL
+            )
+        """)
+
+        # Varsayılan kullanıcı kontrolü (Yoksa oluştur)
+        cursor.execute("SELECT COUNT(*) FROM users")
+        if cursor.fetchone()[0] == 0:
+            default_user = os.getenv("ELECTRA_AUTH_USER", "admin")
+            default_pass = os.getenv("ELECTRA_AUTH_PASS", "electra2026")
+            h, s = hash_password(default_pass)
+            cursor.execute(
+                "INSERT INTO users (username, password_hash, salt) VALUES (?, ?, ?)",
+                (default_user, h, s)
+            )
+
         # Arama ve hız için indeksler
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_comp_name ON components(name)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_comp_category ON components(category)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_comp_status ON components(status)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_comp_location ON components(location)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_comp_value ON components(value)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_session_token ON sessions(token)")
 
         conn.commit()
 
@@ -702,5 +753,106 @@ def apply_draft_order_to_cart(draft_id: int, db_path: str = DB_PATH) -> Dict[str
         "added_items_count": added_count,
         "message": f"'{order['title']}' taslağındaki {added_count} ürün Robotistan sepetine aktarıldı!"
     }
+
+
+# ==========================================
+# GÜVENLİK VE KİMLİK DOĞRULAMA (AUTH) FONKSİYONLARI
+# ==========================================
+
+def verify_user_credentials(username: str, password: str, db_path: str = DB_PATH) -> bool:
+    """Kullanıcı adı ve şifresini doğrular."""
+    if not username or not password:
+        return False
+    with get_connection(db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT password_hash, salt FROM users WHERE username = ?", (username.strip(),))
+        row = cursor.fetchone()
+        if not row:
+            return False
+        return verify_password(password, row["salt"], row["password_hash"])
+
+
+def create_session(username: str, db_path: str = DB_PATH, days_valid: int = 30) -> str:
+    """Belirtilen kullanıcı için yeni bir oturum belirteci (token) oluşturur."""
+    token = secrets.token_hex(32)
+    expires_at = datetime.utcnow() + timedelta(days=days_valid)
+    with get_connection(db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT INTO sessions (token, username, expires_at) VALUES (?, ?, ?)",
+            (token, username.strip(), expires_at.isoformat())
+        )
+        conn.commit()
+    return token
+
+
+def verify_session(token: str, db_path: str = DB_PATH) -> Optional[str]:
+    """Oturum token'ını kontrol eder; geçerliyse kullanıcı adını döndürür."""
+    if not token or not isinstance(token, str):
+        return None
+    token = token.strip()
+    with get_connection(db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT username, expires_at FROM sessions WHERE token = ?", (token,))
+        row = cursor.fetchone()
+        if not row:
+            return None
+        try:
+            expires_at = datetime.fromisoformat(row["expires_at"])
+            if datetime.utcnow() > expires_at:
+                cursor.execute("DELETE FROM sessions WHERE token = ?", (token,))
+                conn.commit()
+                return None
+        except Exception:
+            pass
+        return row["username"]
+
+
+def delete_session(token: str, db_path: str = DB_PATH) -> bool:
+    """Oturumu sonlandırır (logout)."""
+    if not token:
+        return False
+    with get_connection(db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM sessions WHERE token = ?", (token.strip(),))
+        conn.commit()
+        return cursor.rowcount > 0
+
+
+def change_user_password(username: str, old_password: str, new_password: str, db_path: str = DB_PATH) -> Tuple[bool, str]:
+    """Kullanıcı şifresini değiştirir."""
+    if not new_password or len(new_password) < 4:
+        return False, "Yeni şifre en az 4 karakter uzunluğunda olmalıdır."
+
+    with get_connection(db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT password_hash, salt FROM users WHERE username = ?", (username,))
+        row = cursor.fetchone()
+        if not row:
+            return False, "Kullanıcı bulunamadı."
+
+        if not verify_password(old_password, row["salt"], row["password_hash"]):
+            return False, "Mevcut şifreniz hatalı."
+
+        new_hash, new_salt = hash_password(new_password)
+        now = datetime.now().isoformat()
+        cursor.execute(
+            "UPDATE users SET password_hash = ?, salt = ?, updated_at = ? WHERE username = ?",
+            (new_hash, new_salt, now, username)
+        )
+        conn.commit()
+        return True, "Şifreniz başarıyla güncellendi."
+
+
+def get_user_info(username: str, db_path: str = DB_PATH) -> Optional[Dict[str, Any]]:
+    """Kullanıcı genel bilgilerini getirir."""
+    with get_connection(db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT id, username, created_at, updated_at FROM users WHERE username = ?", (username,))
+        row = cursor.fetchone()
+        if not row:
+            return None
+        return dict(row)
+
 
 

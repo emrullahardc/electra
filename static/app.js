@@ -27,12 +27,203 @@ let currentTab = "inventory";
 let searchTimer = null;
 let allComponentsCache = [];
 
-document.addEventListener("DOMContentLoaded", () => {
-  loadStats();
-  loadComponents();
-  loadCartBadge();
-  loadDraftsBadge();
+// Fetch Interceptor: Her isteğe otomatik Bearer token ekler ve 401 durumunda login ekranını açar
+const originalFetch = window.fetch;
+window.fetch = async function(input, init = {}) {
+  init = init || {};
+  init.headers = init.headers || {};
+  
+  const token = localStorage.getItem("electra_auth_token");
+  if (token) {
+    if (init.headers instanceof Headers) {
+      if (!init.headers.has("Authorization")) {
+        init.headers.set("Authorization", `Bearer ${token}`);
+      }
+    } else if (Array.isArray(init.headers)) {
+      init.headers.push(["Authorization", `Bearer ${token}`]);
+    } else {
+      if (!init.headers["Authorization"]) {
+        init.headers["Authorization"] = `Bearer ${token}`;
+      }
+    }
+  }
+
+  const res = await originalFetch(input, init);
+  if (res.status === 401) {
+    const urlStr = typeof input === "string" ? input : (input.url || "");
+    if (!urlStr.includes("/api/auth/login") && !urlStr.includes("/api/auth/check")) {
+      localStorage.removeItem("electra_auth_token");
+      showLoginScreen("Oturum süreniz doldu veya giriş yapmanız gerekiyor.");
+    }
+  }
+  return res;
+};
+
+document.addEventListener("DOMContentLoaded", async () => {
+  await checkAuthStatus();
 });
+
+async function checkAuthStatus() {
+  try {
+    const res = await fetch("/api/auth/check");
+    const data = await res.json();
+    if (data.authenticated) {
+      hideLoginScreen(data.username);
+      loadStats();
+      loadComponents();
+      loadCartBadge();
+      loadDraftsBadge();
+    } else {
+      showLoginScreen();
+    }
+  } catch (err) {
+    showLoginScreen();
+  }
+}
+
+function showLoginScreen(errorMsg = "") {
+  const screen = document.getElementById("login-screen");
+  if (screen) screen.classList.remove("hidden");
+  const badge = document.getElementById("auth-user-badge");
+  if (badge) badge.classList.add("hidden");
+  
+  const errBox = document.getElementById("login-error-box");
+  const errMsgSpan = document.getElementById("login-error-msg");
+  if (errorMsg && errBox && errMsgSpan) {
+    errMsgSpan.innerText = errorMsg;
+    errBox.classList.remove("hidden");
+  } else if (errBox) {
+    errBox.classList.add("hidden");
+  }
+}
+
+function hideLoginScreen(username = "admin") {
+  const screen = document.getElementById("login-screen");
+  if (screen) screen.classList.add("hidden");
+  const badge = document.getElementById("auth-user-badge");
+  if (badge) badge.classList.remove("hidden");
+  const userSpan = document.getElementById("current-username");
+  if (userSpan) userSpan.innerText = username;
+}
+
+async function handleLoginSubmit(e) {
+  e.preventDefault();
+  const usernameInput = document.getElementById("login-username");
+  const passwordInput = document.getElementById("login-password");
+  const errBox = document.getElementById("login-error-box");
+  const errMsg = document.getElementById("login-error-msg");
+  const submitBtn = document.getElementById("login-submit-btn");
+
+  const username = usernameInput.value.trim();
+  const password = passwordInput.value;
+
+  if (!username || !password) return;
+
+  submitBtn.disabled = true;
+  submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Giriş Yapılıyor...';
+  errBox.classList.add("hidden");
+
+  try {
+    const res = await fetch("/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username, password })
+    });
+
+    const data = await res.json();
+    if (res.ok && data.success) {
+      localStorage.setItem("electra_auth_token", data.token);
+      hideLoginScreen(data.username);
+      showToast(`Hoş geldin, ${data.username}! Giriş başarılı.`);
+      loadStats();
+      loadComponents();
+      loadCartBadge();
+      loadDraftsBadge();
+    } else {
+      errBox.classList.remove("hidden");
+      errMsg.innerText = data.error || "Giriş başarısız. Lütfen bilgilerinizi kontrol edin.";
+    }
+  } catch (err) {
+    errBox.classList.remove("hidden");
+    errMsg.innerText = "Sunucuya bağlanılamadı. Lütfen tekrar deneyin.";
+  } finally {
+    submitBtn.disabled = false;
+    submitBtn.innerHTML = '<i class="fa-solid fa-arrow-right-to-bracket"></i> <span>Giriş Yap</span>';
+  }
+}
+
+async function logout() {
+  if (!confirm("Oturumu kapatmak istediğinizden emin misiniz?")) return;
+  try {
+    await fetch("/api/auth/logout", { method: "POST" });
+  } catch (err) {}
+  localStorage.removeItem("electra_auth_token");
+  showLoginScreen("Oturum kapatıldı.");
+}
+
+function openChangePasswordModal() {
+  document.getElementById("change-password-modal").classList.remove("hidden");
+  document.getElementById("change-password-form").reset();
+  document.getElementById("cp-error-box").classList.add("hidden");
+}
+
+function closeChangePasswordModal() {
+  document.getElementById("change-password-modal").classList.add("hidden");
+}
+
+async function handleChangePasswordSubmit(e) {
+  e.preventDefault();
+  const oldPass = document.getElementById("cp-old-password").value;
+  const newPass = document.getElementById("cp-new-password").value;
+  const confirmPass = document.getElementById("cp-confirm-password").value;
+  const errBox = document.getElementById("cp-error-box");
+  const errMsg = document.getElementById("cp-error-msg");
+
+  if (newPass !== confirmPass) {
+    errBox.classList.remove("hidden");
+    errMsg.innerText = "Yeni şifreler birbiriyle eşleşmiyor!";
+    return;
+  }
+
+  try {
+    const res = await fetch("/api/auth/change-password", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ old_password: oldPass, new_password: newPass })
+    });
+    const data = await res.json();
+    if (res.ok && data.success) {
+      closeChangePasswordModal();
+      showToast("Şifreniz başarıyla güncellendi!");
+    } else {
+      errBox.classList.remove("hidden");
+      errMsg.innerText = data.error || "Şifre güncellenemedi.";
+    }
+  } catch (err) {
+    errBox.classList.remove("hidden");
+    errMsg.innerText = "Sunucu hatası oluştu.";
+  }
+}
+
+function togglePasswordVisibility(inputId) {
+  const input = document.getElementById(inputId);
+  const icon = document.getElementById(`${inputId}-eye`);
+  if (!input) return;
+  if (input.type === "password") {
+    input.type = "text";
+    if (icon) {
+      icon.classList.remove("fa-eye");
+      icon.classList.add("fa-eye-slash");
+    }
+  } else {
+    input.type = "password";
+    if (icon) {
+      icon.classList.remove("fa-eye-slash");
+      icon.classList.add("fa-eye");
+    }
+  }
+}
+
 
 // Sekme Değiştirme
 function switchTab(tabId) {
@@ -562,6 +753,7 @@ function closeModal() {
 document.addEventListener("keydown", (e) => {
   if (e.key === "Escape") {
     closeModal();
+    closeChangePasswordModal();
   }
 });
 
