@@ -519,47 +519,88 @@
         </p>
 
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <!-- Cursor IDE -->
+          <!-- CANLI HTTPS / SSE URL (Cursor, Windsurf vb. - SIFIR KURULUM) -->
+          <div class="bg-gradient-to-br from-indigo-950/40 via-slate-900 to-slate-900 border-2 border-indigo-500/50 rounded-xl p-5 space-y-3 lg:col-span-2 shadow-lg shadow-indigo-950/30">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2.5">
+                <span class="p-2 bg-indigo-500/20 text-indigo-400 rounded-lg text-lg flex items-center justify-center">
+                  <i class="fa-solid fa-cloud-bolt"></i>
+                </span>
+                <div>
+                  <div class="flex items-center gap-2">
+                    <h4 class="font-bold text-white text-sm">Canlı HTTPS / SSE URL (Cursor, Windsurf, Web AI)</h4>
+                    <span class="text-[10px] bg-emerald-500/20 text-emerald-300 font-semibold px-2 py-0.5 rounded-full border border-emerald-500/30">
+                      ⚡ ÖNERİLEN • SIFIR KURULUM
+                    </span>
+                  </div>
+                  <p class="text-xs text-slate-400">Python veya dosya indirmeden, doğrudan canlı sunucu URL'si ile bağlanın.</p>
+                </div>
+              </div>
+              <button onclick="copyCode('code-cursor-cloud', this)" class="px-3 py-1.5 text-xs rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-medium flex items-center gap-1.5 transition shadow-sm">
+                <i class="fa-solid fa-copy"></i> Kopyala
+              </button>
+            </div>
+            <p class="text-xs text-slate-300">
+              Dosya: <code class="text-indigo-300 bg-slate-950 px-1.5 py-0.5 rounded">.cursor/mcp.json</code> veya Cursor Ayarları &gt; Features &gt; MCP:
+            </p>
+            <pre class="bg-slate-950 p-3.5 rounded-lg border border-slate-800 text-xs font-mono text-indigo-300 overflow-x-auto"><code id="code-cursor-cloud">{
+  "mcpServers": {
+    "electra": {
+      "url": "https://electra.matelab.dev/mcp?token=alp236330"
+    }
+  }
+}</code></pre>
+            <p class="text-[11px] text-slate-400 flex items-center gap-2">
+              <i class="fa-solid fa-circle-info text-indigo-400"></i>
+              <span>SSE protokolü tercih eden araçlar için: <code class="text-slate-200 bg-slate-950 px-1.5 py-0.5 rounded">https://electra.matelab.dev/sse?token=alp236330</code></span>
+            </p>
+          </div>
+
+          <!-- Claude Desktop (Remote Bridge) -->
           <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-3">
             <div class="flex items-center justify-between">
               <div class="flex items-center gap-2">
-                <i class="fa-solid fa-computer text-emerald-400 text-lg"></i>
-                <h4 class="font-bold text-white text-sm">Cursor IDE (Yerel / Local)</h4>
+                <i class="fa-solid fa-brain text-amber-400 text-lg"></i>
+                <h4 class="font-bold text-white text-sm">Claude Desktop (Uzak Köprü / Remote)</h4>
               </div>
-              <button onclick="copyCode('code-cursor-local')" class="px-2.5 py-1 text-xs rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 flex items-center gap-1.5 transition">
+              <button onclick="copyCode('code-claude-remote', this)" class="px-2.5 py-1 text-xs rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 flex items-center gap-1.5 transition">
                 <i class="fa-solid fa-copy"></i> Kopyala
               </button>
             </div>
             <p class="text-xs text-slate-400">
-              Dosya Konumu: <code class="text-indigo-300 bg-slate-950 px-1.5 py-0.5 rounded">.cursor/mcp.json</code> veya Global Cursor Ayarları
+              Claude Desktop'ı uzaktaki canlı sunucuya bağlar (stdio -&gt; HTTPS köprüsü):
             </p>
-            <pre class="bg-slate-950 p-3 rounded-lg border border-slate-800 text-xs font-mono text-emerald-300 overflow-x-auto"><code id="code-cursor-local">{
+            <pre class="bg-slate-950 p-3 rounded-lg border border-slate-800 text-xs font-mono text-amber-300 overflow-x-auto"><code id="code-claude-remote">{
   "mcpServers": {
     "electra": {
       "command": "python3",
       "args": [
-        "/Users/emrullahardic/Documents/antigravity/nifty-tesla/mcp_server.py"
+        "/Users/emrullahardic/Documents/antigravity/nifty-tesla/mcp_server.py",
+        "--remote",
+        "https://electra.matelab.dev/mcp",
+        "--token",
+        "alp236330"
       ]
     }
   }
 }</code></pre>
           </div>
 
-          <!-- Claude Desktop -->
+          <!-- Cursor IDE (Yerel / Local stdio) -->
           <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-3">
             <div class="flex items-center justify-between">
               <div class="flex items-center gap-2">
-                <i class="fa-solid fa-brain text-amber-400 text-lg"></i>
-                <h4 class="font-bold text-white text-sm">Claude Desktop</h4>
+                <i class="fa-solid fa-laptop-code text-emerald-400 text-lg"></i>
+                <h4 class="font-bold text-white text-sm">Yerel Python Modu (Local stdio)</h4>
               </div>
-              <button onclick="copyCode('code-claude')" class="px-2.5 py-1 text-xs rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 flex items-center gap-1.5 transition">
+              <button onclick="copyCode('code-cursor-local', this)" class="px-2.5 py-1 text-xs rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 flex items-center gap-1.5 transition">
                 <i class="fa-solid fa-copy"></i> Kopyala
               </button>
             </div>
             <p class="text-xs text-slate-400">
-              MacOS: <code class="text-amber-300 bg-slate-950 px-1.5 py-0.5 rounded">~/Library/Application Support/Claude/claude_desktop_config.json</code>
+              İnternet olmadan, doğrudan bilgisayarınızdaki yerel SQLite dosyasını kullanır:
             </p>
-            <pre class="bg-slate-950 p-3 rounded-lg border border-slate-800 text-xs font-mono text-amber-300 overflow-x-auto"><code id="code-claude">{
+            <pre class="bg-slate-950 p-3 rounded-lg border border-slate-800 text-xs font-mono text-emerald-300 overflow-x-auto"><code id="code-cursor-local">{
   "mcpServers": {
     "electra": {
       "command": "python3",
@@ -578,12 +619,12 @@
                 <i class="fa-solid fa-network-wired text-cyan-400 text-lg"></i>
                 <h4 class="font-bold text-white text-sm">Sunucu Üzerinden Uzak Bağlantı (SSH Bridge)</h4>
               </div>
-              <button onclick="copyCode('code-remote-ssh')" class="px-2.5 py-1 text-xs rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 flex items-center gap-1.5 transition">
+              <button onclick="copyCode('code-remote-ssh', this)" class="px-2.5 py-1 text-xs rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 flex items-center gap-1.5 transition">
                 <i class="fa-solid fa-copy"></i> Kopyala
               </button>
             </div>
             <p class="text-xs text-slate-400">
-              Eğer projenizi sunucudaki merkezi veritabanına bağlamak isterseniz SSH tüneli üzerinden doğrudan uzaktaki sunucu çalıştırılabilir:
+              SSH anahtarınız ile doğrudan <code class="text-cyan-300 bg-slate-950 px-1 py-0.5 rounded">ms</code> sunucusundaki Python sürecini başlatır:
             </p>
             <pre class="bg-slate-950 p-3 rounded-lg border border-slate-800 text-xs font-mono text-cyan-300 overflow-x-auto"><code id="code-remote-ssh">{
   "mcpServers": {
@@ -798,8 +839,8 @@
               <span class="text-xs font-bold text-indigo-400 flex items-center gap-1.5">
                 <i class="fa-solid fa-wand-magic-sparkles"></i> Proje Planlama & BOM Çıkarma
               </span>
-              <button onclick="copyText('Elimdeki parçaları inceleyerek bir ESP32 hava kalitesi ölçüm istasyonu tasarla. Eksik parçaları Robotistan\'dan kontrol edip bir draft sipariş listesi oluştur.')" class="text-slate-400 hover:text-white text-xs">
-                <i class="fa-solid fa-copy"></i>
+              <button onclick="copyText('Elimdeki parçaları inceleyerek bir ESP32 hava kalitesi ölçüm istasyonu tasarla. Eksik parçaları Robotistan\'dan kontrol edip bir draft sipariş listesi oluştur.', this)" class="text-slate-400 hover:text-white text-xs px-2 py-1 rounded bg-slate-800 border border-slate-700/60 flex items-center gap-1 transition">
+                <i class="fa-solid fa-copy"></i> Kopyala
               </button>
             </div>
             <p class="text-xs text-slate-300 bg-slate-950 p-2.5 rounded-lg border border-slate-800/80 italic">
@@ -812,8 +853,8 @@
               <span class="text-xs font-bold text-amber-400 flex items-center gap-1.5">
                 <i class="fa-solid fa-triangle-exclamation"></i> Arızalı Parça Sorgulama
               </span>
-              <button onclick="copyText('Atölyemde arızalı ya da hurda işaretlenmiş hangi sensörler ve parçalar var? Neden bozulmuşlar ve nerede duruyorlar?')" class="text-slate-400 hover:text-white text-xs">
-                <i class="fa-solid fa-copy"></i>
+              <button onclick="copyText('Atölyemde arızalı ya da hurda işaretlenmiş hangi sensörler ve parçalar var? Neden bozulmuşlar ve nerede duruyorlar?', this)" class="text-slate-400 hover:text-white text-xs px-2 py-1 rounded bg-slate-800 border border-slate-700/60 flex items-center gap-1 transition">
+                <i class="fa-solid fa-copy"></i> Kopyala
               </button>
             </div>
             <p class="text-xs text-slate-300 bg-slate-950 p-2.5 rounded-lg border border-slate-800/80 italic">
@@ -826,8 +867,8 @@
               <span class="text-xs font-bold text-emerald-400 flex items-center gap-1.5">
                 <i class="fa-solid fa-boxes-packing"></i> Hızlı Parça Ekleme
               </span>
-              <button onclick="copyText('Stoka 10 adet 220 Ohm direnç (Direnç Organizeri 1) ve 2 adet ESP32-WROOM ekle.')" class="text-slate-400 hover:text-white text-xs">
-                <i class="fa-solid fa-copy"></i>
+              <button onclick="copyText('Stoka 10 adet 220 Ohm direnç (Direnç Organizeri 1) ve 2 adet ESP32-WROOM ekle.', this)" class="text-slate-400 hover:text-white text-xs px-2 py-1 rounded bg-slate-800 border border-slate-700/60 flex items-center gap-1 transition">
+                <i class="fa-solid fa-copy"></i> Kopyala
               </button>
             </div>
             <p class="text-xs text-slate-300 bg-slate-950 p-2.5 rounded-lg border border-slate-800/80 italic">
@@ -840,8 +881,8 @@
               <span class="text-xs font-bold text-purple-400 flex items-center gap-1.5">
                 <i class="fa-solid fa-clipboard-check"></i> Draft Sipariş Yönetimi
               </span>
-              <button onclick="copyText('Kayıtlı taslak siparişlerimi listele ve ilk sıradaki siparişi doğrudan Robotistan sepetine aktar.')" class="text-slate-400 hover:text-white text-xs">
-                <i class="fa-solid fa-copy"></i>
+              <button onclick="copyText('Kayıtlı taslak siparişlerimi listele ve ilk sıradaki siparişi doğrudan Robotistan sepetine aktar.', this)" class="text-slate-400 hover:text-white text-xs px-2 py-1 rounded bg-slate-800 border border-slate-700/60 flex items-center gap-1 transition">
+                <i class="fa-solid fa-copy"></i> Kopyala
               </button>
             </div>
             <p class="text-xs text-slate-300 bg-slate-950 p-2.5 rounded-lg border border-slate-800/80 italic">
@@ -870,7 +911,7 @@
           <div>
             <div class="flex items-center justify-between mb-1">
               <span class="text-xs font-semibold text-slate-300">1. Stok İstatistiklerini Çekme (Basic Auth):</span>
-              <button onclick="copyCode('curl-stats')" class="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-1">
+              <button onclick="copyCode('curl-stats', this)" class="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-1 px-2 py-0.5 rounded bg-slate-800 border border-slate-700/60 transition">
                 <i class="fa-solid fa-copy"></i> Kopyala
               </button>
             </div>
@@ -880,7 +921,7 @@
           <div>
             <div class="flex items-center justify-between mb-1">
               <span class="text-xs font-semibold text-slate-300">2. Parça Arama:</span>
-              <button onclick="copyCode('curl-search')" class="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-1">
+              <button onclick="copyCode('curl-search', this)" class="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-1 px-2 py-0.5 rounded bg-slate-800 border border-slate-700/60 transition">
                 <i class="fa-solid fa-copy"></i> Kopyala
               </button>
             </div>
@@ -890,7 +931,7 @@
           <div>
             <div class="flex items-center justify-between mb-1">
               <span class="text-xs font-semibold text-slate-300">3. Taslak Siparişleri Getirme:</span>
-              <button onclick="copyCode('curl-drafts')" class="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-1">
+              <button onclick="copyCode('curl-drafts', this)" class="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-1 px-2 py-0.5 rounded bg-slate-800 border border-slate-700/60 transition">
                 <i class="fa-solid fa-copy"></i> Kopyala
               </button>
             </div>

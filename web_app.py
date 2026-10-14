@@ -12,13 +12,20 @@ import urllib.parse
 import os
 import sys
 import base64
+import queue
+import uuid
 from typing import Dict, Any, Optional
 import electro_db
 import project_matcher
 from robotistan_scraper import scraper
+import mcp_server
 
 PORT = 8080
 STATIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
+
+# SSE Oturumları ve Global MCP Sunucusu Örneği
+SSE_SESSIONS: Dict[str, queue.Queue] = {}
+mcp_instance = mcp_server.MCPServer()
 
 
 class ElectroRequestHandler(http.server.SimpleHTTPRequestHandler):
@@ -27,7 +34,10 @@ class ElectroRequestHandler(http.server.SimpleHTTPRequestHandler):
 
     def log_message(self, format, *args):
         # Temiz terminal çıktısı
-        sys.stderr.write(f"[Web] {args[0]} {args[1]} -> {args[2]}\n")
+        try:
+            sys.stderr.write(f"[Web] {format % args}\n")
+        except Exception:
+            pass
 
     def send_json(self, data: Any, status: int = 200, cookie: Optional[str] = None):
         body = json.dumps(data, ensure_ascii=False).encode("utf-8")
@@ -48,21 +58,35 @@ class ElectroRequestHandler(http.server.SimpleHTTPRequestHandler):
         self.send_response(204)
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, Accept")
         self.end_headers()
 
     def get_authenticated_user(self) -> Optional[str]:
         """
-        Gelen istekteki Bearer token, Basic Auth veya Cookie'yi kontrol ederek
+        Gelen istekteki Bearer token, Basic Auth, URL token parametresi veya Cookie'yi kontrol ederek
         doğrulanmış kullanıcı adını döndürür. Yetkisiz ise None döner.
         """
-        # 1. Authorization Başlığı (Bearer Token veya Basic Auth)
+        # 1. URL Query Parametresi (?token=... veya ?apiKey=...)
+        parsed = urllib.parse.urlparse(self.path)
+        params = urllib.parse.parse_qs(parsed.query)
+        q_token = params.get("token", [""])[0] or params.get("apiKey", [""])[0]
+        if q_token:
+            q_token = q_token.strip()
+            user = electro_db.verify_session(q_token)
+            if user:
+                return user
+            if electro_db.verify_user_credentials("admin", q_token):
+                return "admin"
+
+        # 2. Authorization Başlığı (Bearer Token veya Basic Auth)
         auth_header = self.headers.get("Authorization", "").strip()
         if auth_header.startswith("Bearer "):
             token = auth_header[7:].strip()
             user = electro_db.verify_session(token)
             if user:
                 return user
+            if electro_db.verify_user_credentials("admin", token):
+                return "admin"
         elif auth_header.startswith("Basic "):
             try:
                 raw_b64 = auth_header[6:].strip()
@@ -74,7 +98,7 @@ class ElectroRequestHandler(http.server.SimpleHTTPRequestHandler):
             except Exception:
                 pass
 
-        # 2. Cookie Başlığı (electra_session=<token>)
+        # 3. Cookie Başlığı (electra_session=<token>)
         cookie_header = self.headers.get("Cookie", "")
         if "electra_session=" in cookie_header:
             for item in cookie_header.split(";"):
@@ -86,6 +110,8 @@ class ElectroRequestHandler(http.server.SimpleHTTPRequestHandler):
                         user = electro_db.verify_session(token)
                         if user:
                             return user
+                        if electro_db.verify_user_credentials("admin", token):
+                            return "admin"
 
         return None
 
@@ -101,6 +127,73 @@ class ElectroRequestHandler(http.server.SimpleHTTPRequestHandler):
                 self.send_json({"authenticated": True, "username": user})
             else:
                 self.send_json({"authenticated": False, "username": None})
+            return
+
+        # 0.1 MCP Servis Bilgisi (Streamable HTTP GET /mcp veya /api/mcp)
+        elif path in ("/mcp", "/api/mcp"):
+            tools_summary = [
+                {"name": t["name"], "description": t["description"]}
+                for t in mcp_server.TOOLS
+            ]
+            self.send_json({
+                "service": "ElectroStock MCP Server",
+                "protocolVersion": "2024-11-05",
+                "status": "online",
+                "server_url": "https://electra.matelab.dev",
+                "transports": {
+                    "streamable_http": "https://electra.matelab.dev/mcp",
+                    "sse": "https://electra.matelab.dev/sse",
+                    "messages": "https://electra.matelab.dev/mcp/message"
+                },
+                "auth_instructions": "URL sonuna '?token=alp236330' ekleyebilir veya 'Authorization: Bearer alp236330' başlığı gönderebilirsiniz.",
+                "tools_count": len(tools_summary),
+                "tools": tools_summary
+            })
+            return
+
+        # 0.2 MCP SSE (Server-Sent Events) Bağlantı Uç Noktası
+        elif path in ("/sse", "/mcp/sse"):
+            user = self.get_authenticated_user()
+            if not user:
+                self.send_json({
+                    "error": "Kimlik doğrulaması gerekli. URL sonuna '?token=alp236330' ekleyebilir veya Bearer başlığı gönderebilirsiniz."
+                }, status=401)
+                return
+
+            session_id = str(uuid.uuid4())
+            msg_queue = queue.Queue()
+            SSE_SESSIONS[session_id] = msg_queue
+
+            self.send_response(200)
+            self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+            self.send_header("Cache-Control", "no-cache, no-transform")
+            self.send_header("Connection", "keep-alive")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.send_header("X-Accel-Buffering", "no")
+            self.end_headers()
+
+            try:
+                # MCP SSE Standardı: client'a mesaj göndereceği endpoint adresini ilet
+                endpoint_url = f"/mcp/message?sessionId={session_id}"
+                init_msg = f"event: endpoint\ndata: {endpoint_url}\n\n"
+                self.wfile.write(init_msg.encode("utf-8"))
+                self.wfile.flush()
+
+                while True:
+                    try:
+                        msg = msg_queue.get(timeout=15)
+                        if msg is None:
+                            break
+                        event_data = f"event: message\ndata: {json.dumps(msg, ensure_ascii=False)}\n\n"
+                        self.wfile.write(event_data.encode("utf-8"))
+                        self.wfile.flush()
+                    except queue.Empty:
+                        self.wfile.write(b": keepalive\n\n")
+                        self.wfile.flush()
+            except (BrokenPipeError, ConnectionResetError, IOError):
+                pass
+            finally:
+                SSE_SESSIONS.pop(session_id, None)
             return
 
         # Tüm diğer /api/ istekleri kimlik doğrulama gerektirir
@@ -190,7 +283,6 @@ class ElectroRequestHandler(http.server.SimpleHTTPRequestHandler):
 
         # 9. API: MCP Araçları Dokümantasyon Şeması
         elif path == "/api/mcp/tools":
-            import mcp_server
             self.send_json({"tools": mcp_server.TOOLS})
             return
 
@@ -204,6 +296,7 @@ class ElectroRequestHandler(http.server.SimpleHTTPRequestHandler):
     def do_POST(self):
         parsed = urllib.parse.urlparse(self.path)
         path = parsed.path
+        params = urllib.parse.parse_qs(parsed.query)
 
         length = int(self.headers.get("Content-Length", 0))
         body = self.rfile.read(length).decode("utf-8") if length > 0 else "{}"
@@ -250,7 +343,54 @@ class ElectroRequestHandler(http.server.SimpleHTTPRequestHandler):
         # Diğer tüm POST işlemleri kimlik doğrulama gerektirir
         user = self.get_authenticated_user()
         if not user:
+            if path in ("/mcp", "/api/mcp", "/mcp/message", "/message"):
+                self.send_json({
+                    "jsonrpc": "2.0",
+                    "error": {
+                        "code": -32000,
+                        "message": "Yetkilendirme gerekli. Lütfen URL sonuna '?token=alp236330' ekleyin veya Authorization: Bearer başlığı gönderin."
+                    }
+                }, status=401)
+                return
             self.send_json({"error": "Kimlik doğrulaması gerekli.", "authenticated": False}, status=401)
+            return
+
+        # MCP HTTP JSON-RPC Uç Noktası (Cursor / Streamable HTTP)
+        if path in ("/mcp", "/api/mcp"):
+            try:
+                resp = mcp_instance.handle_request(data)
+                if resp is not None:
+                    self.send_json(resp)
+                else:
+                    self.send_response(204)
+                    self.send_header("Access-Control-Allow-Origin", "*")
+                    self.end_headers()
+            except Exception as e:
+                self.send_json({
+                    "jsonrpc": "2.0",
+                    "error": {"code": -32603, "message": f"Dahili MCP sunucu hatası: {str(e)}"}
+                }, status=500)
+            return
+
+        # MCP SSE Mesaj Gönderme Uç Noktası
+        elif path in ("/mcp/message", "/message"):
+            session_id = params.get("sessionId", [""])[0]
+            try:
+                resp = mcp_instance.handle_request(data)
+                if session_id and session_id in SSE_SESSIONS and resp is not None:
+                    SSE_SESSIONS[session_id].put(resp)
+
+                if resp is not None:
+                    self.send_json(resp)
+                else:
+                    self.send_response(202)
+                    self.send_header("Access-Control-Allow-Origin", "*")
+                    self.end_headers()
+            except Exception as e:
+                self.send_json({
+                    "jsonrpc": "2.0",
+                    "error": {"code": -32603, "message": f"Dahili MCP mesaj hatası: {str(e)}"}
+                }, status=500)
             return
 
         # 0. API: Şifre Değiştir
@@ -451,8 +591,9 @@ class ElectroRequestHandler(http.server.SimpleHTTPRequestHandler):
 
 
 
-class ReusableTCPServer(socketserver.TCPServer):
+class ReusableTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
     allow_reuse_address = True
+    daemon_threads = True
 
 
 def run_server(port: int = PORT):

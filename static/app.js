@@ -1331,36 +1331,83 @@ async function saveDraftFromAnalysis() {
 // KOD & METİN KOPYALAMA YARDIMCILARI (DEVELOPER TAB)
 // ==========================================
 
-function copyCode(elementId) {
+function copyCode(elementId, btn = null) {
   const el = document.getElementById(elementId);
   if (!el) return;
-  copyText(el.innerText);
+  const text = (el.innerText || el.textContent || "").trim();
+  const targetBtn = btn || (window.event ? (window.event.currentTarget || (window.event.target ? window.event.target.closest("button") : null)) : null);
+  copyText(text, targetBtn);
 }
 
-function copyText(text) {
-  if (navigator.clipboard && navigator.clipboard.writeText) {
+function copyText(text, btn = null) {
+  if (!text) return;
+  const targetBtn = btn || (window.event ? (window.event.currentTarget || (window.event.target ? window.event.target.closest("button") : null)) : null);
+
+  // 1. Önce modern clipboard API dene
+  if (navigator.clipboard && window.isSecureContext) {
     navigator.clipboard.writeText(text).then(() => {
-      showToast("Panoya kopyalandı! 📋");
-    }).catch(() => fallbackCopy(text));
-  } else {
-    fallbackCopy(text);
+      showCopySuccess(targetBtn);
+    }).catch(() => {
+      // Başarısız olursa senkron fallback'e geç
+      fallbackCopy(text, targetBtn);
+    });
+    return;
   }
+
+  // 2. Güvenli context yoksa veya API desteklenmiyorsa fallback çalıştır
+  fallbackCopy(text, targetBtn);
 }
 
-function fallbackCopy(text) {
+function fallbackCopy(text, btn) {
   const textarea = document.createElement("textarea");
   textarea.value = text;
+  textarea.setAttribute("readonly", "");
   textarea.style.position = "fixed";
-  textarea.style.opacity = "0";
+  textarea.style.top = "0";
+  textarea.style.left = "0";
+  textarea.style.width = "2em";
+  textarea.style.height = "2em";
+  textarea.style.padding = "0";
+  textarea.style.border = "none";
+  textarea.style.outline = "none";
+  textarea.style.boxShadow = "none";
+  textarea.style.background = "transparent";
+  textarea.style.opacity = "0.01";
+  textarea.style.zIndex = "-1";
   document.body.appendChild(textarea);
+
+  textarea.focus();
   textarea.select();
+  textarea.setSelectionRange(0, 99999);
+
+  let success = false;
   try {
-    document.execCommand("copy");
-    showToast("Panoya kopyalandı! 📋");
+    success = document.execCommand("copy");
   } catch (err) {
-    prompt("Kopyalamak için Ctrl+C tuşlayın:", text);
+    success = false;
   }
   document.body.removeChild(textarea);
+
+  if (success) {
+    showCopySuccess(btn);
+  } else {
+    window.prompt("Kopyalamak için Ctrl+C tuşlayın:", text);
+  }
+}
+
+function showCopySuccess(btn) {
+  showToast("Panoya kopyalandı! 📋");
+  if (btn) {
+    const origHtml = btn.dataset.origHtml || btn.innerHTML;
+    btn.dataset.origHtml = origHtml;
+    btn.innerHTML = '<i class="fa-solid fa-check text-emerald-400"></i> <span class="text-emerald-400 font-semibold">Kopyalandı!</span>';
+    btn.classList.add("border-emerald-500", "bg-emerald-950/60");
+    clearTimeout(btn._copyTimeout);
+    btn._copyTimeout = setTimeout(() => {
+      btn.innerHTML = origHtml;
+      btn.classList.remove("border-emerald-500", "bg-emerald-950/60");
+    }, 2200);
+  }
 }
 
 

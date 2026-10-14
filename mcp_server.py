@@ -869,12 +869,64 @@ class MCPServer:
                     sys.stdout.write(out + "\n")
                     sys.stdout.flush()
 
-            except (IOError, KeyboardInterrupt):
-                break
             except Exception as e:
                 logging.error(f"Girdi işleme hatası: {e}", exc_info=True)
 
 
+def run_remote_bridge(remote_url: str, token: str = ""):
+    """stdio üzerinden gelen JSON-RPC mesajlarını uzaktaki Electra HTTP/MCP sunucusuna yönlendirir."""
+    import urllib.request
+    import urllib.parse
+
+    headers = {"Content-Type": "application/json"}
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+
+    url = remote_url
+    if token and "token=" not in url:
+        sep = "&" if "?" in url else "?"
+        url = f"{url}{sep}token={urllib.parse.quote(token)}"
+
+    sys.stderr.write(f"[Electra MCP Bridge] Uzak sunucuya bağlanılıyor: {url}\n")
+    sys.stderr.flush()
+
+    while True:
+        try:
+            line = sys.stdin.readline()
+            if not line:
+                break
+            line = line.strip()
+            if not line:
+                continue
+
+            req = urllib.request.Request(
+                url,
+                data=line.encode("utf-8"),
+                headers=headers,
+                method="POST"
+            )
+            with urllib.request.urlopen(req, timeout=45) as resp:
+                resp_data = resp.read().decode("utf-8")
+                if resp_data:
+                    sys.stdout.write(resp_data + "\n")
+                    sys.stdout.flush()
+        except (IOError, KeyboardInterrupt):
+            break
+        except Exception as e:
+            sys.stderr.write(f"[Electra MCP Bridge Hatası]: {e}\n")
+            sys.stderr.flush()
+
+
 if __name__ == "__main__":
-    server = MCPServer()
-    server.run()
+    import argparse
+    parser = argparse.ArgumentParser(description="ElectroStock MCP Sunucusu")
+    parser.add_argument("--remote", type=str, default="", help="Uzak Electra sunucusu URL'si (örn: https://electra.matelab.dev/mcp)")
+    parser.add_argument("--token", type=str, default="", help="Kimlik doğrulama tokenı veya admin şifresi")
+    parsed_args = parser.parse_args()
+
+    if parsed_args.remote:
+        run_remote_bridge(parsed_args.remote, parsed_args.token)
+    else:
+        server = MCPServer()
+        server.run()
+
