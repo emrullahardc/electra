@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "electro-stock": {
+      "command": "python3",
+      "args": [
+        "/Users/emrullahardic/Documents/antigravity/nifty-tesla/mcp_server.py"
+      ]
+    }
+  }
+}

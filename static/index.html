@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="tr" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ElectroStock - Elektronik Parça & Stok Takip Sistemi</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="stylesheet" href="/style.css">
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#ecfdf5',
+              500: '#10b981',
+              600: '#059669',
+              700: '#047857'
+            },
+            circuit: '#06b6d4',
+            darkbg: '#0f172a',
+            darkcard: '#1e293b',
+            darkborder: '#334155'
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="bg-[#0b1120] text-slate-100 min-h-screen flex flex-col font-sans selection:bg-emerald-500 selection:text-white">
+
+  <!-- Üst Menü / Navbar -->
+  <header class="border-b border-slate-800 bg-slate-900/90 backdrop-blur sticky top-0 z-40">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-500 to-cyan-500 flex items-center justify-center text-slate-950 font-black text-xl shadow-lg shadow-emerald-500/20">
+          <i class="fa-solid fa-microchip"></i>
+        </div>
+        <div>
+          <h1 class="font-bold text-lg leading-tight flex items-center gap-2">
+            ElectroStock <span class="text-xs px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-mono">MCP Ready</span>
+          </h1>
+          <p class="text-xs text-slate-400">Elektronik Atölye & Stok Takip Sistemi</p>
+        </div>
+      </div>
+
+      <div class="flex items-center space-x-2">
+        <button onclick="openAddModal()" class="px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-sm flex items-center gap-2 shadow-md shadow-emerald-600/30 transition">
+          <i class="fa-solid fa-plus"></i> <span>Yeni Parça Ekle</span>
+        </button>
+        <button onclick="exportData()" title="Verileri JSON olarak yedekle" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition">
+          <i class="fa-solid fa-download"></i>
+        </button>
+        <button onclick="clearAllDataPrompt()" title="Tüm veritabanını sıfırla / temizle" class="p-2 rounded-lg bg-slate-800 hover:bg-rose-950/40 text-slate-400 hover:text-rose-400 border border-slate-700 hover:border-rose-500/30 transition">
+          <i class="fa-solid fa-trash-can"></i>
+        </button>
+      </div>
+    </div>
+
+    <!-- Sekmeler / Tabs -->
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex space-x-1 border-t border-slate-800/80 overflow-x-auto py-1">
+      <button onclick="switchTab('inventory')" id="tab-btn-inventory" class="tab-btn active-tab px-4 py-2 text-sm font-medium rounded-lg flex items-center gap-2 transition">
+        <i class="fa-solid fa-boxes-stacked text-emerald-400"></i> Stok & Parçalar
+      </button>
+      <button onclick="switchTab('defective')" id="tab-btn-defective" class="tab-btn px-4 py-2 text-sm font-medium rounded-lg flex items-center gap-2 transition">
+        <i class="fa-solid fa-triangle-exclamation text-amber-400"></i> Arızalı / Çıkma Parçalar
+        <span id="badge-defective-count" class="text-xs bg-amber-500/20 text-amber-300 px-1.5 py-0.2 rounded-full border border-amber-500/30">0</span>
+      </button>
+      <button onclick="switchTab('lowstock')" id="tab-btn-lowstock" class="tab-btn px-4 py-2 text-sm font-medium rounded-lg flex items-center gap-2 transition">
+        <i class="fa-solid fa-bell text-rose-400"></i> Kritik Stok
+        <span id="badge-lowstock-count" class="text-xs bg-rose-500/20 text-rose-300 px-1.5 py-0.2 rounded-full border border-rose-500/30">0</span>
+      </button>
+      <button onclick="switchTab('project')" id="tab-btn-project" class="tab-btn px-4 py-2 text-sm font-medium rounded-lg flex items-center gap-2 transition">
+        <i class="fa-solid fa-wand-magic-sparkles text-cyan-400"></i> Proje Asistanı & Robotistan BOM
+      </button>
+      <button onclick="switchTab('robotistan')" id="tab-btn-robotistan" class="tab-btn px-4 py-2 text-sm font-medium rounded-lg flex items-center gap-2 transition">
+        <i class="fa-solid fa-globe text-orange-400"></i> Robotistan Canlı Arama
+      </button>
+      <button onclick="switchTab('cart')" id="tab-btn-cart" class="tab-btn px-4 py-2 text-sm font-medium rounded-lg flex items-center gap-2 transition">
+        <i class="fa-solid fa-cart-shopping text-emerald-400"></i> Robotistan Sepetim
+        <span id="badge-cart-count" class="text-xs bg-emerald-500/20 text-emerald-300 px-1.5 py-0.2 rounded-full border border-emerald-500/30">0</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Ana İçerik -->
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-1 w-full space-y-6">
+
+    <!-- İstatistik Kartları -->
+    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+      <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 flex items-center justify-between">
+        <div>
+          <p class="text-xs text-slate-400 font-medium">Toplam Çeşit</p>
+          <p id="stat-total-items" class="text-2xl font-bold text-white mt-1">0</p>
+        </div>
+        <div class="w-10 h-10 rounded-lg bg-slate-800 flex items-center justify-center text-slate-400 text-lg">
+          <i class="fa-solid fa-layer-group"></i>
+        </div>
+      </div>
+
+      <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 flex items-center justify-between">
+        <div>
+          <p class="text-xs text-slate-400 font-medium">Toplam Adet</p>
+          <p id="stat-total-qty" class="text-2xl font-bold text-white mt-1">0</p>
+        </div>
+        <div class="w-10 h-10 rounded-lg bg-slate-800 flex items-center justify-center text-slate-400 text-lg">
+          <i class="fa-solid fa-cubes"></i>
+        </div>
+      </div>
+
+      <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 flex items-center justify-between">
+        <div>
+          <p class="text-xs text-emerald-400 font-medium">Sağlam / Kullanıma Hazır</p>
+          <p id="stat-working-count" class="text-2xl font-bold text-emerald-400 mt-1">0</p>
+        </div>
+        <div class="w-10 h-10 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 text-lg">
+          <i class="fa-solid fa-circle-check"></i>
+        </div>
+      </div>
+
+      <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 flex items-center justify-between">
+        <div>
+          <p class="text-xs text-amber-400 font-medium">Arızalı & Çıkma</p>
+          <p id="stat-defective-count" class="text-2xl font-bold text-amber-400 mt-1">0</p>
+        </div>
+        <div class="w-10 h-10 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 text-lg">
+          <i class="fa-solid fa-triangle-exclamation"></i>
+        </div>
+      </div>
+
+      <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 flex items-center justify-between col-span-2 sm:col-span-1">
+        <div>
+          <p class="text-xs text-rose-400 font-medium">Kritik Stok Uyarısı</p>
+          <p id="stat-low-stock-count" class="text-2xl font-bold text-rose-400 mt-1">0</p>
+        </div>
+        <div class="w-10 h-10 rounded-lg bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-400 text-lg">
+          <i class="fa-solid fa-triangle-exclamation"></i>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 1: TÜM STOK & PARÇALAR -->
+    <section id="tab-inventory" class="tab-content space-y-4">
+      <!-- Filtreleme Çubuğu -->
+      <div class="bg-slate-900 border border-slate-800 rounded-xl p-3 flex flex-wrap gap-2.5 items-center justify-between">
+        <div class="flex-1 min-w-[240px] relative">
+          <i class="fa-solid fa-magnifying-glass absolute left-3 top-3 text-slate-500 text-sm"></i>
+          <input type="text" id="search-input" oninput="debounceSearch()" placeholder="Parça adı, değer (10k, 100nF), kılıf veya not ara..." 
+                 class="w-full bg-slate-950 border border-slate-800 rounded-lg pl-9 pr-3 py-2 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-emerald-500">
+        </div>
+
+        <div class="flex flex-wrap items-center gap-2 text-sm">
+          <select id="filter-category" onchange="loadComponents()" class="bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-300 focus:outline-none focus:border-emerald-500">
+            <option value="all">Tüm Kategoriler</option>
+            <option value="resistor">Dirençler</option>
+            <option value="capacitor">Kondansatörler</option>
+            <option value="diode_led">Diyot & LED</option>
+            <option value="transistor">Transistör & MOSFET</option>
+            <option value="ic_mcu">Entegre & Mikrodenetleyici</option>
+            <option value="sensor">Sensörler</option>
+            <option value="module">Modül & Kart</option>
+            <option value="connector">Konnektör & Kablo</option>
+            <option value="power">Güç & Batarya</option>
+            <option value="broken_scrap">Arızalı / Çıkma</option>
+          </select>
+
+          <select id="filter-status" onchange="loadComponents()" class="bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-300 focus:outline-none focus:border-emerald-500">
+            <option value="all">Tüm Durumlar</option>
+            <option value="working">🟢 Sağlam / Çalışır</option>
+            <option value="defective">🔴 Arızalı / Bozuk</option>
+            <option value="untested">🟡 Test Bekliyor</option>
+            <option value="salvage">🟠 Çıkma / Hurda</option>
+          </select>
+
+          <select id="filter-location" onchange="loadComponents()" class="bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-300 focus:outline-none focus:border-emerald-500">
+            <option value="all">Tüm Saklama Yerleri</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Parça Tablosu -->
+      <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-sm">
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-sm text-slate-300">
+            <thead class="bg-slate-950/60 text-slate-400 text-xs uppercase font-semibold border-b border-slate-800">
+              <tr>
+                <th class="py-3 px-4">Parça Adı & Kategori</th>
+                <th class="py-3 px-3">Değer</th>
+                <th class="py-3 px-3">Kılıf / Paket</th>
+                <th class="py-3 px-3">Durum</th>
+                <th class="py-3 px-3">Saklama Yeri</th>
+                <th class="py-3 px-3 text-center">Stok Adedi</th>
+                <th class="py-3 px-4 text-right">İşlemler</th>
+              </tr>
+            </thead>
+            <tbody id="components-tbody" class="divide-y divide-slate-800/80">
+              <tr>
+                <td colspan="7" class="py-8 text-center text-slate-500">
+                  <i class="fa-solid fa-spinner fa-spin text-xl text-emerald-500 mb-2"></i>
+                  <p>Parçalar yükleniyor...</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 2: ARIZALI / ÇIKMA PARÇALAR -->
+    <section id="tab-defective" class="tab-content hidden space-y-4">
+      <div class="bg-amber-950/20 border border-amber-500/30 rounded-xl p-4 text-amber-200 flex items-start gap-3">
+        <i class="fa-solid fa-lightbulb text-amber-400 text-xl mt-0.5"></i>
+        <div>
+          <h3 class="font-semibold text-amber-300">Arızalı ve Çıkma Parça Takip Merkezi</h3>
+          <p class="text-xs text-amber-200/80 mt-1">
+            "Ufak parçaları unutup bir daha alma" sorununu çözmek için arızalı ve test bekleyen tüm parçalarınız burada kayıt altındadır. 
+            Devrenizde bir parçayı kullanmadan veya sipariş vermeden önce üzerindeki sağlam entegre, soket veya regülatörleri değerlendirebilirsiniz.
+          </p>
+        </div>
+      </div>
+
+      <div id="defective-list-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <!-- JS ile dolacak -->
+      </div>
+    </section>
+
+    <!-- TAB 3: KRİTİK STOK -->
+    <section id="tab-lowstock" class="tab-content hidden space-y-4">
+      <div class="bg-rose-950/20 border border-rose-500/30 rounded-xl p-4 text-rose-200 flex items-start gap-3">
+        <i class="fa-solid fa-circle-exclamation text-rose-400 text-xl mt-0.5"></i>
+        <div>
+          <h3 class="font-semibold text-rose-300">Kritik Stok Uyarısı Veren Parçalar</h3>
+          <p class="text-xs text-rose-200/80 mt-1">
+            Miktarı kritik seviyenin altına düşen parçalarınız. Tek tıkla Robotistan'da canlı arama yapabilir ve eksik stoğu tamamlayabilirsiniz.
+          </p>
+        </div>
+      </div>
+
+      <div id="lowstock-list-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <!-- JS ile dolacak -->
+      </div>
+    </section>
+
+    <!-- TAB 4: PROJE ASİSTANI & ROBOTİSTAN BOM -->
+    <section id="tab-project" class="tab-content hidden space-y-6">
+      <div class="bg-gradient-to-r from-slate-900 to-slate-900/90 border border-slate-800 rounded-2xl p-6 shadow-xl relative overflow-hidden">
+        <div class="absolute -right-10 -bottom-10 w-48 h-48 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none"></div>
+
+        <div class="max-w-3xl">
+          <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 mb-3">
+            <i class="fa-solid fa-sparkles"></i> AI Destekli Devre & Proje BOM Eşleştirici
+          </span>
+          <h2 class="text-xl font-bold text-white">"Şu Projeyi Yapmak İstiyorum..."</h2>
+          <p class="text-sm text-slate-300 mt-1">
+            Yapmak istediğiniz projeyi yazın (örn: <i>"ESP32 ile Bluetooth kontrollü röle devresi"</i> veya <i>"Arduino ve nem sensörü ile otomatik çiçek sulama"</i>). 
+            Sistem elinizdeki <b>sağlam parçaları</b> listeler, <b>arızalı parçalarınız varsa sizi uyarır</b>, ve eksik parçaları <b>Robotistan'dan canlı fiyat & aktif stokla</b> çeker!
+          </p>
+
+          <div class="mt-4 flex flex-col sm:flex-row gap-2">
+            <input type="text" id="project-desc-input" placeholder="Örn: ESP32 ve DHT11 ile sıcaklık ölçüp ekranda gösteren IoT cihazı..." 
+                   class="flex-1 bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-cyan-400 shadow-inner">
+            <button onclick="analyzeProject()" id="btn-analyze-project" class="px-5 py-3 rounded-xl bg-gradient-to-r from-cyan-600 to-emerald-600 hover:from-cyan-500 hover:to-emerald-500 text-white font-medium text-sm flex items-center justify-center gap-2 shadow-lg shadow-cyan-600/20 transition">
+              <i class="fa-solid fa-wand-magic-sparkles"></i> <span>Stok & Robotistan'ı Tara</span>
+            </button>
+          </div>
+
+          <!-- Hızlı Örnek Projeler -->
+          <div class="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-400">
+            <span>Hızlı Örnekler:</span>
+            <button onclick="fillProjectExample('ESP32 ile Bluetooth üzerinden 5V Röle kontrolü ve DHT11 sıcaklık izleme')" class="px-2.5 py-1 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-300 transition">
+              ESP32 & Röle & DHT11
+            </button>
+            <button onclick="fillProjectExample('SG90 servo motor ve HC-SR04 ile ultrasonik radar sistemi')" class="px-2.5 py-1 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-300 transition">
+              SG90 & HC-SR04 Radar
+            </button>
+            <button onclick="fillProjectExample('Arduino Uno ile LCD ekranlı nem ve sıcaklık göstergesi')" class="px-2.5 py-1 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-300 transition">
+              Arduino & LCD Gösterge
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Proje Analiz Sonuç Alanı -->
+      <div id="project-results-wrapper" class="hidden space-y-6">
+        <!-- 1. Stokta Sağlam Olanlar -->
+        <div class="bg-slate-900 border border-emerald-500/30 rounded-xl p-5 space-y-3">
+          <div class="flex items-center gap-2 text-emerald-400 font-semibold">
+            <i class="fa-solid fa-circle-check text-lg"></i>
+            <h3>Stokta Mevcut & Kullanıma Hazır Parçalarınız</h3>
+          </div>
+          <div id="project-working-list" class="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+            <!-- JS -->
+          </div>
+        </div>
+
+        <!-- 2. Arızalı Parça Uyarıları -->
+        <div id="project-defective-card" class="bg-slate-900 border border-amber-500/40 rounded-xl p-5 space-y-3">
+          <div class="flex items-center gap-2 text-amber-400 font-semibold">
+            <i class="fa-solid fa-triangle-exclamation text-lg"></i>
+            <h3>⚠️ Arızalı / Test Bekleyen Parça Uyarıları (Yenisini Almadan Önce İnceleyin!)</h3>
+          </div>
+          <div id="project-defective-list" class="space-y-2 text-sm">
+            <!-- JS -->
+          </div>
+        </div>
+
+        <!-- 3. Eksik Parçalar ve Robotistan Canlı Fiyatları -->
+        <div class="bg-slate-900 border border-cyan-500/30 rounded-xl p-5 space-y-4">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2 text-cyan-400 font-semibold">
+              <i class="fa-solid fa-cart-shopping text-lg"></i>
+              <h3>Eksik Parçalar & Robotistan Canlı Stok / Fiyat Önerileri</h3>
+            </div>
+            <div id="project-cost-badge" class="text-sm font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-3 py-1 rounded-lg">
+              Tahmini Tutar: ~0 TL
+            </div>
+          </div>
+          <div id="project-robotistan-list" class="space-y-4">
+            <!-- JS -->
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 5: ROBOTİSTAN CANLI ARAMA -->
+    <section id="tab-robotistan" class="tab-content hidden space-y-4">
+      <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-3">
+        <h2 class="text-lg font-bold text-white flex items-center gap-2">
+          <i class="fa-solid fa-globe text-orange-400"></i> Robotistan.com Canlı Stok & Fiyat Arama
+        </h2>
+        <p class="text-xs text-slate-400">
+          Robotistan web sitesindeki ürünleri anlık olarak tarar, stokta olup olmadığını (Stokta Var / Tükendi) ve güncel Türk Lirası fiyatını gösterir.
+        </p>
+
+        <div class="flex gap-2">
+          <input type="text" id="rob-search-input" onkeydown="if(event.key==='Enter') searchRobotistanDirect()" placeholder="Robotistan'da ürün ara (örn: ESP32-S3, SG90, BMP280, 10k Potansiyometre)..." 
+                 class="flex-1 bg-slate-950 border border-slate-800 rounded-lg px-4 py-2.5 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-orange-500">
+          <label class="flex items-center gap-2 text-xs text-slate-300 cursor-pointer bg-slate-950 px-3 rounded-lg border border-slate-800">
+            <input type="checkbox" id="rob-only-stock" checked class="rounded accent-emerald-500">
+            <span>Sadece Stokta Olanlar</span>
+          </label>
+          <button onclick="searchRobotistanDirect()" id="btn-rob-search" class="px-4 py-2.5 rounded-lg bg-orange-600 hover:bg-orange-500 text-white font-medium text-sm flex items-center gap-2 transition">
+            <i class="fa-solid fa-magnifying-glass"></i> Ara
+          </button>
+        </div>
+      </div>
+
+      <!-- Robotistan Sonuçları -->
+      <div id="rob-results-container" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+        <div class="col-span-full py-12 text-center text-slate-500">
+          <i class="fa-solid fa-magnifying-glass text-3xl mb-2 text-slate-600"></i>
+          <p>Yukarıdaki arama çubuğundan Robotistan ürünlerini tarayabilirsiniz.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 6: ROBOTİSTAN ATÖLYE SEPETİ -->
+    <section id="tab-cart" class="tab-content hidden space-y-6">
+      <div class="bg-gradient-to-r from-slate-900 to-slate-900/90 border border-slate-800 rounded-2xl p-6 shadow-xl relative overflow-hidden">
+        <div class="max-w-3xl">
+          <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 mb-3">
+            <i class="fa-solid fa-cart-shopping"></i> Robotistan Alışveriş Sepeti & Sipariş Yöneticisi
+          </span>
+          <h2 class="text-xl font-bold text-white">Atölye Sepetiniz</h2>
+          <p class="text-sm text-slate-300 mt-1">
+            Projelerinizden çıkan eksik parçaları veya Robotistan'dan almayı planladığınız ürünleri burada toplayabilirsiniz. 
+            <b>"⚡ Tek Tıkla Robotistan'a Aktar"</b> butonu ile bu ürünlerin tamamını doğrudan Robotistan'daki sepetinize yükleyebilir ve tek tıkla sipariş verebilirsiniz.
+          </p>
+        </div>
+      </div>
+
+      <!-- Sepet Tablosu ve Özet -->
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Sol: Ürün Listesi Tablosu -->
+        <div class="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-sm">
+          <div class="p-4 border-b border-slate-800 flex items-center justify-between">
+            <h3 class="font-bold text-slate-200 text-sm flex items-center gap-2">
+              <i class="fa-solid fa-boxes-stacked text-emerald-400"></i>
+              Sepetteki Parçalar
+            </h3>
+            <button onclick="clearCartPrompt()" class="text-xs text-rose-400 hover:text-rose-300 flex items-center gap-1 transition">
+              <i class="fa-solid fa-trash-can"></i> Sepeti Boşalt
+            </button>
+          </div>
+
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-sm text-slate-300">
+              <thead class="bg-slate-950/60 text-slate-400 text-xs uppercase font-semibold border-b border-slate-800">
+                <tr>
+                  <th class="py-3 px-4">Ürün Adı</th>
+                  <th class="py-3 px-3">Birim Fiyat</th>
+                  <th class="py-3 px-3 text-center">Adet</th>
+                  <th class="py-3 px-3">Toplam</th>
+                  <th class="py-3 px-4 text-right">İşlem</th>
+                </tr>
+              </thead>
+              <tbody id="cart-tbody" class="divide-y divide-slate-800/80">
+                <!-- JS ile dolacak -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Sağ: Sipariş & Robotistan Aktarım Paneli -->
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-5 h-fit">
+          <h3 class="font-bold text-slate-200 text-sm border-b border-slate-800 pb-3">Sipariş Özeti</h3>
+          
+          <div class="space-y-2 text-sm">
+            <div class="flex justify-between text-slate-400">
+              <span>Toplam Çeşit:</span>
+              <span id="cart-summary-items" class="font-medium text-slate-200">0</span>
+            </div>
+            <div class="flex justify-between text-slate-400">
+              <span>Toplam Ürün Adedi:</span>
+              <span id="cart-summary-qty" class="font-medium text-slate-200">0</span>
+            </div>
+            <div class="pt-3 border-t border-slate-800 flex justify-between items-baseline">
+              <span class="text-base font-semibold text-slate-200">Tahmini Tutar:</span>
+              <span id="cart-summary-total" class="text-2xl font-black text-emerald-400">0.00 TL</span>
+            </div>
+          </div>
+
+          <!-- Robotistan Aksiyon Butonları -->
+          <div class="space-y-2.5 pt-2">
+            <button onclick="exportToRobotistanCart()" id="btn-export-robotistan" class="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-500 hover:to-amber-500 text-white font-bold text-sm shadow-lg shadow-orange-600/20 flex items-center justify-center gap-2 transition">
+              <i class="fa-solid fa-bolt"></i> <span>⚡ Robotistan Sepetime Aktar</span>
+            </button>
+            <button onclick="openAllCartUrls()" class="w-full py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium text-xs flex items-center justify-center gap-2 border border-slate-700 transition">
+              <i class="fa-solid fa-arrow-up-right-from-square"></i> <span>Ürün Sayfalarını Yeni Sekmelerde Aç</span>
+            </button>
+          </div>
+
+          <div class="bg-slate-950/70 rounded-lg p-3 text-xs text-slate-400 border border-slate-800 space-y-1">
+            <p class="font-semibold text-slate-300 flex items-center gap-1">
+              <i class="fa-solid fa-circle-info text-cyan-400"></i> Nasıl Çalışır?
+            </p>
+            <p>
+              <b>"Robotistan Sepetime Aktar"</b> butonuna bastığınızda, Robotistan'ın yerleşik çoklu sepet API'si (T-Soft multiCart) üzerinden tüm ürünler otomatik olarak Robotistan sepetinize eklenir.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+
+  <!-- Parça Ekleme / Düzenleme Modalı -->
+  <div id="component-modal" onclick="if(event.target === this) closeModal()" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl animate-fade-in">
+      <div class="px-6 py-4 border-b border-slate-800 flex items-center justify-between">
+        <h3 id="modal-title" class="font-bold text-white text-base">Yeni Elektronik Parça Ekle</h3>
+        <button onclick="closeModal()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+      </div>
+
+      <form id="component-form" onsubmit="saveComponent(event)" class="p-6 space-y-4 text-sm">
+        <input type="hidden" id="form-comp-id" value="">
+
+        <div>
+          <label class="block text-xs font-medium text-slate-300 mb-1">Parça Adı *</label>
+          <input type="text" id="form-name" required placeholder="Örn: 10k Ohm Metal Film Direnç, ESP32 DevKit"
+                 class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:border-emerald-500">
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-medium text-slate-300 mb-1">Kategori *</label>
+            <select id="form-category" required class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:border-emerald-500">
+              <option value="resistor">Direnç</option>
+              <option value="capacitor">Kondansatör</option>
+              <option value="diode_led">Diyot & LED</option>
+              <option value="transistor">Transistör & MOSFET</option>
+              <option value="ic_mcu">Entegre & Mikrodenetleyici</option>
+              <option value="sensor">Sensör</option>
+              <option value="module">Modül & Kart</option>
+              <option value="connector">Konnektör & Kablo</option>
+              <option value="power">Güç & Batarya</option>
+              <option value="passive_other">Pasif & Diğer</option>
+              <option value="broken_scrap">Arızalı / Çıkma Parça</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-xs font-medium text-slate-300 mb-1">Durum *</label>
+            <select id="form-status" required class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:border-emerald-500">
+              <option value="working">🟢 Sağlam / Çalışır</option>
+              <option value="defective">🔴 Arızalı / Bozuk</option>
+              <option value="untested">🟡 Test Bekliyor / Şüpheli</option>
+              <option value="salvage">🟠 Çıkma / Parça Sökülecek</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-medium text-slate-300 mb-1">Değer / Özellik</label>
+            <input type="text" id="form-value" placeholder="Örn: 10kΩ, 100nF, 16MHz, 5V"
+                   class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:border-emerald-500">
+          </div>
+
+          <div>
+            <label class="block text-xs font-medium text-slate-300 mb-1">Kılıf / Paket Tipi</label>
+            <input type="text" id="form-package" placeholder="Örn: DIP-8, SMD 0805, TO-220"
+                   class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:border-emerald-500">
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-medium text-slate-300 mb-1">Mevcut Adet *</label>
+            <input type="number" id="form-quantity" min="0" required value="1"
+                   class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:border-emerald-500">
+          </div>
+
+          <div>
+            <label class="block text-xs font-medium text-slate-300 mb-1">Kritik Stok Uyarısı (Min)</label>
+            <input type="number" id="form-min-quantity" min="0" required value="2"
+                   class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:border-emerald-500">
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-medium text-slate-300 mb-1">Saklama Yeri (Kutu / Çekmece)</label>
+          <input type="text" id="form-location" placeholder="Örn: Çekmece A-2, Direnç Organizeri 1, Arızalı Kutusu"
+                 class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:border-emerald-500">
+        </div>
+
+        <div>
+          <label class="block text-xs font-medium text-slate-300 mb-1">Arıza Sebebi / Notlar</label>
+          <textarea id="form-notes" rows="2" placeholder="Örn: Regülatör aşırı ısınıyor, MCU sağlam, 1% tolerans..."
+                    class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:border-emerald-500"></textarea>
+        </div>
+
+        <div class="pt-2 flex justify-end gap-2 border-t border-slate-800">
+          <button type="button" onclick="closeModal()" class="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium">İptal</button>
+          <button type="submit" class="px-5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-medium shadow-md">Kaydet</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Toast Bildirimi -->
+  <div id="toast" class="fixed bottom-5 right-5 z-50 bg-slate-900 border border-emerald-500 text-white px-4 py-3 rounded-xl shadow-xl flex items-center gap-2 transform translate-y-20 opacity-0 transition-all duration-300">
+    <i class="fa-solid fa-circle-check text-emerald-400"></i>
+    <span id="toast-text">İşlem başarıyla gerçekleştirildi</span>
+  </div>
+
+  <footer class="border-t border-slate-900 bg-slate-950/80 py-4 text-center text-xs text-slate-500">
+    ElectroStock & AI MCP Server • Robotistan Canlı Stok Entegrasyonu • %100 Yerel ve Güvenli
+  </footer>
+
+  <script src="/app.js"></script>
+</body>
+</html>

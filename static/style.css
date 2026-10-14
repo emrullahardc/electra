@@ -1,0 +1,43 @@
+/* ElectroStock Custom Workbench Theme */
+@keyframes fadeIn {
+  from { opacity: 0; transform: scale(0.97); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.active-tab {
+  background-color: #1e293b;
+  color: #38bdf8;
+  border-bottom: 2px solid #06b6d4;
+}
+
+.tab-btn:not(.active-tab) {
+  color: #94a3b8;
+}
+
+.tab-btn:not(.active-tab):hover {
+  color: #f1f5f9;
+  background-color: #1e293b66;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0f172a;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #475569;
+}
