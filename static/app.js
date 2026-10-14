@@ -84,19 +84,41 @@ async function checkAuthStatus() {
     if (data.authenticated) {
       hideLoginScreen(data.username);
       loadStats();
-      loadComponents();
       loadCartBadge();
       loadDraftsBadge();
 
-      if (window.location.hash === "#developer" || window.location.pathname === "/developer") {
-        switchTab("developer");
-      }
+      // Kaldığı sekmeyi belirle ve aç
+      const tabToOpen = determineInitialTab();
+      switchTab(tabToOpen, false);
     } else {
       showLoginScreen();
     }
   } catch (err) {
     showLoginScreen();
   }
+}
+
+function determineInitialTab() {
+  const VALID_TABS = ["inventory", "defective", "lowstock", "project", "robotistan", "cart", "drafts", "developer"];
+
+  // 1. URL Hash (#drafts, #cart, #developer vb.)
+  if (window.location.hash) {
+    const hash = window.location.hash.replace("#", "").trim().toLowerCase();
+    if (VALID_TABS.includes(hash)) return hash;
+  }
+
+  // 2. URL Path (/developer, /drafts vb.)
+  const path = window.location.pathname.replace(/^\/+|\/+$/g, "").toLowerCase();
+  if (VALID_TABS.includes(path)) return path;
+
+  // 3. LocalStorage
+  const savedTab = localStorage.getItem("electra_active_tab");
+  if (savedTab && VALID_TABS.includes(savedTab)) {
+    return savedTab;
+  }
+
+  // 4. Varsayılan Sekme
+  return "inventory";
 }
 
 function showLoginScreen(errorMsg = "") {
@@ -255,8 +277,23 @@ function togglePasswordVisibility(inputId) {
 
 
 // Sekme Değiştirme
-function switchTab(tabId) {
+function switchTab(tabId, updateUrl = true) {
+  const VALID_TABS = ["inventory", "defective", "lowstock", "project", "robotistan", "cart", "drafts", "developer"];
+  if (!VALID_TABS.includes(tabId)) tabId = "inventory";
+
   currentTab = tabId;
+  try {
+    localStorage.setItem("electra_active_tab", tabId);
+  } catch (_) {}
+
+  if (updateUrl) {
+    if (window.history && window.history.replaceState) {
+      window.history.replaceState(null, "", `#${tabId}`);
+    } else {
+      window.location.hash = tabId;
+    }
+  }
+
   document.querySelectorAll(".tab-btn").forEach(btn => btn.classList.remove("active-tab"));
   document.querySelectorAll(".tab-content").forEach(c => c.classList.add("hidden"));
 
@@ -272,6 +309,13 @@ function switchTab(tabId) {
   else if (tabId === "cart") loadCart();
   else if (tabId === "drafts") loadDraftOrders();
 }
+
+window.addEventListener("hashchange", () => {
+  const tab = determineInitialTab();
+  if (tab !== currentTab) {
+    switchTab(tab, false);
+  }
+});
 
 
 // İstatistikleri Yükle
