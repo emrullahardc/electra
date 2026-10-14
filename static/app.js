@@ -1195,21 +1195,30 @@ async function loadDraftOrders() {
           <div class="space-y-2">
             <h4 class="text-xs font-semibold text-slate-400 uppercase tracking-wide">Sipariş Edilecek Kalemler:</h4>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
-              ${items.map(it => `
-                <div class="bg-slate-950 p-2.5 rounded-lg border border-slate-800 flex items-center justify-between gap-2">
+              ${items.length === 0 ? '<p class="text-slate-500 italic col-span-full py-2">Bu taslakta hiç ürün kalmadı.</p>' : items.map(it => `
+                <div class="bg-slate-950 p-2.5 rounded-lg border border-slate-800 flex items-center justify-between gap-2 hover:border-slate-700 transition">
                   <div class="min-w-0 flex-1">
                     <p class="font-medium text-slate-200 truncate" title="${escapeHtml(it.title)}">${escapeHtml(it.title)}</p>
-                    <div class="flex items-center gap-2 text-[11px] text-slate-400 mt-0.5">
-                      <span class="text-emerald-400 font-mono">${it.price || 'Fiyat Yok'}</span>
-                      <span>• Adet: <b>${it.quantity}</b></span>
+                    <div class="flex items-center gap-2 text-[11px] text-slate-400 mt-1">
+                      <span class="text-emerald-400 font-mono font-medium">${it.price || 'Fiyat Yok'}</span>
+                      <span class="flex items-center gap-1 bg-slate-900 px-1.5 py-0.5 rounded border border-slate-800">
+                        <button onclick="changeDraftItemQuantity(${it.id}, ${it.quantity - 1})" class="w-4 h-4 rounded hover:bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center font-bold" title="1 Azalt">-</button>
+                        <span class="text-slate-200 font-semibold px-1">${it.quantity}</span>
+                        <button onclick="changeDraftItemQuantity(${it.id}, ${it.quantity + 1})" class="w-4 h-4 rounded hover:bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center font-bold" title="1 Artır">+</button>
+                      </span>
                       ${it.notes ? `<span class="text-slate-500 italic truncate">• ${escapeHtml(it.notes)}</span>` : ''}
                     </div>
                   </div>
-                  ${it.url ? `
-                    <a href="${it.url}" target="_blank" class="p-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300" title="Robotistan'da Gör">
-                      <i class="fa-solid fa-arrow-up-right-from-square text-[10px]"></i>
-                    </a>
-                  ` : ''}
+                  <div class="flex items-center gap-1.5 flex-shrink-0">
+                    ${it.url ? `
+                      <a href="${it.url}" target="_blank" class="p-1.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700/60 transition" title="Robotistan'da Gör">
+                        <i class="fa-solid fa-arrow-up-right-from-square text-[10px]"></i>
+                      </a>
+                    ` : ''}
+                    <button onclick="removeDraftOrderItem(${it.id}, '${escapeHtml(it.title)}')" class="p-1.5 rounded bg-slate-800/80 hover:bg-rose-950/60 text-slate-400 hover:text-rose-400 border border-slate-700/60 hover:border-rose-500/50 transition" title="Bu Kalemi Listeden Çıkar">
+                      <i class="fa-solid fa-trash-can text-xs"></i>
+                    </button>
+                  </div>
                 </div>
               `).join("")}
             </div>
@@ -1235,6 +1244,41 @@ async function loadDraftOrders() {
   } catch (err) {
     console.error("Draft yükleme hatası:", err);
     container.innerHTML = `<div class="py-8 text-center text-rose-400">Taslak siparişler yüklenirken hata oluştu: ${err.message}</div>`;
+  }
+}
+
+async function removeDraftOrderItem(itemId, itemTitle) {
+  if (!confirm(`"${itemTitle}" ürününü bu taslak sipariş listesinden çıkarmak istediğinize emin misiniz?`)) return;
+  try {
+    const res = await fetch(`/api/draft-orders/items/${itemId}`, { method: "DELETE" });
+    if (res.ok) {
+      showToast(`"${itemTitle}" taslak siparişten çıkarıldı 🗑️`);
+      loadDraftOrders();
+    } else {
+      const err = await res.json();
+      alert("Hata: " + (err.error || "Kalem çıkarılamadı"));
+    }
+  } catch (err) {
+    console.error("Kalem silme hatası:", err);
+  }
+}
+
+async function changeDraftItemQuantity(itemId, newQty) {
+  try {
+    if (newQty <= 0) {
+      removeDraftOrderItem(itemId, "Bu ürün");
+      return;
+    }
+    const res = await fetch(`/api/draft-orders/items/${itemId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ quantity: newQty })
+    });
+    if (res.ok) {
+      loadDraftOrders();
+    }
+  } catch (err) {
+    console.error("Adet güncelleme hatası:", err);
   }
 }
 

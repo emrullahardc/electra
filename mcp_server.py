@@ -334,6 +334,22 @@ TOOLS = [
             },
             "required": ["draft_id"]
         }
+    },
+    {
+        "name": "electro_remove_draft_order_item",
+        "description": (
+            "Taslak (draft) sipariş listesinden tek bir kalemi çıkarır/siler ve taslağın toplam tutarını otomatik günceller."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "item_id": {
+                    "type": "integer",
+                    "description": "Taslak siparişten çıkarılacak kalemin ID numarası"
+                }
+            },
+            "required": ["item_id"]
+        }
     }
 ]
 
@@ -770,6 +786,25 @@ class MCPServer:
                         "result": res
                     }
                 }
+
+            elif tool_name == "electro_remove_draft_order_item":
+                item_id = int(args.get("item_id", 0))
+                success = electro_db.delete_draft_order_item(item_id)
+                if success:
+                    return {
+                        "jsonrpc": "2.0",
+                        "id": msg_id,
+                        "result": {
+                            "content": [{"type": "text", "text": f"✅ Kalem #{item_id} taslak sipariş listesinden başarıyla çıkarıldı."}],
+                            "success": True
+                        }
+                    }
+                else:
+                    return {
+                        "jsonrpc": "2.0",
+                        "id": msg_id,
+                        "error": {"code": -32602, "message": f"Kalem #{item_id} bulunamadı veya silinemedi."}
+                    }
 
             else:
                 return {

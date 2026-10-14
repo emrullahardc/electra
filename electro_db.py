@@ -710,6 +710,54 @@ def delete_draft_order(draft_id: int, db_path: str = DB_PATH) -> bool:
         return cursor.rowcount > 0
 
 
+def delete_draft_order_item(item_id: int, db_path: str = DB_PATH) -> bool:
+    """Taslak siparişten tek bir kalemi siler ve taslağın toplam tutarını günceller."""
+    with get_connection(db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT draft_order_id FROM draft_order_items WHERE id = ?", (item_id,))
+        row = cursor.fetchone()
+        if not row:
+            return False
+        draft_id = row["draft_order_id"]
+
+        cursor.execute("DELETE FROM draft_order_items WHERE id = ?", (item_id,))
+        now = datetime.now().isoformat()
+        cursor.execute("""
+            UPDATE draft_orders 
+            SET total_estimated_price = COALESCE((
+                SELECT SUM(price_value * quantity) FROM draft_order_items WHERE draft_order_id = ?
+            ), 0.0), updated_at = ?
+            WHERE id = ?
+        """, (draft_id, now, draft_id))
+        conn.commit()
+        return True
+
+
+def update_draft_order_item_quantity(item_id: int, quantity: int, db_path: str = DB_PATH) -> bool:
+    """Taslak siparişteki bir kalemin adedini günceller (0 veya daha az olursa siler)."""
+    if quantity <= 0:
+        return delete_draft_order_item(item_id, db_path=db_path)
+    with get_connection(db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT draft_order_id FROM draft_order_items WHERE id = ?", (item_id,))
+        row = cursor.fetchone()
+        if not row:
+            return False
+        draft_id = row["draft_order_id"]
+
+        cursor.execute("UPDATE draft_order_items SET quantity = ? WHERE id = ?", (quantity, item_id))
+        now = datetime.now().isoformat()
+        cursor.execute("""
+            UPDATE draft_orders 
+            SET total_estimated_price = COALESCE((
+                SELECT SUM(price_value * quantity) FROM draft_order_items WHERE draft_order_id = ?
+            ), 0.0), updated_at = ?
+            WHERE id = ?
+        """, (draft_id, now, draft_id))
+        conn.commit()
+        return True
+
+
 def update_draft_order_status(draft_id: int, status: str, notes: str = "", db_path: str = DB_PATH) -> bool:
     """Taslak sipariş durumunu günceller (draft, ready, ordered, archived)."""
     with get_connection(db_path) as conn:

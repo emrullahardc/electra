@@ -544,6 +544,19 @@ class ElectroRequestHandler(http.server.SimpleHTTPRequestHandler):
                 self.send_json({"error": str(e)}, status=400)
             return
 
+        elif path.startswith("/api/draft-orders/items/"):
+            item_id = int(path.split("/")[4])
+            length = int(self.headers.get("Content-Length", 0))
+            body = self.rfile.read(length).decode("utf-8") if length > 0 else "{}"
+            try:
+                data = json.loads(body)
+                qty = int(data.get("quantity", 1))
+                success = electro_db.update_draft_order_item_quantity(item_id, qty)
+                self.send_json({"success": success})
+            except Exception as e:
+                self.send_json({"error": str(e)}, status=400)
+            return
+
         elif path.startswith("/api/draft-orders/") and path.endswith("/status"):
             parts = path.split("/")
             draft_id = int(parts[3])
@@ -587,8 +600,21 @@ class ElectroRequestHandler(http.server.SimpleHTTPRequestHandler):
             self.send_json({"success": success})
             return
 
+        elif path.startswith("/api/draft-orders/items/"):
+            item_id = int(path.split("/")[4])
+            success = electro_db.delete_draft_order_item(item_id)
+            self.send_json({"success": success, "message": "Kalem taslak siparişten çıkarıldı"})
+            return
+
         elif path.startswith("/api/draft-orders/"):
-            draft_id = int(path.split("/")[3])
+            parts = path.split("/")
+            if len(parts) >= 6 and parts[4] == "items":
+                item_id = int(parts[5])
+                success = electro_db.delete_draft_order_item(item_id)
+                self.send_json({"success": success, "message": "Kalem taslak siparişten çıkarıldı"})
+                return
+
+            draft_id = int(parts[3])
             success = electro_db.delete_draft_order(draft_id)
             self.send_json({"success": success})
             return
