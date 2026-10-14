@@ -586,6 +586,26 @@
 }</code></pre>
           </div>
 
+          <!-- Claude Code (Terminal CLI) -->
+          <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-3">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <i class="fa-solid fa-terminal text-orange-400 text-lg"></i>
+                <h4 class="font-bold text-white text-sm">Claude Code (Terminal CLI)</h4>
+              </div>
+              <button onclick="copyCode('code-claude-cli', this)" class="px-2.5 py-1 text-xs rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 flex items-center gap-1.5 transition">
+                <i class="fa-solid fa-copy"></i> Kopyala
+              </button>
+            </div>
+            <p class="text-xs text-slate-400">
+              Terminalde tek satır komutla canlı sunucuyu bağlayın:
+            </p>
+            <pre class="bg-slate-950 p-3 rounded-lg border border-slate-800 text-xs font-mono text-orange-300 overflow-x-auto"><code id="code-claude-cli">claude mcp add --transport http electra https://electra.matelab.dev/mcp?token=alp236330</code></pre>
+            <p class="text-[11px] text-slate-400">
+              Kontrol etmek için: <code class="text-slate-300 bg-slate-950 px-1 py-0.5 rounded">claude mcp list</code>
+            </p>
+          </div>
+
           <!-- Cursor IDE (Yerel / Local stdio) -->
           <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-3">
             <div class="flex items-center justify-between">
