@@ -477,6 +477,19 @@ def search_market(
     return data
 
 
+def get_suggested_sourcing_channel(part_name: str) -> str:
+    """Türkiye yerel perakende mağazalarında bulunamayan komponentler için tedarik kanalı önerir."""
+    p_lower = part_name.lower()
+    if any(k in p_lower for k in ["max-m10", "atgm336", "gnss", "gps"]):
+        return "AliExpress / SparkFun / Mouser / JLCPCB"
+    elif any(k in p_lower for k in ["ao3401", "ht7833", "lis3dh", "sot-23", "sot-89", "qfn", "mosfet", "ldo", "ivmeölçer"]):
+        return "AliExpress / JLCPCB SMT Montaj / Özdisan / Digikey"
+    elif any(k in p_lower for k in ["bms", "pcm", "koruma"]):
+        return "Robotronik / AliExpress / Direnç.net"
+    else:
+        return "AliExpress / Özdisan / Uluslararası Distribütörler (Mouser/Digikey)"
+
+
 def compare_bom_prices(
     parts: List[str],
     only_in_stock: bool = True,
@@ -492,14 +505,19 @@ def compare_bom_prices(
     2. Harici mağazalar minimum ~40-75 TL kargo ücreti ekler.
     3. Fiyat farkı 100 TL'nin altındaysa veya ek kargo tasarrufu siliyorsa parça Robotistan sepetinde tutulur.
     4. Fiyat farkı 100 TL'nin üzerindeyse veya Robotistan'da stok yoksa kullanıcıya soru yöneltilir.
+    5. Mağazalarda bulunamayan parçalar sessizce düşürülmez; 'unfound_items' listesinde alternatif tedarik kanallarıyla raporlanır.
     """
     clean_parts = [p.strip() for p in parts if p.strip()]
     if not clean_parts:
         return {
+            "total_items_requested": 0,
+            "found_items_count": 0,
+            "unfound_items_count": 0,
+            "unfound_items": [],
             "items": [],
             "smart_plan": {},
             "naive_plan": {},
-            "total_smart_price": 0.0,
+            "total_smart_parts_cost": 0.0,
             "total_shipping_estimated": 0.0,
             "total_landed_cost": 0.0,
             "prompt_questions": []
@@ -509,6 +527,8 @@ def compare_bom_prices(
     smart_basket: Dict[str, List[Dict[str, Any]]] = {v: [] for v in VENDORS.keys()}
     naive_basket: Dict[str, List[Dict[str, Any]]] = {v: [] for v in VENDORS.keys()}
     prompt_questions: List[Dict[str, Any]] = []
+    unfound_items: List[Dict[str, Any]] = []
+    assigned_urls: set = set()
 
     total_smart_parts_cost = 0.0
     total_naive_parts_cost = 0.0
@@ -541,15 +561,31 @@ def compare_bom_prices(
             rob_price = rob_item.get("price_value", 0.0)
             c_price = cheapest.get("price_value", 0.0) if cheapest else rob_price
             diff = rob_price - c_price
+            target_url = rob_item.get("url")
+
+            # Eğer bu ürün URL'si daha önce farklı bir kaleme atanmışsa çakışmayı önle
+            is_dup = target_url in assigned_urls
+            assigned_urls.add(target_url)
 
             if not cheapest or cheapest.get("vendor_key") == "robotistan" or diff <= price_threshold:
                 # Robotistan'da tut
-                smart_basket.setdefault("robotistan", []).append({**rob_item, "part_query": part_name, "assigned_reason": "Robotistan (Aynı gün kargo & fark ≤100 TL)"})
+                reason_note = "Robotistan (Aynı gün kargo & fark ≤100 TL)"
+                if is_dup:
+                    reason_note += " [UYARI: Mükerrer Ürün Eşleşmesi]"
+                smart_basket.setdefault("robotistan", []).append({
+                    **rob_item,
+                    "part_query": part_name,
+                    "assigned_reason": reason_note
+                })
                 total_smart_parts_cost += rob_price
             else:
                 # Harici mağaza >100 TL daha ucuz -> Hariciye ver ama kullanıcıya sor
                 v_key = cheapest.get("vendor_key", "other")
-                smart_basket.setdefault(v_key, []).append({**cheapest, "part_query": part_name, "assigned_reason": f"{cheapest['vendor']} ({diff:.2f} TL tasarruf > 100 TL)"})
+                smart_basket.setdefault(v_key, []).append({
+                    **cheapest,
+                    "part_query": part_name,
+                    "assigned_reason": f"{cheapest['vendor']} ({diff:.2f} TL tasarruf > 100 TL)"
+                })
                 total_smart_parts_cost += c_price
                 if decision.get("prompt_question"):
                     prompt_questions.append({
@@ -563,7 +599,14 @@ def compare_bom_prices(
         elif cheapest:
             # Robotistan'da stok yok, mecbur harici mağaza
             v_key = cheapest.get("vendor_key", "other")
-            smart_basket.setdefault(v_key, []).append({**cheapest, "part_query": part_name, "assigned_reason": "Robotistan stokta yok"})
+            target_url = cheapest.get("url")
+            assigned_urls.add(target_url)
+
+            smart_basket.setdefault(v_key, []).append({
+                **cheapest,
+                "part_query": part_name,
+                "assigned_reason": "Robotistan stokta yok"
+            })
             total_smart_parts_cost += cheapest.get("price_value", 0.0)
             if decision.get("prompt_question"):
                 prompt_questions.append({
@@ -574,18 +617,28 @@ def compare_bom_prices(
                     "cheapest_vendor": cheapest.get("vendor"),
                     "cheapest_price": cheapest.get("price_value")
                 })
+        else:
+            # Türkiye mağazalarında stok bulunamadı! Sessizce düşürme, unfound listesine al!
+            unfound_items.append({
+                "part_query": part_name,
+                "status": "not_in_stock",
+                "reason": "Robotistan, Robotronik, Direnç.net ve Motorobit mağazalarında geçerli stok bulunamadı.",
+                "suggested_channel": get_suggested_sourcing_channel(part_name)
+            })
 
     active_smart = {k: v for k, v in smart_basket.items() if len(v) > 0}
     active_naive = {k: v for k, v in naive_basket.items() if len(v) > 0}
 
     # Tahmini Harici Kargo Maliyeti Hesabı
-    # Robotistan ana sipariş kabul edilir (0 TL ek kargo). Her harici aktif mağaza için shipping_cost_per_vendor eklenir.
     external_vendor_count = sum(1 for v in active_smart.keys() if v != "robotistan")
     estimated_shipping_total = external_vendor_count * shipping_cost_per_vendor
     total_landed_cost = total_smart_parts_cost + estimated_shipping_total
 
     return {
         "total_items_requested": len(clean_parts),
+        "found_items_count": len(clean_parts) - len(unfound_items),
+        "unfound_items_count": len(unfound_items),
+        "unfound_items": unfound_items,
         "items": item_comparisons,
         "smart_plan": active_smart,
         "naive_plan": active_naive,
@@ -686,7 +739,10 @@ def get_universal_product_details(url: str) -> Dict[str, Any]:
             m_t = re.search(r"<title>([^<]+)</title>", html)
             title = m_t.group(1).replace("Satın Al", "").strip() if m_t else ""
 
-        m_price = re.search(r"class=[\"'][^\"']*(?:price-current|current-price|price-sell|product-price)[^\"']*[\"']>\s*([0-9.,]+)", html)
+        # KDV Dahil nihai sepet fiyatını al (product-price-not-vat hariç)
+        m_price = re.search(r'class=[\"\'][^\"\']*\bproduct-price\b(?!\-not\-vat)[^\"\']*[\"\'][^>]*>\s*([0-9.,]+)', html)
+        if not m_price:
+            m_price = re.search(r'class=[\"\'][^\"\']*(?:price-current|current-price|price-sell)[^\"\']*[\"\'][^>]*>\s*([0-9.,]+)', html)
         if not m_price:
             m_price = re.search(r"(\d+[\.,]\d+)\s*(?:TL|₺)", html)
         if m_price:
@@ -697,10 +753,22 @@ def get_universal_product_details(url: str) -> Dict[str, Any]:
         in_stock = (not is_out) and has_cart_btn
         stock_status = "Stokta Var" if in_stock else "Tükendi"
 
+        # 1. Tablo Satırları (Robotistan teknik parametreleri ve boyutları <table> içinde saklar)
+        for row in re.findall(r'<tr[^>]*>(.*?)</tr>', html, re.DOTALL):
+            cols = re.findall(r'<td[^>]*>(.*?)</td>', row, re.DOTALL)
+            if len(cols) >= 2:
+                k = re.sub(r'<[^>]+>', '', cols[0]).strip()
+                v = re.sub(r'<[^>]+>', '', cols[1]).strip()
+                if k and v and k.lower() != 'parametre' and len(k) < 80 and len(v) < 150:
+                    clean_kv = f"{k}: {v}"
+                    if clean_kv not in specs:
+                        specs.append(clean_kv)
+
+        # 2. Liste Satırları (Varsa <li> içerisindeki maddeler)
         m_specs = re.findall(r"<li[^>]*>(?:<strong[^>]*>)?([^<:]+:[^<]+)(?:</strong>)?</li>", html)
         for s in m_specs:
             clean_s = re.sub(r"<[^>]+>", "", s).strip()
-            if 5 < len(clean_s) < 150:
+            if 5 < len(clean_s) < 150 and clean_s not in specs:
                 specs.append(clean_s)
 
     return {
@@ -709,7 +777,7 @@ def get_universal_product_details(url: str) -> Dict[str, Any]:
         "price_value": price_val,
         "in_stock": in_stock,
         "stock_status": stock_status,
-        "specs": specs[:10],
+        "specs": specs[:12],
         "url": url
     }
 

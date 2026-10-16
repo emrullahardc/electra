@@ -1249,9 +1249,13 @@ class MCPServer:
                 auto_split = bool(args.get("auto_create_split_drafts", False))
                 bom_res = market_scraper.compare_bom_prices(parts=components, only_in_stock=True)
 
+                total_req = bom_res.get("total_items_requested", 0)
+                found_cnt = bom_res.get("found_items_count", 0)
+                unfound_cnt = bom_res.get("unfound_items_count", 0)
+
                 md = ["# 🎯 Akıllı Çoklu Mağaza BOM & Satın Alma Planı\n"]
-                md.append(f"**Talep Edilen Parça Sayısı:** {bom_res.get('total_items_requested', 0)}")
-                md.append(f"**Parça Maliyeti:** ~{bom_res.get('total_smart_parts_cost', 0.0):.2f} TL")
+                md.append(f"**Talep Edilen Parça Sayısı:** {total_req} (🟢 Türkiye'de Bulunan: {found_cnt} • ⚠️ Alternatif/Yurt Dışı: {unfound_cnt})")
+                md.append(f"**Türkiye Mağazaları Parça Maliyeti:** ~{bom_res.get('total_smart_parts_cost', 0.0):.2f} TL")
                 if bom_res.get("estimated_shipping_total", 0.0) > 0:
                     md.append(f"**Tahmini Harici Kargo Ücreti ({bom_res.get('external_vendor_count')} Harici Mağaza):** ~{bom_res.get('estimated_shipping_total', 0.0):.2f} TL")
                     md.append(f"**Toplam Landed Maliyet (Kargo Dahil):** **~{bom_res.get('total_landed_cost', 0.0):.2f} TL**\n")
@@ -1260,6 +1264,7 @@ class MCPServer:
 
                 smart_plan = bom_res.get("smart_plan", {})
                 prompt_qs = bom_res.get("prompt_questions", [])
+                unfound_items = bom_res.get("unfound_items", [])
 
                 if prompt_qs:
                     md.append("### ❓ Kullanıcı Onayı Gereken Kalemler (Fark > 100 TL veya Özel Durum):")
@@ -1298,6 +1303,13 @@ class MCPServer:
                         )
                         created_drafts.append({"draft_id": did, "vendor": v_name, "count": len(draft_items)})
 
+                if unfound_items:
+                    md.append(f"### ⚠️ Türkiye Mağazalarında Stokta Bulunamayan Parçalar ({len(unfound_items)} Kalem):")
+                    md.append("Aşağıdaki parçalar taranan Türkiye perakende mağazalarında (Robotistan, Robotronik, Direnç.net, Motorobit) stokta bulunamadı. Bu parçaların proje için yurt dışından (AliExpress / JLCPCB) veya distribütörlerden temin edilmesi önerilir:")
+                    for uf in unfound_items:
+                        md.append(f"- **{uf['part_query']}**: {uf.get('reason')} 👉 *Önerilen Tedarik:* **{uf.get('suggested_channel')}**")
+                    md.append("")
+
                 if created_drafts:
                     md.append("### 📝 Otomatik Oluşturulan Taslak Siparişler:")
                     for cd in created_drafts:
@@ -1310,7 +1322,8 @@ class MCPServer:
                         "content": [{"type": "text", "text": "\n".join(md)}],
                         "bom_data": bom_res,
                         "created_drafts": created_drafts,
-                        "prompt_questions": prompt_qs
+                        "prompt_questions": prompt_qs,
+                        "unfound_items": unfound_items
                     }
                 }
 

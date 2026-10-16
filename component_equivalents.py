@@ -44,7 +44,7 @@ EQUIVALENTS_DATABASE = [
             },
             {
                 "name": "u-blox MAX-M10S",
-                "features": "10. Nesil Ultra Düşük Güçlü GNSS (GPS+GLONASS+Galileo+BeiDou), 3.3V, ~10-15 mA akım, L1/L5.",
+                "features": "10. Nesil Ultra Düşük Güçlü GNSS (GPS L1 C/A, GLONASS L1, BeiDou B1, Galileo E1), 3.3V, ~10-15 mA akım, tek bant L1.",
                 "pros": "Dünya standartlarında konum hassasiyeti, 15 mA altı akım tüketimi ile pilli hayvan tasması / IoT takip için altın standart.",
                 "cons": "Daha pahalı (~300-500 TL), lehimlenmesi hassas (breakout modül olarak tercih edilmeli).",
                 "recommendation": "Koyun GPS tasması gibi pilli son ürün için en iyi seçimdir."

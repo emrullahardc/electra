@@ -17,11 +17,11 @@ from typing import List, Dict, Any, Tuple, Optional
 # Donanım Alias ve Eşdeğer Arama Haritası
 KNOWN_COMPONENT_ALIASES: Dict[str, List[str]] = {
     # GPS / GNSS
-    "neo-6m": ["GY-NEO6MV2", "NEO-6M", "NEO 6M", "GY-NEO-6M", "ATGM336H"],
-    "gy-neo6mv2": ["GY-NEO6MV2", "NEO-6M", "NEO 6M", "ATGM336H"],
-    "atgm336h": ["ATGM336H", "GY-NEO6MV2", "NEO-6M"],
-    "neo-m8n": ["NEO-M8N", "NEO-8M", "MAX-M10S"],
-    "max-m10s": ["MAX-M10S", "MAX-M10", "NEO-M8N"],
+    "neo-6m": ["GY-NEO6MV2", "NEO-6M", "NEO 6M", "GY-NEO-6M"],
+    "gy-neo6mv2": ["GY-NEO6MV2", "NEO-6M", "NEO 6M"],
+    "atgm336h": ["ATGM336H", "ATGM336"],
+    "neo-m8n": ["NEO-M8N", "NEO-8M", "GY-NEO8MV2"],
+    "max-m10s": ["MAX-M10S", "MAX-M10", "u-blox M10"],
 
     # ESP32 ve Geliştirme Kartları
     "esp32-c3 super mini": ["ESP32-C3 SuperMini", "ESP32-C3 Mini", "ESP32-C3 Super Mini", "ESP32-C3"],
@@ -62,7 +62,7 @@ def get_component_search_aliases(query: str) -> List[str]:
 
     # 1. GPS Kalıpları
     if re.search(r'\b(?:neo[- ]?6m|neo6m|gy[- ]?neo6mv2)\b', q_norm):
-        for term in ["GY-NEO6MV2", "NEO-6M", "NEO 6M", "ATGM336H"]:
+        for term in ["GY-NEO6MV2", "NEO-6M", "NEO 6M"]:
             if term.lower() not in [a.lower() for a in aliases]:
                 aliases.append(term)
 
@@ -166,16 +166,34 @@ def evaluate_component_relevance(query: str, product_title: str) -> Tuple[bool, 
             return False, 0.0, "Montaj tipi uyuşmuyor: SMD istendi, ürün DIP/THT."
 
     # -------------------------------------------------------------
-    # 5. GPS MODÜLLERİ DENETİMİ (NEO-6M / GY-NEO6MV2 / ATGM336H)
+    # 5. GPS MODÜL & ÇİP AİLESİ KONTROLÜ (Çapraz Yanlış İkame Engelleme)
     # -------------------------------------------------------------
-    if any(k in q for k in ["neo-6m", "neo6m", "gy-neo6mv2", "atgm336h", "gps"]):
-        if not any(k in t for k in ["gps", "gnss", "neo-6m", "neo6m", "gy-neo6mv2", "atgm336h", "konum", "anten"]):
-            return False, 0.0, "GPS modülü veya anteni anahtar kelimesi içermiyor."
+    # MAX-M10S aranıyorsa NEO serisi veya ATGM eşleşemez
+    if any(k in q for k in ["max-m10", "max-m10s", "m10s", "u-blox m10"]):
+        if not any(k in t for k in ["max-m10", "m10s", "m10"]):
+            return False, 0.0, "MAX-M10S istendi ancak ürün M10 serisi değil."
+
+    # ATGM336H aranıyorsa NEO serisi eşleşemez
+    if any(k in q for k in ["atgm336", "atgm336h", "atgm"]):
+        if not any(k in t for k in ["atgm336", "atgm"]):
+            return False, 0.0, "ATGM336H istendi ancak ürün ATGM serisi değil."
+
+    # NEO-M8N / NEO-8M aranıyorsa NEO-6M veya MAX-M10 eşleşemez
+    if any(k in q for k in ["neo-m8n", "neo-8m", "m8n", "neo8m"]):
+        if not any(k in t for k in ["m8n", "neo-8", "neo-m8", "m8"]):
+            return False, 0.0, "NEO-M8N istendi ancak ürün M8N serisi değil."
+
+    # NEO-6M aranıyorsa NEO-8M veya ATGM eşleşemez
+    if any(k in q for k in ["neo-6m", "neo6m", "gy-neo6mv2"]):
+        if any(k in t for k in ["m8n", "neo-8", "neo-m8", "atgm"]):
+            return False, 0.0, "NEO-6M yerine farklı nesil/üretici çip (M8N / ATGM) eşleşemez."
+        if not any(k in t for k in ["neo-6", "neo6", "gy-neo6", "gyneo6", "gps"]):
+            return False, 0.0, "NEO-6M anahtar kelimesiyle uyuşmuyor."
 
     # -------------------------------------------------------------
     # 6. KELİME ÖRTÜŞME SKORU
     # -------------------------------------------------------------
-    stop_words = {"ve", "ile", "için", "icin", "icin", "adet", "set", "uyumlu", "li"}
+    stop_words = {"ve", "ile", "için", "icin", "adet", "set", "uyumlu", "li", "modülü", "modulu", "kartı", "karti"}
     q_words = [w for w in re.split(r'[\s\-_/,.]+', q) if len(w) > 1 and w not in stop_words]
     if not q_words:
         return True, 1.0, "Uyumlu"
@@ -183,8 +201,9 @@ def evaluate_component_relevance(query: str, product_title: str) -> Tuple[bool, 
     matched_words = sum(1 for w in q_words if w in t)
     score = matched_words / len(q_words)
 
-    # En az %30 örtüşme veya temel anahtar kelime varlığı
-    if score < 0.25 and not any(k in t for k in ["neo", "gy-", "esp32", "lipo", "jst"]):
+    # Temel kelimelerin en az %30'u veya ana donanım kodu eşleşmeli
+    if score < 0.25 and not any(k in t for k in ["neo-6m", "gy-neo6mv2", "esp32-c3", "supermini"]):
         return False, score, "Arama terimleri ürün başlığıyla yeterince örtüşmüyor."
 
     return True, score, "Teknik olarak uyumlu"
+
