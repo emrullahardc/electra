@@ -17,10 +17,10 @@ const CATEGORY_NAMES = {
 };
 
 const STATUS_CONFIG = {
-  working: { text: "Sağlam", class: "bg-emerald-500/10 text-emerald-400 border-emerald-500/30", icon: "fa-circle-check" },
-  defective: { text: "Arızalı", class: "bg-rose-500/10 text-rose-400 border-rose-500/30", icon: "fa-triangle-exclamation" },
-  untested: { text: "Test Bekliyor", class: "bg-amber-500/10 text-amber-400 border-amber-500/30", icon: "fa-clock" },
-  salvage: { text: "Çıkma/Hurda", class: "bg-orange-500/10 text-orange-400 border-orange-500/30", icon: "fa-recycle" }
+  working: { text: "Sağlam", class: "apple-badge apple-badge-green", icon: "fa-circle-check" },
+  defective: { text: "Arızalı", class: "apple-badge apple-badge-red", icon: "fa-triangle-exclamation" },
+  untested: { text: "Test Bekliyor", class: "apple-badge apple-badge-amber", icon: "fa-clock" },
+  salvage: { text: "Çıkma/Hurda", class: "apple-badge apple-badge-default", icon: "fa-recycle" }
 };
 
 let currentTab = "inventory";
@@ -388,10 +388,10 @@ function renderComponentsTable(components) {
   if (!components || components.length === 0) {
     tbody.innerHTML = `
       <tr>
-        <td colspan="7" class="py-12 text-center text-slate-500">
-          <i class="fa-solid fa-box-open text-3xl mb-2 text-slate-600"></i>
-          <p class="font-medium text-slate-400">Aramanıza uygun bileşen bulunamadı</p>
-          <p class="text-xs text-slate-500 mt-1">Filtreleri sıfırlayabilir veya yeni parça ekleyebilirsiniz.</p>
+        <td colspan="7" class="py-12 text-center text-[#86868b]">
+          <i class="fa-solid fa-box-open text-3xl mb-2 text-[#48484a]"></i>
+          <p class="font-medium text-[#f5f5f7]">Aramanıza uygun bileşen bulunamadı</p>
+          <p class="text-xs text-[#86868b] mt-1">Filtreleri sıfırlayabilir veya yeni parça ekleyebilirsiniz.</p>
         </td>
       </tr>
     `;
@@ -404,40 +404,40 @@ function renderComponentsTable(components) {
     const isLowStock = c.quantity <= c.min_quantity;
 
     return `
-      <tr class="hover:bg-slate-800/40 transition">
+      <tr class="hover:bg-white/[0.03] transition">
         <td class="py-3 px-4">
-          <div class="font-medium text-slate-100 flex items-center gap-2">
+          <div class="font-medium text-white flex items-center gap-2">
             ${c.name}
-            ${isLowStock ? '<span class="text-[10px] px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/30">Kritik</span>' : ''}
+            ${isLowStock ? '<span class="apple-badge apple-badge-red text-[10px]">Kritik</span>' : ''}
           </div>
-          <div class="text-xs text-slate-400 mt-0.5 flex items-center gap-1.5">
-            <span class="px-1.5 py-0.2 rounded bg-slate-800 text-slate-400 text-[11px]">${catName}</span>
-            ${c.notes ? `<span class="truncate max-w-[200px] text-slate-500 italic" title="${escapeHtml(c.notes)}">• ${escapeHtml(c.notes)}</span>` : ''}
+          <div class="text-[11px] text-[#8e8e93] mt-0.5 flex items-center gap-1.5">
+            <span class="px-1.5 py-0.2 rounded bg-white/5 text-[#a1a1aa] font-mono">${catName}</span>
+            ${c.notes ? `<span class="truncate max-w-[200px] text-[#71717a]" title="${escapeHtml(c.notes)}">• ${escapeHtml(c.notes)}</span>` : ''}
           </div>
         </td>
-        <td class="py-3 px-3 font-mono text-emerald-400">${c.value || '-'}</td>
-        <td class="py-3 px-3 text-slate-300 text-xs">${c.package || '-'}</td>
+        <td class="py-3 px-3 font-mono text-white/90 font-medium">${c.value || '-'}</td>
+        <td class="py-3 px-3 text-[#a1a1aa] text-xs font-mono">${c.package || '-'}</td>
         <td class="py-3 px-3">
-          <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs border font-medium ${stConfig.class}">
-            <i class="fa-solid ${stConfig.icon} text-[10px]"></i> ${stConfig.text}
+          <span class="apple-badge ${stConfig.class}">
+            ${stConfig.text}
           </span>
         </td>
-        <td class="py-3 px-3 text-xs text-slate-300">
-          ${c.location ? `<span class="flex items-center gap-1"><i class="fa-solid fa-folder-closed text-slate-500"></i> ${escapeHtml(c.location)}</span>` : '<span class="text-slate-600">-</span>'}
+        <td class="py-3 px-3 text-xs text-[#a1a1aa]">
+          ${c.location ? `<span class="flex items-center gap-1 text-[#d1d1d6]"><i class="fa-solid fa-folder-closed text-[#636366]"></i> ${escapeHtml(c.location)}</span>` : '<span class="text-[#636366]">-</span>'}
         </td>
         <td class="py-3 px-3">
-          <div class="flex items-center justify-center gap-1.5">
-            <button onclick="adjustQty(${c.id}, -1)" class="w-6 h-6 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center text-xs transition" title="1 Azalt">-</button>
-            <span class="w-8 text-center font-bold ${isLowStock ? 'text-rose-400' : 'text-slate-100'}">${c.quantity}</span>
-            <button onclick="adjustQty(${c.id}, 1)" class="w-6 h-6 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center text-xs transition" title="1 Artır">+</button>
+          <div class="flex items-center justify-center gap-1">
+            <button onclick="adjustQty(${c.id}, -1)" class="w-6 h-6 rounded-md bg-white/5 hover:bg-white/10 text-white flex items-center justify-center text-xs transition" title="1 Azalt">-</button>
+            <span class="w-8 text-center font-semibold ${isLowStock ? 'text-[#ff453a]' : 'text-white'}">${c.quantity}</span>
+            <button onclick="adjustQty(${c.id}, 1)" class="w-6 h-6 rounded-md bg-white/5 hover:bg-white/10 text-white flex items-center justify-center text-xs transition" title="1 Artır">+</button>
           </div>
         </td>
         <td class="py-3 px-4 text-right space-x-1">
-          <button onclick="editComponent(${c.id})" class="p-1.5 rounded hover:bg-slate-800 text-slate-400 hover:text-cyan-400 transition" title="Düzenle">
-            <i class="fa-solid fa-pen-to-square"></i>
+          <button onclick="editComponent(${c.id})" class="p-1.5 rounded-lg text-[#8e8e93] hover:text-white hover:bg-white/10 transition" title="Düzenle">
+            <i class="fa-solid fa-pen-to-square text-xs"></i>
           </button>
-          <button onclick="deleteComponent(${c.id}, '${escapeHtml(c.name)}')" class="p-1.5 rounded hover:bg-slate-800 text-slate-400 hover:text-rose-400 transition" title="Sil">
-            <i class="fa-solid fa-trash"></i>
+          <button onclick="deleteComponent(${c.id}, '${escapeHtml(c.name)}')" class="p-1.5 rounded-lg text-[#8e8e93] hover:text-[#ff453a] hover:bg-white/10 transition" title="Sil">
+            <i class="fa-solid fa-trash text-xs"></i>
           </button>
         </td>
       </tr>
@@ -482,7 +482,7 @@ async function deleteComponent(compId, name) {
 // Arızalı Parçalar Sekmesini Yükle
 async function loadDefectiveComponents() {
   const container = document.getElementById("defective-list-container");
-  container.innerHTML = '<div class="col-span-full py-8 text-center text-slate-500"><i class="fa-solid fa-spinner fa-spin text-xl text-amber-500 mb-2"></i><p>Arızalı parçalar listeleniyor...</p></div>';
+  container.innerHTML = '<div class="col-span-full py-8 text-center text-[#86868b]"><i class="fa-solid fa-spinner fa-spin text-lg mb-2"></i><p class="text-xs">Arızalı parçalar listeleniyor...</p></div>';
 
   try {
     const res = await fetch("/api/defective");
@@ -490,9 +490,9 @@ async function loadDefectiveComponents() {
 
     if (!items || items.length === 0) {
       container.innerHTML = `
-        <div class="col-span-full py-12 text-center text-slate-500">
-          <i class="fa-solid fa-circle-check text-3xl mb-2 text-emerald-500"></i>
-          <p class="font-medium text-slate-300">Harika! Kayıtlı hiçbir arızalı veya bozuk parçanız yok.</p>
+        <div class="col-span-full py-12 text-center text-[#86868b]">
+          <i class="fa-solid fa-circle-check text-2xl mb-2 text-[#30d158]"></i>
+          <p class="font-medium text-[#f5f5f7] text-xs">Harika! Kayıtlı hiçbir arızalı veya bozuk parçanız yok.</p>
         </div>
       `;
       return;
@@ -501,32 +501,32 @@ async function loadDefectiveComponents() {
     container.innerHTML = items.map(item => {
       const stConfig = STATUS_CONFIG[item.status] || STATUS_CONFIG.defective;
       return `
-        <div class="bg-slate-900 border border-slate-800 hover:border-amber-500/40 rounded-xl p-4 space-y-3 transition">
-          <div class="flex items-start justify-between">
+        <div class="apple-card p-4 space-y-3">
+          <div class="flex items-start justify-between gap-2">
             <div>
-              <h4 class="font-bold text-slate-100">${escapeHtml(item.name)}</h4>
-              <p class="text-xs text-slate-400">${item.value || 'Değer belirtilmemiş'} • ${item.package || 'Kılıf yok'}</p>
+              <h4 class="font-medium text-white text-xs">${escapeHtml(item.name)}</h4>
+              <p class="text-[11px] text-[#8e8e93] font-mono mt-0.5">${item.value || 'Değer belirtilmemiş'} • ${item.package || 'Kılıf yok'}</p>
             </div>
-            <span class="px-2 py-0.5 rounded text-xs border font-medium ${stConfig.class}">
+            <span class="apple-badge ${stConfig.class}">
               ${stConfig.text}
             </span>
           </div>
 
-          <div class="bg-slate-950/70 rounded-lg p-2.5 text-xs text-amber-200/90 border border-amber-500/20">
-            <span class="font-semibold text-amber-400 block mb-0.5">Arıza / Durum Notu:</span>
-            ${escapeHtml(item.notes || 'Arıza detayı belirtilmemiş')}
+          <div class="bg-white/5 rounded-xl p-2.5 text-xs text-[#d1d1d6] border border-white/5 space-y-0.5">
+            <span class="font-medium text-[#ffd60a] text-[11px] block">Arıza / Durum:</span>
+            <p class="leading-relaxed text-[#d1d1d6]">${escapeHtml(item.notes || 'Arıza detayı belirtilmemiş')}</p>
           </div>
 
-          <div class="flex items-center justify-between text-xs text-slate-400 pt-2 border-t border-slate-800">
-            <span class="flex items-center gap-1.5">
-              <i class="fa-solid fa-location-dot text-amber-400"></i> 
-              <b>${escapeHtml(item.location || 'Arızalı Kutusu')}</b>
+          <div class="flex items-center justify-between text-xs text-[#8e8e93] pt-2 border-t border-[#242426]">
+            <span class="flex items-center gap-1.5 text-[11px]">
+              <i class="fa-solid fa-folder text-[#8e8e93]"></i> 
+              <span class="text-[#d1d1d6]">${escapeHtml(item.location || 'Arızalı Kutusu')}</span>
             </span>
             <div class="space-x-1">
-              <button onclick="markAsWorking(${item.id})" class="px-2 py-1 rounded bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 transition" title="Tamir edildi olarak işaretle">
+              <button onclick="markAsWorking(${item.id})" class="apple-btn-secondary text-[11px] px-2.5 py-1" title="Tamir edildi olarak işaretle">
                 Tamir Edildi
               </button>
-              <button onclick="editComponent(${item.id})" class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 transition">
+              <button onclick="editComponent(${item.id})" class="apple-btn-secondary text-[11px] px-2 py-1">
                 Düzenle
               </button>
             </div>
@@ -542,7 +542,7 @@ async function loadDefectiveComponents() {
 // Kritik Stok Sekmesini Yükle
 async function loadLowStockComponents() {
   const container = document.getElementById("lowstock-list-container");
-  container.innerHTML = '<div class="col-span-full py-8 text-center text-slate-500"><i class="fa-solid fa-spinner fa-spin text-xl text-rose-500 mb-2"></i><p>Kritik stok kontrol ediliyor...</p></div>';
+  container.innerHTML = '<div class="col-span-full py-8 text-center text-[#8e8e93]"><i class="fa-solid fa-spinner fa-spin text-lg mb-2"></i><p class="text-xs">Kritik stok kontrol ediliyor...</p></div>';
 
   try {
     const res = await fetch("/api/low-stock");
@@ -550,9 +550,9 @@ async function loadLowStockComponents() {
 
     if (!items || items.length === 0) {
       container.innerHTML = `
-        <div class="col-span-full py-12 text-center text-slate-500">
-          <i class="fa-solid fa-circle-check text-3xl mb-2 text-emerald-500"></i>
-          <p class="font-medium text-slate-300">Tüm parçalarınız kritik stok seviyesinin üzerinde!</p>
+        <div class="col-span-full py-12 text-center text-[#8e8e93]">
+          <i class="fa-solid fa-circle-check text-2xl mb-2 text-[#34c759]"></i>
+          <p class="font-medium text-white text-xs">Tüm parçalarınız yeterli seviyede.</p>
         </div>
       `;
       return;
@@ -560,22 +560,22 @@ async function loadLowStockComponents() {
 
     container.innerHTML = items.map(item => {
       return `
-        <div class="bg-slate-900 border border-slate-800 hover:border-rose-500/40 rounded-xl p-4 space-y-3 transition">
+        <div class="apple-card p-4 space-y-3">
           <div class="flex items-start justify-between">
             <div>
-              <h4 class="font-bold text-slate-100">${escapeHtml(item.name)}</h4>
-              <p class="text-xs text-slate-400">${item.value || ''} • ${CATEGORY_NAMES[item.category] || item.category}</p>
+              <h4 class="font-medium text-white text-xs">${escapeHtml(item.name)}</h4>
+              <p class="text-[11px] text-[#8e8e93] font-mono mt-0.5">${item.value || ''} • ${CATEGORY_NAMES[item.category] || item.category}</p>
             </div>
             <div class="text-right">
-              <span class="text-lg font-black text-rose-400">${item.quantity}</span>
-              <span class="text-xs text-slate-500 block">Min: ${item.min_quantity}</span>
+              <span class="text-lg font-semibold text-[#ff453a] font-mono">${item.quantity}</span>
+              <span class="text-[10px] text-[#8e8e93] block">Min: ${item.min_quantity}</span>
             </div>
           </div>
 
-          <div class="flex items-center justify-between text-xs text-slate-400 pt-2 border-t border-slate-800">
-            <span>Konum: <b>${escapeHtml(item.location || 'Belirtilmemiş')}</b></span>
-            <button onclick="searchRobotistanForPart('${escapeHtml(item.name)}')" class="px-2.5 py-1 rounded bg-orange-500/10 hover:bg-orange-500/20 text-orange-400 border border-orange-500/30 flex items-center gap-1 transition">
-              <i class="fa-solid fa-cart-shopping"></i> Robotistan'da Bul
+          <div class="flex items-center justify-between text-xs text-[#8e8e93] pt-2 border-t border-[#242426]">
+            <span class="text-[11px]">Konum: <b class="text-[#d1d1d6]">${escapeHtml(item.location || 'Belirtilmemiş')}</b></span>
+            <button onclick="searchRobotistanForPart('${escapeHtml(item.name)}')" class="apple-btn-primary text-xs px-2.5 py-1">
+              <i class="fa-solid fa-cart-shopping text-[10px]"></i> Piyasa Bul
             </button>
           </div>
         </div>
@@ -621,15 +621,15 @@ async function analyzeProject() {
     // 1. Sağlam Olanlar
     const workingList = document.getElementById("project-working-list");
     if (!analysis.available_working || analysis.available_working.length === 0) {
-      workingList.innerHTML = '<p class="text-slate-500 col-span-full">Bu proje için stokta doğrudan eşleşen sağlam parça bulunamadı.</p>';
+      workingList.innerHTML = '<p class="text-[#86868b] text-xs col-span-full py-4 text-center">Bu proje için stokta doğrudan eşleşen sağlam parça bulunamadı.</p>';
     } else {
       workingList.innerHTML = analysis.available_working.map(aw => `
-        <div class="bg-slate-950 p-3 rounded-lg border border-slate-800 space-y-1">
-          <p class="font-semibold text-emerald-400 text-xs">${escapeHtml(aw.required_role)}</p>
+        <div class="apple-card p-3 space-y-1">
+          <p class="font-medium text-[#f5f5f7] text-xs">${escapeHtml(aw.required_role)}</p>
           ${aw.matched_parts.map(p => `
-            <div class="text-xs text-slate-300 flex items-center justify-between">
-              <span>• <b>${escapeHtml(p.name)}</b> (${p.quantity} Adet)</span>
-              <span class="text-slate-500 text-[11px]"><i class="fa-solid fa-location-dot"></i> ${escapeHtml(p.location)}</span>
+            <div class="text-xs text-[#86868b] flex items-center justify-between">
+              <span>• <b class="text-[#f5f5f7] font-normal">${escapeHtml(p.name)}</b> (${p.quantity} Adet)</span>
+              <span class="text-[#636366] text-[11px]"><i class="fa-solid fa-location-dot"></i> ${escapeHtml(p.location)}</span>
             </div>
           `).join("")}
         </div>
@@ -644,12 +644,12 @@ async function analyzeProject() {
     } else {
       defCard.classList.remove("hidden");
       defList.innerHTML = analysis.defective_warnings.map(dw => `
-        <div class="bg-amber-950/20 border border-amber-500/30 rounded-lg p-3 space-y-1.5">
-          <p class="font-semibold text-amber-300 text-xs">${escapeHtml(dw.required_role)} için arızalı kayıtlarınız var:</p>
+        <div class="p-3.5 rounded-xl bg-amber-500/[0.06] border border-amber-500/20 space-y-1.5">
+          <p class="font-medium text-amber-300 text-xs">${escapeHtml(dw.required_role)} için arızalı kayıtlarınız var:</p>
           ${dw.parts.map(p => `
-            <div class="text-xs text-amber-200/90 pl-2 border-l-2 border-amber-500/50">
-              <b>${escapeHtml(p.name)}</b> [${p.status}] • Konum: ${escapeHtml(p.location)}<br>
-              <i class="text-slate-400">Arıza Notu: ${escapeHtml(p.notes)}</i>
+            <div class="text-xs text-amber-200/90 pl-2.5 border-l-2 border-amber-500/40">
+              <b class="font-medium">${escapeHtml(p.name)}</b> [${p.status}] • Konum: ${escapeHtml(p.location)}<br>
+              <i class="text-[#86868b]">Arıza Notu: ${escapeHtml(p.notes)}</i>
             </div>
           `).join("")}
         </div>
@@ -662,45 +662,45 @@ async function analyzeProject() {
 
     if (!analysis.missing_items || analysis.missing_items.length === 0) {
       robList.innerHTML = `
-        <div class="py-6 text-center text-emerald-400">
-          <i class="fa-solid fa-circle-check text-3xl mb-2"></i>
-          <p class="font-bold">Elinizdeki stok proje için tamamen yeterli!</p>
-          <p class="text-xs text-slate-400 mt-0.5">Hiçbir ek parça satın almanıza gerek yok.</p>
+        <div class="py-8 text-center text-[#30d158]">
+          <i class="fa-solid fa-circle-check text-2xl mb-2"></i>
+          <p class="font-medium text-[#f5f5f7]">Elinizdeki stok proje için tamamen yeterli</p>
+          <p class="text-xs text-[#86868b] mt-1">Hiçbir ek parça satın almanıza gerek yok.</p>
         </div>
       `;
     } else {
       robList.innerHTML = analysis.robotistan_recommendations.map(rec => `
-        <div class="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-2">
+        <div class="apple-card p-4 space-y-3">
           <div class="flex items-center justify-between">
-            <h5 class="font-bold text-sm text-slate-200 flex items-center gap-2">
-              <span class="w-2 h-2 rounded-full bg-rose-500"></span>
-              Eksik Parça: ${escapeHtml(rec.missing_part_role)}
+            <h5 class="font-medium text-sm text-[#f5f5f7] flex items-center gap-2">
+              <span class="w-1.5 h-1.5 rounded-full bg-red-400"></span>
+              Eksik: ${escapeHtml(rec.missing_part_role)}
             </h5>
-            <span class="text-xs text-slate-400">Arama: "${escapeHtml(rec.searched_query)}"</span>
+            <span class="text-[11px] text-[#86868b] font-mono">"${escapeHtml(rec.searched_query)}"</span>
           </div>
 
           <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 pt-1">
             ${rec.found_products && rec.found_products.length > 0 ? rec.found_products.map(p => `
-              <div class="bg-slate-900 border border-slate-800 hover:border-slate-700 rounded-lg p-2.5 flex flex-col justify-between">
+              <div class="apple-card p-3 flex flex-col justify-between hover:border-[#38383a] transition-colors">
                 <div>
                   <div class="flex items-start justify-between gap-2">
-                    <p class="text-xs font-medium text-slate-200 line-clamp-2">${escapeHtml(p.title)}</p>
-                    <span class="text-[10px] px-1.5 py-0.5 rounded ${p.in_stock ? 'bg-emerald-500/20 text-emerald-300' : 'bg-rose-500/20 text-rose-300'} whitespace-nowrap">
+                    <p class="text-xs font-medium text-[#f5f5f7] line-clamp-2 leading-snug">${escapeHtml(p.title)}</p>
+                    <span class="apple-badge ${p.in_stock ? 'apple-badge-green' : 'apple-badge-red'} whitespace-nowrap">
                       ${p.stock_status}
                     </span>
                   </div>
-                  <p class="text-sm font-bold text-emerald-400 mt-2">${formatPrice(p.price_value || p.price)}</p>
+                  <p class="text-sm font-semibold text-[#f5f5f7] font-mono mt-2">${formatPrice(p.price_value || p.price)}</p>
                 </div>
-                <div class="mt-2.5 flex items-center gap-1.5">
-                  <button onclick="addToCartFromProduct('${escapeHtml(p.title)}', '${p.url}', '${p.price}', ${p.price_value || 0}, ${p.product_id || 'null'})" class="flex-1 text-center text-xs py-1.5 px-2 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-medium transition">
+                <div class="mt-3 flex items-center gap-2">
+                  <button onclick="addToCartFromProduct('${escapeHtml(p.title)}', '${p.url}', '${p.price}', ${p.price_value || 0}, ${p.product_id || 'null'})" class="apple-btn-secondary flex-1 py-1 px-2.5 text-xs font-medium justify-center">
                     <i class="fa-solid fa-cart-plus"></i> Sepete Ekle
                   </button>
-                  <a href="${p.url}" target="_blank" class="text-center text-xs p-1.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition" title="Robotistan'da Gör">
+                  <a href="${p.url}" target="_blank" class="apple-btn-secondary px-2.5 py-1 text-xs" title="Robotistan'da Gör">
                     <i class="fa-solid fa-arrow-up-right-from-square"></i>
                   </a>
                 </div>
               </div>
-            `).join("") : '<p class="text-xs text-slate-500 col-span-full">Robotistan stoklarında uygun ürün bulunamadı.</p>'}
+            `).join("") : '<p class="text-xs text-[#86868b] col-span-full py-2">Robotistan stoklarında uygun ürün bulunamadı.</p>'}
           </div>
         </div>
       `).join("");
@@ -735,9 +735,9 @@ async function searchRobotistanDirect() {
 
   const container = document.getElementById("rob-results-container");
   container.innerHTML = `
-    <div class="col-span-full py-12 text-center text-slate-500">
-      <i class="fa-solid fa-spinner fa-spin text-2xl text-orange-500 mb-2"></i>
-      <p>Türkiye pazarı (Robotronik, Robotistan, Direnç.net, Motorobit) taranıyor...</p>
+    <div class="col-span-full py-12 text-center text-[#86868b]">
+      <i class="fa-solid fa-spinner fa-spin text-xl text-[#f5f5f7] mb-2"></i>
+      <p class="text-xs">Türkiye pazarı (Robotronik, Robotistan, Direnç.net, Motorobit) taranıyor...</p>
     </div>
   `;
 
@@ -765,20 +765,20 @@ async function searchRobotistanDirect() {
 
     if (results.length === 0) {
       container.innerHTML = `
-        <div class="col-span-full bg-slate-900 border border-slate-800 rounded-xl py-12 text-center text-slate-500 space-y-2">
-          <i class="fa-solid fa-box-open text-4xl mb-2 text-slate-600"></i>
-          <p class="font-medium text-slate-300">"${escapeHtml(query)}" için seçilen mağazalarda stokta ürün bulunamadı.</p>
-          <p class="text-xs text-slate-400">Arama filtresini gevşetmeyi veya "Tüm Siteler" seçeneğini deneyebilirsiniz.</p>
+        <div class="col-span-full apple-card py-12 text-center text-[#86868b] space-y-1">
+          <i class="fa-solid fa-box-open text-3xl mb-2 text-[#48484a]"></i>
+          <p class="font-medium text-[#f5f5f7]">"${escapeHtml(query)}" için seçilen mağazalarda ürün bulunamadı.</p>
+          <p class="text-xs text-[#86868b]">Arama filtresini gevşetmeyi veya "Tüm Siteler" seçeneğini deneyebilirsiniz.</p>
         </div>
       `;
       return;
     }
 
     const vendorStyles = {
-      robotronik: { badge: "bg-purple-500/20 text-purple-300 border-purple-500/30", name: "Robotronik" },
-      robotistan: { badge: "bg-orange-500/20 text-orange-300 border-orange-500/30", name: "Robotistan" },
-      direnc: { badge: "bg-blue-500/20 text-blue-300 border-blue-500/30", name: "Direnç.net" },
-      motorobit: { badge: "bg-rose-500/20 text-rose-300 border-rose-500/30", name: "Motorobit" }
+      robotronik: { badge: "apple-badge apple-badge-default", name: "Robotronik" },
+      robotistan: { badge: "apple-badge apple-badge-default", name: "Robotistan" },
+      direnc: { badge: "apple-badge apple-badge-default", name: "Direnç.net" },
+      motorobit: { badge: "apple-badge apple-badge-default", name: "Motorobit" }
     };
 
     // 🎯 Akıllı Satın Alma ve Kargo Karar Kartı (Robotistan Önceliği)
@@ -786,44 +786,44 @@ async function searchRobotistanDirect() {
     if (decision && decision.action) {
       if (decision.action === "prefer_robotistan") {
         adviceHtml = `
-          <div class="col-span-full bg-blue-950/30 border border-blue-500/40 rounded-xl p-3.5 mb-2 flex items-start gap-3 shadow-md animate-fade-in">
-            <div class="w-8 h-8 rounded-lg bg-blue-500/20 text-blue-400 flex items-center justify-center flex-shrink-0 text-base">
+          <div class="col-span-full apple-card p-4 mb-2 flex items-start gap-3">
+            <div class="w-7 h-7 rounded-lg bg-white/10 text-white flex items-center justify-center text-xs flex-shrink-0">
               <i class="fa-solid fa-truck-fast"></i>
             </div>
             <div class="space-y-1 text-xs">
               <div class="flex items-center gap-2 flex-wrap">
-                <span class="font-bold text-blue-200 text-sm">⚡ Robotistan Tavsiyesi (Aynı Gün Teslimat)</span>
-                ${decision.price_diff > 0 ? `<span class="px-2 py-0.5 rounded bg-blue-500/20 text-blue-300 font-mono font-medium">Fark: Sadece ${decision.price_diff.toFixed(2)} TL (≤100 TL)</span>` : '<span class="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-mono font-medium">En Ucuz & Aynı Gün</span>'}
+                <span class="font-semibold text-white">Robotistan Tavsiyesi (Aynı Gün Teslimat)</span>
+                ${decision.price_diff > 0 ? `<span class="apple-badge apple-badge-default font-mono">Fark: ${decision.price_diff.toFixed(2)} TL (≤100 TL)</span>` : '<span class="apple-badge apple-badge-green font-mono">En Uygun & Aynı Gün</span>'}
               </div>
-              <p class="text-slate-300 leading-relaxed">${escapeHtml(decision.summary)}</p>
+              <p class="text-[#8e8e93] leading-relaxed">${escapeHtml(decision.summary)}</p>
             </div>
           </div>
         `;
       } else if (decision.action === "ask_user") {
         adviceHtml = `
-          <div class="col-span-full bg-amber-950/30 border border-amber-500/40 rounded-xl p-3.5 mb-2 flex items-start gap-3 shadow-md animate-fade-in">
-            <div class="w-8 h-8 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center flex-shrink-0 text-base">
+          <div class="col-span-full apple-card p-4 mb-2 flex items-start gap-3 border-amber-500/30">
+            <div class="w-7 h-7 rounded-lg bg-amber-500/10 text-[#ffd60a] flex items-center justify-center text-xs flex-shrink-0">
               <i class="fa-solid fa-scale-balanced"></i>
             </div>
             <div class="space-y-1 text-xs">
               <div class="flex items-center gap-2 flex-wrap">
-                <span class="font-bold text-amber-200 text-sm">💡 Belirgin Fiyat Farkı Uyarısı (>100 TL Tasarruf)</span>
-                <span class="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 font-mono font-medium">${escapeHtml(decision.cheapest_vendor)} ${decision.price_diff.toFixed(2)} TL Daha Ucuz</span>
+                <span class="font-semibold text-white">Fiyat Farkı Uyarısı (>100 TL Tasarruf)</span>
+                <span class="apple-badge apple-badge-green font-mono">${escapeHtml(decision.cheapest_vendor)} ${decision.price_diff.toFixed(2)} TL Daha Ucuz</span>
               </div>
-              <p class="text-slate-300 leading-relaxed">${escapeHtml(decision.summary)}</p>
-              ${decision.prompt_question ? `<p class="text-amber-200/90 font-medium italic mt-1">❓ "${escapeHtml(decision.prompt_question)}"` : ''}
+              <p class="text-[#8e8e93] leading-relaxed">${escapeHtml(decision.summary)}</p>
+              ${decision.prompt_question ? `<p class="text-[#ffd60a] font-medium text-[11px] mt-1">❓ "${escapeHtml(decision.prompt_question)}"` : ''}
             </div>
           </div>
         `;
       } else if (decision.action === "external_vendor") {
         adviceHtml = `
-          <div class="col-span-full bg-purple-950/30 border border-purple-500/30 rounded-xl p-3.5 mb-2 flex items-start gap-3 shadow-md animate-fade-in">
-            <div class="w-8 h-8 rounded-lg bg-purple-500/20 text-purple-400 flex items-center justify-center flex-shrink-0 text-base">
+          <div class="col-span-full apple-card p-4 mb-2 flex items-start gap-3">
+            <div class="w-7 h-7 rounded-lg bg-white/10 text-white flex items-center justify-center text-xs flex-shrink-0">
               <i class="fa-solid fa-store-slash"></i>
             </div>
             <div class="space-y-1 text-xs">
-              <span class="font-bold text-purple-200 text-sm">ℹ️ Robotistan Stoklarında Yok</span>
-              <p class="text-slate-300 leading-relaxed">${escapeHtml(decision.summary)}</p>
+              <span class="font-semibold text-white">Robotistan Stoklarında Yok</span>
+              <p class="text-[#8e8e93] leading-relaxed">${escapeHtml(decision.summary)}</p>
             </div>
           </div>
         `;
@@ -832,52 +832,51 @@ async function searchRobotistanDirect() {
 
     const cardsHtml = results.map(item => {
       const vKey = item.vendor_key || "other";
-      const vStyle = vendorStyles[vKey] || { badge: "bg-slate-700/40 text-slate-300 border-slate-600/30", name: item.vendor || vKey };
+      const vStyle = vendorStyles[vKey] || { badge: "apple-badge apple-badge-default", name: item.vendor || vKey };
       const isCheap = Boolean(item.is_cheapest);
-      const cardBorder = isCheap ? "border-emerald-500/70 bg-gradient-to-b from-slate-900 to-emerald-950/20 ring-1 ring-emerald-500/40 shadow-lg shadow-emerald-950/30" : "border-slate-800 hover:border-slate-700";
 
       return `
-        <div class="bg-slate-900 border ${cardBorder} rounded-xl p-3.5 flex flex-col justify-between space-y-3 transition">
+        <div class="apple-card p-4 flex flex-col justify-between space-y-3">
           <div class="space-y-2">
             <div class="flex items-center justify-between gap-1.5 flex-wrap">
-              <span class="text-[10px] px-2 py-0.5 rounded-full font-bold border uppercase font-mono ${vStyle.badge}">
+              <span class="${vStyle.badge}">
                 ${vStyle.name}
               </span>
               ${isCheap ? `
-                <span class="text-[10px] px-2 py-0.5 rounded-full font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 flex items-center gap-1 shadow-sm">
-                  <i class="fa-solid fa-star text-amber-400 text-[9px]"></i> En Uygun Fiyat
+                <span class="apple-badge apple-badge-green">
+                  ⭐ En Uygun
                 </span>
               ` : ''}
-              <span class="text-[10px] px-2 py-0.5 rounded-full font-medium ${item.in_stock ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'bg-rose-500/20 text-rose-300 border border-rose-500/30'} whitespace-nowrap ml-auto">
+              <span class="text-[10px] text-[#8e8e93] font-medium ml-auto">
                 ${item.in_stock ? '🟢 Stokta' : '🔴 Tükendi'}
               </span>
             </div>
 
-            <h4 class="font-semibold text-slate-200 text-sm line-clamp-2" title="${escapeHtml(item.title)}">
+            <h4 class="font-medium text-white text-xs line-clamp-2" title="${escapeHtml(item.title)}">
               ${escapeHtml(item.title)}
             </h4>
 
-            <p class="text-base font-bold ${isCheap ? 'text-emerald-400 text-lg' : 'text-slate-100'} font-mono">
+            <p class="text-sm font-semibold text-white font-mono">
               ${formatPrice(item.price_value || item.price)}
             </p>
           </div>
 
-          <div class="pt-2 border-t border-slate-800/80 flex flex-wrap items-center justify-between gap-1.5">
-            <div class="flex items-center gap-1 flex-wrap">
+          <div class="pt-2 border-t border-[#242426] flex flex-wrap items-center justify-between gap-1.5">
+            <div class="flex items-center gap-1.5 flex-wrap">
               ${vKey === 'robotistan' ? `
-                <button onclick="addToCartFromProduct('${escapeHtml(item.title).replace(/'/g, "\\'")}', '${item.url}', '${item.price}', ${item.price_value || 0}, ${item.product_id || 'null'})" class="text-xs px-2.5 py-1.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-medium flex items-center gap-1 transition cursor-pointer" title="Robotistan Sepetine Ekle">
-                  <i class="fa-solid fa-cart-plus"></i> Sepete
+                <button onclick="addToCartFromProduct('${escapeHtml(item.title).replace(/'/g, "\\'")}', '${item.url}', '${item.price}', ${item.price_value || 0}, ${item.product_id || 'null'})" class="apple-btn-primary text-xs px-2.5 py-1" title="Robotistan Sepetine Ekle">
+                  <i class="fa-solid fa-cart-plus text-[10px]"></i> Sepete
                 </button>
               ` : ''}
-              <button onclick="quickAddMarketItemToDraft('${escapeHtml(item.title).replace(/'/g, "\\'")}', '${item.url}', ${item.price_value || 0}, '${vKey}')" class="text-xs px-2.5 py-1.5 rounded bg-purple-600/80 hover:bg-purple-600 text-white font-medium flex items-center gap-1 transition cursor-pointer" title="Bu ürünü taslak sipariş listesine ekle">
-                <i class="fa-solid fa-clipboard-list"></i> Taslağa Ekle
+              <button onclick="quickAddMarketItemToDraft('${escapeHtml(item.title).replace(/'/g, "\\'")}', '${item.url}', ${item.price_value || 0}, '${vKey}')" class="apple-btn-secondary text-xs px-2.5 py-1" title="Bu ürünü taslak sipariş listesine ekle">
+                <i class="fa-solid fa-clipboard-list text-[10px]"></i> Taslağa Ekle
               </button>
-              <button onclick="addRobotistanItemToInventory('${escapeHtml(item.title).replace(/'/g, "\\'")}')" class="text-xs px-2 py-1.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition cursor-pointer" title="Atölye Envanterine Ekle">
+              <button onclick="addRobotistanItemToInventory('${escapeHtml(item.title).replace(/'/g, "\\'")}')" class="p-1 rounded-lg text-[#8e8e93] hover:text-white hover:bg-white/5 text-xs transition" title="Atölye Envanterine Ekle">
                 + Stoğa
               </button>
             </div>
-            <a href="${item.url}" target="_blank" class="text-xs px-2.5 py-1.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 font-medium flex items-center gap-1 transition ml-auto" title="Mağaza Sayfasını Aç">
-              <span>İncele</span> <i class="fa-solid fa-arrow-up-right-from-square text-[10px]"></i>
+            <a href="${item.url}" target="_blank" class="text-[#8e8e93] hover:text-white text-xs p-1 rounded-lg hover:bg-white/5 transition ml-auto" title="Mağaza Sayfasını Aç">
+              <i class="fa-solid fa-arrow-up-right-from-square text-[11px]"></i>
             </a>
           </div>
         </div>
@@ -1176,7 +1175,7 @@ async function loadCartBadge() {
 
 async function loadCart() {
   const tbody = document.getElementById("cart-tbody");
-  tbody.innerHTML = '<tr><td colspan="5" class="py-8 text-center text-slate-500"><i class="fa-solid fa-spinner fa-spin text-xl text-emerald-500 mb-2"></i><p>Sepet yükleniyor...</p></td></tr>';
+  tbody.innerHTML = '<tr><td colspan="5" class="py-8 text-center text-[#86868b]"><i class="fa-solid fa-spinner fa-spin text-lg mb-2"></i><p class="text-xs">Sepet yükleniyor...</p></td></tr>';
 
   try {
     const res = await fetch("/api/cart");
@@ -1194,10 +1193,10 @@ async function loadCart() {
     if (items.length === 0) {
       tbody.innerHTML = `
         <tr>
-          <td colspan="5" class="py-12 text-center text-slate-500">
-            <i class="fa-solid fa-cart-shopping text-3xl mb-2 text-slate-600"></i>
-            <p class="font-medium text-slate-300">Sepetiniz şu anda boş.</p>
-            <p class="text-xs text-slate-500 mt-1">Robotistan Canlı Arama veya Proje Asistanı üzerinden eksik parçaları ekleyebilirsiniz.</p>
+          <td colspan="5" class="py-12 text-center text-[#86868b]">
+            <i class="fa-solid fa-cart-shopping text-3xl mb-2 text-[#48484a]"></i>
+            <p class="font-medium text-[#f5f5f7]">Sepetiniz şu anda boş.</p>
+            <p class="text-xs text-[#86868b] mt-1">Robotistan Canlı Arama veya Proje Asistanı üzerinden eksik parçaları ekleyebilirsiniz.</p>
           </td>
         </tr>
       `;
@@ -1207,26 +1206,26 @@ async function loadCart() {
     tbody.innerHTML = items.map(item => {
       const itemTotal = ((item.price_value || 0) * item.quantity).toFixed(2);
       return `
-        <tr class="hover:bg-slate-800/40 transition">
+        <tr class="hover:bg-white/[0.02] border-b border-[#1c1c1e] transition-colors">
           <td class="py-3 px-4">
-            <a href="${item.url}" target="_blank" class="font-medium text-slate-100 hover:text-emerald-400 flex items-center gap-1.5 transition">
+            <a href="${item.url}" target="_blank" class="font-medium text-[#f5f5f7] hover:text-white flex items-center gap-1.5 transition">
               ${escapeHtml(item.title)}
-              <i class="fa-solid fa-arrow-up-right-from-square text-[10px] text-slate-500"></i>
+              <i class="fa-solid fa-arrow-up-right-from-square text-[10px] text-[#86868b]"></i>
             </a>
-            ${item.product_id ? `<span class="text-[10px] text-slate-500 font-mono">T-Soft PID: ${item.product_id}</span>` : ''}
+            ${item.product_id ? `<span class="text-[10px] text-[#86868b] font-mono">T-Soft PID: ${item.product_id}</span>` : ''}
           </td>
-          <td class="py-3 px-3 font-mono text-slate-300 text-xs">${formatPrice(item.price_value || item.price)}</td>
+          <td class="py-3 px-3 font-mono text-[#86868b] text-xs">${formatPrice(item.price_value || item.price)}</td>
           <td class="py-3 px-3">
             <div class="flex items-center justify-center gap-1.5">
-              <button onclick="updateCartItemQty(${item.id}, ${item.quantity - 1})" class="w-6 h-6 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center text-xs transition">-</button>
-              <span class="w-8 text-center font-bold text-slate-100">${item.quantity}</span>
-              <button onclick="updateCartItemQty(${item.id}, ${item.quantity + 1})" class="w-6 h-6 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center text-xs transition">+</button>
+              <button onclick="updateCartItemQty(${item.id}, ${item.quantity - 1})" class="w-6 h-6 rounded-md bg-[#2c2c2e] hover:bg-[#3a3a3c] text-[#f5f5f7] flex items-center justify-center text-xs transition">-</button>
+              <span class="w-8 text-center font-mono font-medium text-[#f5f5f7]">${item.quantity}</span>
+              <button onclick="updateCartItemQty(${item.id}, ${item.quantity + 1})" class="w-6 h-6 rounded-md bg-[#2c2c2e] hover:bg-[#3a3a3c] text-[#f5f5f7] flex items-center justify-center text-xs transition">+</button>
             </div>
           </td>
-          <td class="py-3 px-3 font-mono text-emerald-400 font-bold">${formatPrice(itemTotal)}</td>
+          <td class="py-3 px-3 font-mono text-[#f5f5f7] font-semibold">${formatPrice(itemTotal)}</td>
           <td class="py-3 px-4 text-right">
-            <button onclick="deleteCartItem(${item.id})" class="p-1.5 rounded hover:bg-slate-800 text-slate-400 hover:text-rose-400 transition" title="Sepetten Çıkar">
-              <i class="fa-solid fa-trash"></i>
+            <button onclick="deleteCartItem(${item.id})" class="p-1.5 rounded-md hover:bg-red-500/10 text-[#86868b] hover:text-red-400 transition" title="Sepetten Çıkar">
+              <i class="fa-solid fa-trash text-xs"></i>
             </button>
           </td>
         </tr>
@@ -1380,7 +1379,7 @@ async function loadDraftsBadge() {
 
 async function loadDraftOrders() {
   const container = document.getElementById("draft-orders-container");
-  container.innerHTML = '<div class="py-12 text-center text-slate-500"><i class="fa-solid fa-spinner fa-spin text-2xl text-purple-500 mb-2"></i><p>Taslak siparişler yükleniyor...</p></div>';
+  container.innerHTML = '<div class="py-12 text-center text-[#86868b]"><i class="fa-solid fa-spinner fa-spin text-xl text-[#f5f5f7] mb-2"></i><p class="text-xs">Taslak siparişler yükleniyor...</p></div>';
 
   try {
     const res = await fetch("/api/draft-orders");
@@ -1390,10 +1389,10 @@ async function loadDraftOrders() {
 
     if (!orders || orders.length === 0) {
       container.innerHTML = `
-        <div class="bg-slate-900 border border-slate-800 rounded-xl py-12 px-4 text-center text-slate-500 space-y-2">
-          <i class="fa-solid fa-clipboard-question text-4xl mb-2 text-slate-600"></i>
-          <p class="font-medium text-slate-300">Henüz kayıtlı bir taslak sipariş listeniz bulunmuyor.</p>
-          <p class="text-xs text-slate-400 max-w-md mx-auto">
+        <div class="apple-card py-12 px-4 text-center text-[#86868b] space-y-1">
+          <i class="fa-solid fa-clipboard-question text-3xl mb-2 text-[#48484a]"></i>
+          <p class="font-medium text-[#f5f5f7]">Henüz kayıtlı bir taslak sipariş listeniz bulunmuyor.</p>
+          <p class="text-xs text-[#86868b] max-w-md mx-auto">
             AI Asistanına (Cursor, Claude vb.) <i>"Şu proje için eksikleri çıkar ve Robotistan taslak siparişi oluştur"</i> diyebilir veya Proje Asistanı sekmesinden analiz yapıp taslak olarak kaydedebilirsiniz.
           </p>
         </div>
@@ -1408,59 +1407,59 @@ async function loadDraftOrders() {
       const items = detail.items || [];
 
       const statusMap = {
-        draft: { text: "Taslak (Draft)", class: "bg-purple-500/20 text-purple-300 border-purple-500/30" },
-        ready: { text: "Sepete Aktarıldı", class: "bg-emerald-500/20 text-emerald-300 border-emerald-500/30" },
-        ordered: { text: "Sipariş Verildi", class: "bg-cyan-500/20 text-cyan-300 border-cyan-500/30" },
-        archived: { text: "Arşiv", class: "bg-slate-700/40 text-slate-400 border-slate-600/30" }
+        draft: { text: "Taslak", class: "apple-badge apple-badge-default" },
+        ready: { text: "Sepette", class: "apple-badge apple-badge-green" },
+        ordered: { text: "Sipariş Verildi", class: "apple-badge apple-badge-blue" },
+        archived: { text: "Arşiv", class: "apple-badge apple-badge-default" }
       };
       const st = statusMap[o.status] || statusMap.draft;
 
       return `
-        <div class="bg-slate-900 border border-slate-800 hover:border-purple-500/40 rounded-xl p-5 space-y-4 transition shadow-sm">
-          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-3">
+        <div class="apple-card p-5 space-y-4">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#242426] pb-3">
             <div>
               <div class="flex items-center gap-2">
-                <h3 class="font-bold text-white text-base">#${o.id} - ${escapeHtml(o.title)}</h3>
-                <span class="text-xs px-2 py-0.5 rounded border font-medium ${st.class}">${st.text}</span>
+                <h3 class="font-semibold text-white text-sm">#${o.id} — ${escapeHtml(o.title)}</h3>
+                <span class="${st.class}">${st.text}</span>
               </div>
-              <p class="text-xs text-slate-400 mt-1">${escapeHtml(o.description || 'Açıklama yok')} • <i class="fa-regular fa-clock text-[10px]"></i> ${o.updated_at.slice(0, 16).replace('T', ' ')}</p>
+              <p class="text-xs text-[#8e8e93] mt-0.5">${escapeHtml(o.description || 'Açıklama yok')} • ${o.updated_at.slice(0, 16).replace('T', ' ')}</p>
             </div>
             <div class="text-right">
-              <span class="text-xl font-bold text-emerald-400">~${formatPrice(o.total_estimated_price)}</span>
-              <span class="text-xs text-slate-500 block">${o.item_count} Kalem (${o.total_quantity} Adet)</span>
+              <span class="text-lg font-semibold text-white font-mono">~${formatPrice(o.total_estimated_price)}</span>
+              <span class="text-[11px] text-[#8e8e93] block">${o.item_count} Kalem (${o.total_quantity} Adet)</span>
             </div>
           </div>
 
           <!-- Ürün Kalemleri Listesi -->
           <div class="space-y-2">
-            <h4 class="text-xs font-semibold text-slate-400 uppercase tracking-wide">Sipariş Edilecek Kalemler:</h4>
+            <h4 class="text-[11px] font-medium text-[#8e8e93] uppercase tracking-wider">Sipariş Edilecek Kalemler:</h4>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
-              ${items.length === 0 ? '<p class="text-slate-500 italic col-span-full py-2">Bu taslakta hiç ürün kalmadı.</p>' : items.map(it => `
-                <div class="bg-slate-950 p-2.5 rounded-lg border border-slate-800 flex items-center justify-between gap-2 hover:border-slate-700 transition">
+              ${items.length === 0 ? '<p class="text-[#8e8e93] italic col-span-full py-2">Bu taslakta hiç ürün kalmadı.</p>' : items.map(it => `
+                <div class="bg-[#0e0e10] p-2.5 rounded-xl border border-[#222225] flex items-center justify-between gap-2">
                   <div class="min-w-0 flex-1">
                     <div class="flex items-center gap-1.5 flex-wrap">
-                      <span class="text-[10px] px-1.5 py-0.2 rounded bg-slate-900 border border-slate-800 text-slate-400 font-mono font-bold" title="Kalem ID">#${it.id}</span>
-                      <p class="font-medium text-slate-200 truncate flex-1 min-w-[120px]" title="${escapeHtml(it.title)}">${escapeHtml(it.title)}</p>
-                      ${it.source && it.source !== 'robotistan' ? `<span class="text-[9px] px-1.5 py-0.2 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30 uppercase font-mono">${escapeHtml(it.source)}</span>` : ''}
+                      <span class="text-[10px] px-1.5 py-0.2 rounded bg-white/5 border border-white/5 text-[#8e8e93] font-mono font-medium" title="Kalem ID">#${it.id}</span>
+                      <p class="font-medium text-white truncate flex-1 min-w-[120px]" title="${escapeHtml(it.title)}">${escapeHtml(it.title)}</p>
+                      ${it.source && it.source !== 'robotistan' ? `<span class="apple-badge apple-badge-default text-[9px] uppercase font-mono">${escapeHtml(it.source)}</span>` : ''}
                     </div>
-                    <div class="flex items-center gap-2 text-[11px] text-slate-400 mt-1 flex-wrap">
-                      <span class="text-emerald-400 font-mono font-medium">${it.price_value > 0 ? formatPrice(it.price_value) : (it.price ? formatPrice(it.price) : 'Fiyat Belirtilmedi')}</span>
-                      ${it.url ? (it.in_stock ? '<span class="text-[10px] px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300">Stokta Var</span>' : '<span class="text-[10px] px-1.5 py-0.2 rounded bg-rose-500/20 text-rose-300">Tükendi</span>') : '<span class="text-[10px] px-1.5 py-0.2 rounded bg-amber-500/10 text-amber-300/80 border border-amber-500/20" title="Market araması yapılmadı veya stok bulunamadı">⚪ Piyasada Aranacak</span>'}
-                      <span class="flex items-center gap-1 bg-slate-900 px-1.5 py-0.5 rounded border border-slate-800">
-                        <button onclick="changeDraftItemQuantity(${it.id}, ${it.quantity - 1})" class="w-4 h-4 rounded hover:bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center font-bold" title="1 Azalt">-</button>
-                        <span class="text-slate-200 font-semibold px-1">${it.quantity}</span>
-                        <button onclick="changeDraftItemQuantity(${it.id}, ${it.quantity + 1})" class="w-4 h-4 rounded hover:bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center font-bold" title="1 Artır">+</button>
+                    <div class="flex items-center gap-2 text-[11px] text-[#8e8e93] mt-1 flex-wrap">
+                      <span class="text-white/90 font-mono font-medium">${it.price_value > 0 ? formatPrice(it.price_value) : (it.price ? formatPrice(it.price) : 'Fiyat Belirtilmedi')}</span>
+                      ${it.url ? (it.in_stock ? '<span class="apple-badge apple-badge-green text-[10px]">Stokta Var</span>' : '<span class="apple-badge apple-badge-red text-[10px]">Tükendi</span>') : '<span class="apple-badge apple-badge-amber text-[10px]" title="Piyasada aranacak">⚪ Piyasada Aranacak</span>'}
+                      <span class="flex items-center gap-1 bg-white/5 px-1 py-0.5 rounded border border-white/5">
+                        <button onclick="changeDraftItemQuantity(${it.id}, ${it.quantity - 1})" class="w-4 h-4 rounded hover:bg-white/10 text-[#8e8e93] hover:text-white flex items-center justify-center font-bold" title="1 Azalt">-</button>
+                        <span class="text-white font-medium px-1">${it.quantity}</span>
+                        <button onclick="changeDraftItemQuantity(${it.id}, ${it.quantity + 1})" class="w-4 h-4 rounded hover:bg-white/10 text-[#8e8e93] hover:text-white flex items-center justify-center font-bold" title="1 Artır">+</button>
                       </span>
-                      ${it.notes ? `<span class="text-slate-500 italic truncate max-w-[220px]" title="${escapeHtml(it.notes)}">• ${escapeHtml(it.notes)}</span>` : ''}
+                      ${it.notes ? `<span class="text-[#71717a] italic truncate max-w-[200px]" title="${escapeHtml(it.notes)}">• ${escapeHtml(it.notes)}</span>` : ''}
                     </div>
                   </div>
-                  <div class="flex items-center gap-1.5 flex-shrink-0">
+                  <div class="flex items-center gap-1 flex-shrink-0">
                     ${it.url ? `
-                      <a href="${it.url}" target="_blank" class="p-1.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700/60 transition" title="Ürün Sayfasına Git">
+                      <a href="${it.url}" target="_blank" class="p-1.5 rounded-lg text-[#8e8e93] hover:text-white hover:bg-white/5 transition" title="Ürün Sayfasına Git">
                         <i class="fa-solid fa-arrow-up-right-from-square text-[10px]"></i>
                       </a>
                     ` : ''}
-                    <button onclick="removeDraftOrderItem(${it.id}, '${escapeHtml(it.title)}')" class="p-1.5 rounded bg-slate-800/80 hover:bg-rose-950/60 text-slate-400 hover:text-rose-400 border border-slate-700/60 hover:border-rose-500/50 transition" title="Bu Kalemi Listeden Çıkar (Kalem ID: #${it.id})">
+                    <button onclick="removeDraftOrderItem(${it.id}, '${escapeHtml(it.title)}')" class="p-1.5 rounded-lg text-[#8e8e93] hover:text-[#ff453a] hover:bg-white/5 transition" title="Kalemi Çıkar">
                       <i class="fa-solid fa-trash-can text-xs"></i>
                     </button>
                   </div>
@@ -1470,17 +1469,17 @@ async function loadDraftOrders() {
           </div>
 
           <!-- Aksiyonlar -->
-          <div class="pt-3 border-t border-slate-800 flex flex-wrap items-center justify-between gap-2">
+          <div class="pt-3 border-t border-[#242426] flex flex-wrap items-center justify-between gap-2">
             <div class="flex items-center gap-2">
-              <button onclick="applyDraftOrderToCart(${o.id})" class="px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-xs flex items-center gap-1.5 shadow transition cursor-pointer">
-                <i class="fa-solid fa-cart-plus"></i> Bu Listeyi Sepete Aktar
+              <button onclick="applyDraftOrderToCart(${o.id})" class="apple-btn-primary text-xs px-3 py-1.5">
+                <i class="fa-solid fa-cart-plus text-[10px]"></i> <span>Sepete Aktar</span>
               </button>
-              <button onclick="openAddDraftItemModal(${o.id}, '${escapeHtml(o.title).replace(/'/g, "\\'")}')" class="px-3 py-2 rounded-lg bg-purple-600/80 hover:bg-purple-600 text-white font-medium text-xs flex items-center gap-1.5 shadow transition cursor-pointer" title="Bu taslağa elle yeni bir ürün kalemi ekle">
-                <i class="fa-solid fa-plus"></i> Kalem Ekle
+              <button onclick="openAddDraftItemModal(${o.id}, '${escapeHtml(o.title).replace(/'/g, "\\'")}')" class="apple-btn-secondary text-xs px-3 py-1.5" title="Kalem Ekle">
+                <i class="fa-solid fa-plus text-[10px]"></i> <span>Kalem Ekle</span>
               </button>
             </div>
-            <button onclick="deleteDraftOrderPrompt(${o.id})" class="p-2 rounded hover:bg-rose-950/30 text-slate-400 hover:text-rose-400 transition cursor-pointer" title="Taslağı Sil">
-              <i class="fa-solid fa-trash"></i>
+            <button onclick="deleteDraftOrderPrompt(${o.id})" class="p-2 rounded-lg text-[#8e8e93] hover:text-[#ff453a] hover:bg-white/5 transition" title="Taslağı Sil">
+              <i class="fa-solid fa-trash text-xs"></i>
             </button>
           </div>
         </div>

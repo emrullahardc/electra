@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ElectroStock - Elektronik Parça & Stok Takip Sistemi</title>
+  <title>Electra — Atölye Stok & Parça Yönetimi</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <link rel="stylesheet" href="/style.css">
@@ -12,23 +12,28 @@
       darkMode: 'class',
       theme: {
         extend: {
+          fontFamily: {
+            sans: ['-apple-system', 'BlinkMacSystemFont', '"SF Pro Text"', '"SF Pro Display"', 'system-ui', 'sans-serif'],
+            mono: ['"SF Mono"', 'Menlo', 'Monaco', 'Courier New', 'monospace']
+          },
           colors: {
-            brand: {
-              50: '#ecfdf5',
-              500: '#10b981',
-              600: '#059669',
-              700: '#047857'
-            },
-            circuit: '#06b6d4',
-            darkbg: '#0f172a',
-            darkcard: '#1e293b',
-            darkborder: '#334155'
+            apple: {
+              bg: '#000000',
+              surface: '#141416',
+              card: '#18181b',
+              border: '#26262a',
+              blue: '#0071e3',
+              blueHover: '#0077ed',
+              text: '#f5f5f7',
+              secondary: '#8e8e93',
+              muted: '#636366'
+            }
           }
         }
       }
     }
 
-    // Global Kopyalama Fonksiyonları (Erken Yükleme / Fail-proof)
+    // Global Kopyalama Fonksiyonları (Fail-proof)
     function copyCode(elementId, btn) {
       const el = document.getElementById(elementId);
       if (!el) return;
@@ -82,22 +87,22 @@
 
     function showCopySuccess(btn) {
       if (typeof showToast === "function") {
-        showToast("Panoya kopyalandı! 📋");
+        showToast("Panoya kopyalandı 📋");
       }
       if (btn) {
         const origHtml = btn.dataset.origHtml || btn.innerHTML;
         btn.dataset.origHtml = origHtml;
-        btn.innerHTML = '<i class="fa-solid fa-check text-emerald-400"></i> <span class="text-emerald-400 font-semibold">Kopyalandı!</span>';
-        btn.classList.add("border-emerald-500", "bg-emerald-950/60");
+        btn.innerHTML = '<i class="fa-solid fa-check text-white"></i> <span>Kopyalandı</span>';
+        btn.classList.add("bg-white/20");
         clearTimeout(btn._copyTimeout);
         btn._copyTimeout = setTimeout(() => {
           btn.innerHTML = origHtml;
-          btn.classList.remove("border-emerald-500", "bg-emerald-950/60");
-        }, 2200);
+          btn.classList.remove("bg-white/20");
+        }, 2000);
       }
     }
 
-    // Global Para / Fiyat Formatlama Yardımcısı (2 Ondalık Kesinlik)
+    // Global Para / Fiyat Formatlama (2 Ondalık Kesinlik)
     function formatPrice(val) {
       if (val === null || val === undefined || val === '') return "0.00 TL";
       if (typeof val === "number") {
@@ -122,157 +127,143 @@
     }
   </script>
 </head>
-<body class="bg-[#0b1120] text-slate-100 min-h-screen flex flex-col font-sans selection:bg-emerald-500 selection:text-white">
+<body class="bg-black text-[#f5f5f7] min-h-screen flex flex-col font-sans selection:bg-[#0071e3] selection:text-white">
 
-  <!-- Üst Menü / Navbar -->
-  <header class="border-b border-slate-800 bg-slate-900/90 backdrop-blur sticky top-0 z-40">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+  <!-- Üst Menü (Apple Frosted Glass Navigation) -->
+  <header class="border-b border-[#222225] bg-black/80 backdrop-blur-xl sticky top-0 z-40">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-between">
+      
+      <!-- Marka / Logo -->
       <div class="flex items-center space-x-3">
-        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-500 to-cyan-500 flex items-center justify-center text-slate-950 font-black text-xl shadow-lg shadow-emerald-500/20">
+        <div class="w-7 h-7 rounded-lg bg-white/10 border border-white/10 flex items-center justify-center text-white text-xs">
           <i class="fa-solid fa-microchip"></i>
         </div>
-        <div>
-          <h1 class="font-bold text-lg leading-tight flex items-center gap-2">
-            ElectroStock <span class="text-xs px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-mono">MCP Ready</span>
-          </h1>
-          <p class="text-xs text-slate-400">Elektronik Atölye & Stok Takip Sistemi</p>
+        <div class="flex items-center gap-2">
+          <span class="font-semibold text-sm tracking-tight text-white">Electra</span>
+          <span class="text-[10px] px-2 py-0.5 rounded-full bg-white/10 text-[#a1a1aa] font-mono">Studio</span>
         </div>
       </div>
 
+      <!-- Sağ Aksiyon Barı -->
       <div class="flex items-center space-x-2">
         <div id="auth-user-badge" class="hidden flex items-center gap-1.5 mr-1">
-          <span class="text-xs bg-slate-800 text-slate-300 px-2.5 py-1.5 rounded-lg border border-slate-700 flex items-center gap-1.5 shadow-sm">
-            <i class="fa-solid fa-user-shield text-emerald-400"></i>
-            <span id="current-username" class="font-medium">admin</span>
+          <span class="text-xs bg-white/5 text-[#a1a1aa] px-2.5 py-1 rounded-full border border-white/10 flex items-center gap-1.5">
+            <span class="w-1.5 h-1.5 rounded-full bg-[#34c759]"></span>
+            <span id="current-username" class="font-medium text-xs text-white">admin</span>
           </span>
-          <button onclick="openChangePasswordModal()" title="Şifre Değiştir" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition">
-            <i class="fa-solid fa-key"></i>
+          <button onclick="openChangePasswordModal()" title="Şifre Değiştir" class="p-1.5 rounded-lg text-[#8e8e93] hover:text-white hover:bg-white/5 transition">
+            <i class="fa-solid fa-key text-xs"></i>
           </button>
-          <button onclick="logout()" title="Güvenli Çıkış Yap" class="px-2.5 py-1.5 rounded-lg bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 border border-rose-800/40 text-xs font-medium flex items-center gap-1.5 transition">
-            <i class="fa-solid fa-right-from-bracket"></i> <span>Çıkış</span>
+          <button onclick="logout()" title="Güvenli Çıkış Yap" class="px-2.5 py-1 rounded-full text-xs text-[#8e8e93] hover:text-red-400 hover:bg-white/5 transition">
+            <span>Çıkış</span>
           </button>
         </div>
 
-        <button onclick="openAddModal()" class="px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-sm flex items-center gap-2 shadow-md shadow-emerald-600/30 transition">
-          <i class="fa-solid fa-plus"></i> <span>Yeni Parça Ekle</span>
+        <button onclick="openAddModal()" class="apple-btn-primary">
+          <i class="fa-solid fa-plus text-xs"></i> <span>Yeni Parça</span>
         </button>
-        <button onclick="exportData()" title="Verileri JSON olarak yedekle" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition">
-          <i class="fa-solid fa-download"></i>
+        <button onclick="exportData()" title="Verileri JSON olarak yedekle" class="p-2 rounded-lg text-[#8e8e93] hover:text-white hover:bg-white/5 transition">
+          <i class="fa-solid fa-download text-xs"></i>
         </button>
-        <button onclick="clearAllDataPrompt()" title="Tüm veritabanını sıfırla / temizle" class="p-2 rounded-lg bg-slate-800 hover:bg-rose-950/40 text-slate-400 hover:text-rose-400 border border-slate-700 hover:border-rose-500/30 transition">
-          <i class="fa-solid fa-trash-can"></i>
+        <button onclick="clearAllDataPrompt()" title="Tüm veritabanını sıfırla" class="p-2 rounded-lg text-[#8e8e93] hover:text-red-400 hover:bg-white/5 transition">
+          <i class="fa-solid fa-trash-can text-xs"></i>
         </button>
       </div>
     </div>
 
-    <!-- Sekmeler / Tabs -->
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex space-x-1 border-t border-slate-800/80 overflow-x-auto py-1">
-      <button onclick="switchTab('inventory')" id="tab-btn-inventory" class="tab-btn active-tab px-4 py-2 text-sm font-medium rounded-lg flex items-center gap-2 transition">
-        <i class="fa-solid fa-boxes-stacked text-emerald-400"></i> Stok & Parçalar
-      </button>
-      <button onclick="switchTab('defective')" id="tab-btn-defective" class="tab-btn px-4 py-2 text-sm font-medium rounded-lg flex items-center gap-2 transition">
-        <i class="fa-solid fa-triangle-exclamation text-amber-400"></i> Arızalı / Çıkma Parçalar
-        <span id="badge-defective-count" class="text-xs bg-amber-500/20 text-amber-300 px-1.5 py-0.2 rounded-full border border-amber-500/30">0</span>
-      </button>
-      <button onclick="switchTab('lowstock')" id="tab-btn-lowstock" class="tab-btn px-4 py-2 text-sm font-medium rounded-lg flex items-center gap-2 transition">
-        <i class="fa-solid fa-bell text-rose-400"></i> Kritik Stok
-        <span id="badge-lowstock-count" class="text-xs bg-rose-500/20 text-rose-300 px-1.5 py-0.2 rounded-full border border-rose-500/30">0</span>
-      </button>
-      <button onclick="switchTab('project')" id="tab-btn-project" class="tab-btn px-4 py-2 text-sm font-medium rounded-lg flex items-center gap-2 transition">
-        <i class="fa-solid fa-wand-magic-sparkles text-cyan-400"></i> Proje Asistanı & Robotistan BOM
-      </button>
-      <button onclick="switchTab('robotistan')" id="tab-btn-robotistan" class="tab-btn px-4 py-2 text-sm font-medium rounded-lg flex items-center gap-2 transition">
-        <i class="fa-solid fa-store text-orange-400"></i> Piyasa & Tedarikçiler
-      </button>
-      <button onclick="switchTab('cart')" id="tab-btn-cart" class="tab-btn px-4 py-2 text-sm font-medium rounded-lg flex items-center gap-2 transition">
-        <i class="fa-solid fa-cart-shopping text-emerald-400"></i> Robotistan Sepetim
-        <span id="badge-cart-count" class="text-xs bg-emerald-500/20 text-emerald-300 px-1.5 py-0.2 rounded-full border border-emerald-500/30">0</span>
-      </button>
-      <button onclick="switchTab('drafts')" id="tab-btn-drafts" class="tab-btn px-4 py-2 text-sm font-medium rounded-lg flex items-center gap-2 transition">
-        <i class="fa-solid fa-clipboard-list text-purple-400"></i> Draft Siparişler
-        <span id="badge-drafts-count" class="text-xs bg-purple-500/20 text-purple-300 px-1.5 py-0.2 rounded-full border border-purple-500/30">0</span>
-      </button>
-      <button onclick="switchTab('developer')" id="tab-btn-developer" class="tab-btn px-4 py-2 text-sm font-medium rounded-lg flex items-center gap-2 transition">
-        <i class="fa-solid fa-code text-indigo-400"></i> Developer & MCP API
-      </button>
+    <!-- Apple Segmented Control Sekmeler -->
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2 overflow-x-auto">
+      <div class="apple-segmented-nav max-w-full">
+        <button onclick="switchTab('inventory')" id="tab-btn-inventory" class="tab-btn active-tab">
+          <i class="fa-solid fa-boxes-stacked text-[11px]"></i> Stok
+        </button>
+        <button onclick="switchTab('defective')" id="tab-btn-defective" class="tab-btn">
+          <i class="fa-solid fa-triangle-exclamation text-[11px]"></i> Arızalı
+          <span id="badge-defective-count" class="text-[10px] bg-white/10 text-[#a1a1aa] px-1.5 py-0.2 rounded-full font-mono">0</span>
+        </button>
+        <button onclick="switchTab('lowstock')" id="tab-btn-lowstock" class="tab-btn">
+          <i class="fa-solid fa-bell text-[11px]"></i> Kritik
+          <span id="badge-lowstock-count" class="text-[10px] bg-white/10 text-[#a1a1aa] px-1.5 py-0.2 rounded-full font-mono">0</span>
+        </button>
+        <button onclick="switchTab('project')" id="tab-btn-project" class="tab-btn">
+          <i class="fa-solid fa-wand-magic-sparkles text-[11px]"></i> Proje Asistanı
+        </button>
+        <button onclick="switchTab('robotistan')" id="tab-btn-robotistan" class="tab-btn">
+          <i class="fa-solid fa-store text-[11px]"></i> Piyasa & Tedarikçiler
+        </button>
+        <button onclick="switchTab('cart')" id="tab-btn-cart" class="tab-btn">
+          <i class="fa-solid fa-cart-shopping text-[11px]"></i> Sepet
+          <span id="badge-cart-count" class="text-[10px] bg-white/10 text-[#a1a1aa] px-1.5 py-0.2 rounded-full font-mono">0</span>
+        </button>
+        <button onclick="switchTab('drafts')" id="tab-btn-drafts" class="tab-btn">
+          <i class="fa-solid fa-clipboard-list text-[11px]"></i> Taslaklar
+          <span id="badge-drafts-count" class="text-[10px] bg-white/10 text-[#a1a1aa] px-1.5 py-0.2 rounded-full font-mono">0</span>
+        </button>
+        <button onclick="switchTab('developer')" id="tab-btn-developer" class="tab-btn">
+          <i class="fa-solid fa-terminal text-[11px]"></i> Geliştirici (MCP)
+        </button>
+      </div>
     </div>
   </header>
-
 
   <!-- Ana İçerik -->
   <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-1 w-full space-y-6">
 
-    <!-- İstatistik Kartları -->
+    <!-- Minimalist Metrik Kartları -->
     <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-      <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 flex items-center justify-between">
-        <div>
-          <p class="text-xs text-slate-400 font-medium">Toplam Çeşit</p>
-          <p id="stat-total-items" class="text-2xl font-bold text-white mt-1">0</p>
-        </div>
-        <div class="w-10 h-10 rounded-lg bg-slate-800 flex items-center justify-center text-slate-400 text-lg">
-          <i class="fa-solid fa-layer-group"></i>
-        </div>
+      <div class="apple-card p-4">
+        <p class="text-[11px] font-medium uppercase tracking-wider text-[#8e8e93]">Toplam Çeşit</p>
+        <p id="stat-total-items" class="text-2xl font-semibold text-white tracking-tight mt-1">0</p>
       </div>
 
-      <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 flex items-center justify-between">
-        <div>
-          <p class="text-xs text-slate-400 font-medium">Toplam Adet</p>
-          <p id="stat-total-qty" class="text-2xl font-bold text-white mt-1">0</p>
-        </div>
-        <div class="w-10 h-10 rounded-lg bg-slate-800 flex items-center justify-center text-slate-400 text-lg">
-          <i class="fa-solid fa-cubes"></i>
-        </div>
+      <div class="apple-card p-4">
+        <p class="text-[11px] font-medium uppercase tracking-wider text-[#8e8e93]">Toplam Adet</p>
+        <p id="stat-total-qty" class="text-2xl font-semibold text-white tracking-tight mt-1">0</p>
       </div>
 
-      <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 flex items-center justify-between">
-        <div>
-          <p class="text-xs text-emerald-400 font-medium">Sağlam / Kullanıma Hazır</p>
-          <p id="stat-working-count" class="text-2xl font-bold text-emerald-400 mt-1">0</p>
+      <div class="apple-card p-4">
+        <div class="flex items-center justify-between">
+          <p class="text-[11px] font-medium uppercase tracking-wider text-[#8e8e93]">Sağlam</p>
+          <span class="w-2 h-2 rounded-full bg-[#34c759]"></span>
         </div>
-        <div class="w-10 h-10 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 text-lg">
-          <i class="fa-solid fa-circle-check"></i>
-        </div>
+        <p id="stat-working-count" class="text-2xl font-semibold text-[#34c759] tracking-tight mt-1">0</p>
       </div>
 
-      <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 flex items-center justify-between">
-        <div>
-          <p class="text-xs text-amber-400 font-medium">Arızalı & Çıkma</p>
-          <p id="stat-defective-count" class="text-2xl font-bold text-amber-400 mt-1">0</p>
+      <div class="apple-card p-4">
+        <div class="flex items-center justify-between">
+          <p class="text-[11px] font-medium uppercase tracking-wider text-[#8e8e93]">Arızalı / Çıkma</p>
+          <span class="w-2 h-2 rounded-full bg-[#ffd60a]"></span>
         </div>
-        <div class="w-10 h-10 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 text-lg">
-          <i class="fa-solid fa-triangle-exclamation"></i>
-        </div>
+        <p id="stat-defective-count" class="text-2xl font-semibold text-[#ffd60a] tracking-tight mt-1">0</p>
       </div>
 
-      <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 flex items-center justify-between col-span-2 sm:col-span-1">
-        <div>
-          <p class="text-xs text-rose-400 font-medium">Kritik Stok Uyarısı</p>
-          <p id="stat-low-stock-count" class="text-2xl font-bold text-rose-400 mt-1">0</p>
+      <div class="apple-card p-4 col-span-2 sm:col-span-1">
+        <div class="flex items-center justify-between">
+          <p class="text-[11px] font-medium uppercase tracking-wider text-[#8e8e93]">Kritik Stok</p>
+          <span class="w-2 h-2 rounded-full bg-[#ff453a]"></span>
         </div>
-        <div class="w-10 h-10 rounded-lg bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-400 text-lg">
-          <i class="fa-solid fa-triangle-exclamation"></i>
-        </div>
+        <p id="stat-low-stock-count" class="text-2xl font-semibold text-[#ff453a] tracking-tight mt-1">0</p>
       </div>
     </div>
 
     <!-- TAB 1: TÜM STOK & PARÇALAR -->
     <section id="tab-inventory" class="tab-content space-y-4">
       <!-- Filtreleme Çubuğu -->
-      <div class="bg-slate-900 border border-slate-800 rounded-xl p-3 flex flex-wrap gap-2.5 items-center justify-between">
+      <div class="apple-card p-3 flex flex-wrap gap-2.5 items-center justify-between">
         <div class="flex-1 min-w-[240px] relative">
-          <i class="fa-solid fa-magnifying-glass absolute left-3 top-3 text-slate-500 text-sm"></i>
-          <input type="text" id="search-input" oninput="debounceSearch()" placeholder="Parça adı, değer (10k, 100nF), kılıf veya not ara..." 
-                 class="w-full bg-slate-950 border border-slate-800 rounded-lg pl-9 pr-3 py-2 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-emerald-500">
+          <i class="fa-solid fa-magnifying-glass absolute left-3 top-2.5 text-[#8e8e93] text-xs"></i>
+          <input type="text" id="search-input" oninput="debounceSearch()" placeholder="Parça adı, değer (10k, 100nF), kılıf veya saklama yeri ara..." 
+                 class="apple-input w-full pl-8 pr-3 py-1.5 text-xs">
         </div>
 
-        <div class="flex flex-wrap items-center gap-2 text-sm">
-          <select id="filter-category" onchange="loadComponents()" class="bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-300 focus:outline-none focus:border-emerald-500">
+        <div class="flex flex-wrap items-center gap-2 text-xs">
+          <select id="filter-category" onchange="loadComponents()" class="apple-input px-3 py-1.5 text-xs">
             <option value="all">Tüm Kategoriler</option>
             <option value="resistor">Dirençler</option>
             <option value="capacitor">Kondansatörler</option>
             <option value="diode_led">Diyot & LED</option>
             <option value="transistor">Transistör & MOSFET</option>
-            <option value="ic_mcu">Entegre & Mikrodenetleyici</option>
+            <option value="ic_mcu">Entegre & MCU</option>
             <option value="sensor">Sensörler</option>
             <option value="module">Modül & Kart</option>
             <option value="connector">Konnektör & Kablo</option>
@@ -280,39 +271,39 @@
             <option value="broken_scrap">Arızalı / Çıkma</option>
           </select>
 
-          <select id="filter-status" onchange="loadComponents()" class="bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-300 focus:outline-none focus:border-emerald-500">
+          <select id="filter-status" onchange="loadComponents()" class="apple-input px-3 py-1.5 text-xs">
             <option value="all">Tüm Durumlar</option>
-            <option value="working">🟢 Sağlam / Çalışır</option>
-            <option value="defective">🔴 Arızalı / Bozuk</option>
-            <option value="untested">🟡 Test Bekliyor</option>
-            <option value="salvage">🟠 Çıkma / Hurda</option>
+            <option value="working">Sağlam / Çalışır</option>
+            <option value="defective">Arızalı / Bozuk</option>
+            <option value="untested">Test Bekliyor</option>
+            <option value="salvage">Çıkma / Hurda</option>
           </select>
 
-          <select id="filter-location" onchange="loadComponents()" class="bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-300 focus:outline-none focus:border-emerald-500">
+          <select id="filter-location" onchange="loadComponents()" class="apple-input px-3 py-1.5 text-xs">
             <option value="all">Tüm Saklama Yerleri</option>
           </select>
         </div>
       </div>
 
       <!-- Parça Tablosu -->
-      <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-sm">
+      <div class="apple-card overflow-hidden">
         <div class="overflow-x-auto">
-          <table class="w-full text-left text-sm text-slate-300">
-            <thead class="bg-slate-950/60 text-slate-400 text-xs uppercase font-semibold border-b border-slate-800">
+          <table class="w-full text-left text-xs text-[#d1d1d6]">
+            <thead class="bg-[#101012] text-[#8e8e93] text-[11px] font-medium uppercase tracking-wider border-b border-[#242426]">
               <tr>
                 <th class="py-3 px-4">Parça Adı & Kategori</th>
                 <th class="py-3 px-3">Değer</th>
-                <th class="py-3 px-3">Kılıf / Paket</th>
+                <th class="py-3 px-3">Kılıf</th>
                 <th class="py-3 px-3">Durum</th>
                 <th class="py-3 px-3">Saklama Yeri</th>
-                <th class="py-3 px-3 text-center">Stok Adedi</th>
+                <th class="py-3 px-3 text-center">Stok</th>
                 <th class="py-3 px-4 text-right">İşlemler</th>
               </tr>
             </thead>
-            <tbody id="components-tbody" class="divide-y divide-slate-800/80">
+            <tbody id="components-tbody" class="divide-y divide-[#1f1f23]">
               <tr>
-                <td colspan="7" class="py-8 text-center text-slate-500">
-                  <i class="fa-solid fa-spinner fa-spin text-xl text-emerald-500 mb-2"></i>
+                <td colspan="7" class="py-12 text-center text-[#8e8e93]">
+                  <i class="fa-solid fa-spinner fa-spin text-lg mb-2 text-[#8e8e93]"></i>
                   <p>Parçalar yükleniyor...</p>
                 </td>
               </tr>
@@ -324,114 +315,104 @@
 
     <!-- TAB 2: ARIZALI / ÇIKMA PARÇALAR -->
     <section id="tab-defective" class="tab-content hidden space-y-4">
-      <div class="bg-amber-950/20 border border-amber-500/30 rounded-xl p-4 text-amber-200 flex items-start gap-3">
-        <i class="fa-solid fa-lightbulb text-amber-400 text-xl mt-0.5"></i>
-        <div>
-          <h3 class="font-semibold text-amber-300">Arızalı ve Çıkma Parça Takip Merkezi</h3>
-          <p class="text-xs text-amber-200/80 mt-1">
-            "Ufak parçaları unutup bir daha alma" sorununu çözmek için arızalı ve test bekleyen tüm parçalarınız burada kayıt altındadır. 
-            Devrenizde bir parçayı kullanmadan veya sipariş vermeden önce üzerindeki sağlam entegre, soket veya regülatörleri değerlendirebilirsiniz.
-          </p>
-        </div>
+      <div class="apple-card p-4 text-xs space-y-1">
+        <h3 class="font-semibold text-white text-sm">Arızalı & Çıkma Parça Takip Merkezi</h3>
+        <p class="text-[#8e8e93]">
+          Arızalı veya test bekleyen parçalarınızı burada kayıt altında tutarak devrenizde yedek parça ihtiyacı olduğunda üzerindeki sağlam kompanentleri değerlendirebilirsiniz.
+        </p>
       </div>
 
-      <div id="defective-list-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div id="defective-list-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
         <!-- JS ile dolacak -->
       </div>
     </section>
 
     <!-- TAB 3: KRİTİK STOK -->
     <section id="tab-lowstock" class="tab-content hidden space-y-4">
-      <div class="bg-rose-950/20 border border-rose-500/30 rounded-xl p-4 text-rose-200 flex items-start gap-3">
-        <i class="fa-solid fa-circle-exclamation text-rose-400 text-xl mt-0.5"></i>
-        <div>
-          <h3 class="font-semibold text-rose-300">Kritik Stok Uyarısı Veren Parçalar</h3>
-          <p class="text-xs text-rose-200/80 mt-1">
-            Miktarı kritik seviyenin altına düşen parçalarınız. Tek tıkla Robotistan'da canlı arama yapabilir ve eksik stoğu tamamlayabilirsiniz.
-          </p>
-        </div>
+      <div class="apple-card p-4 text-xs space-y-1">
+        <h3 class="font-semibold text-white text-sm">Kritik Stok Uyarısı</h3>
+        <p class="text-[#8e8e93]">
+          Miktarı kritik eşiğin altına düşen bileşenler. Tek tıkla tedarikçi araması yapabilir ve eksik stoğu tamamlayabilirsiniz.
+        </p>
       </div>
 
-      <div id="lowstock-list-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div id="lowstock-list-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
         <!-- JS ile dolacak -->
       </div>
     </section>
 
     <!-- TAB 4: PROJE ASİSTANI & ROBOTİSTAN BOM -->
-    <section id="tab-project" class="tab-content hidden space-y-6">
-      <div class="bg-gradient-to-r from-slate-900 to-slate-900/90 border border-slate-800 rounded-2xl p-6 shadow-xl relative overflow-hidden">
-        <div class="absolute -right-10 -bottom-10 w-48 h-48 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none"></div>
-
-        <div class="max-w-3xl">
-          <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 mb-3">
-            <i class="fa-solid fa-sparkles"></i> AI Destekli Devre & Proje BOM Eşleştirici
-          </span>
-          <h2 class="text-xl font-bold text-white">"Şu Projeyi Yapmak İstiyorum..."</h2>
-          <p class="text-sm text-slate-300 mt-1">
-            Yapmak istediğiniz projeyi yazın (örn: <i>"ESP32 ile Bluetooth kontrollü röle devresi"</i> veya <i>"Arduino ve nem sensörü ile otomatik çiçek sulama"</i>). 
-            Sistem elinizdeki <b>sağlam parçaları</b> listeler, <b>arızalı parçalarınız varsa sizi uyarır</b>, ve eksik parçaları <b>Robotistan'dan canlı fiyat & aktif stokla</b> çeker!
+    <section id="tab-project" class="tab-content hidden space-y-5">
+      <div class="apple-card p-6 relative overflow-hidden">
+        <div class="max-w-2xl">
+          <div class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-white/5 text-[#a1a1aa] border border-white/10 mb-2">
+            <i class="fa-solid fa-wand-magic-sparkles text-[#0a84ff]"></i> Akıllı Proje Eşleştirici
+          </div>
+          <h2 class="text-lg font-semibold text-white tracking-tight">Proje Gereksinimlerini Analiz Edin</h2>
+          <p class="text-xs text-[#8e8e93] mt-1 leading-relaxed">
+            Geliştirmek istediğiniz devreyi tarif edin; sistem atölyenizdeki sağlam parçaları saptar, arızalı olanlar için uyarır ve eksik ürünleri piyasadan canlı stokla çıkarır.
           </p>
 
           <div class="mt-4 flex flex-col sm:flex-row gap-2">
-            <input type="text" id="project-desc-input" placeholder="Örn: ESP32 ve DHT11 ile sıcaklık ölçüp ekranda gösteren IoT cihazı..." 
-                   class="flex-1 bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-cyan-400 shadow-inner">
-            <button onclick="analyzeProject()" id="btn-analyze-project" class="px-5 py-3 rounded-xl bg-gradient-to-r from-cyan-600 to-emerald-600 hover:from-cyan-500 hover:to-emerald-500 text-white font-medium text-sm flex items-center justify-center gap-2 shadow-lg shadow-cyan-600/20 transition">
-              <i class="fa-solid fa-wand-magic-sparkles"></i> <span>Stok & Robotistan'ı Tara</span>
+            <input type="text" id="project-desc-input" placeholder="Örn: ESP32 ile BLE kontrollü 5V röle devresi ve DHT11 sensör..." 
+                   class="apple-input flex-1 px-3.5 py-2.5 text-sm">
+            <button onclick="analyzeProject()" id="btn-analyze-project" class="apple-btn-primary whitespace-nowrap">
+              <i class="fa-solid fa-sparkles text-xs"></i> <span>Analiz Et</span>
             </button>
           </div>
 
           <!-- Hızlı Örnek Projeler -->
-          <div class="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-400">
-            <span>Hızlı Örnekler:</span>
-            <button onclick="fillProjectExample('ESP32 ile Bluetooth üzerinden 5V Röle kontrolü ve DHT11 sıcaklık izleme')" class="px-2.5 py-1 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-300 transition">
+          <div class="mt-3 flex flex-wrap items-center gap-1.5 text-xs text-[#8e8e93]">
+            <span class="text-[11px]">Örnekler:</span>
+            <button onclick="fillProjectExample('ESP32 ile Bluetooth üzerinden 5V Röle kontrolü ve DHT11 sıcaklık izleme')" class="px-2.5 py-1 rounded-full bg-white/5 hover:bg-white/10 text-[#d1d1d6] text-[11px] transition">
               ESP32 & Röle & DHT11
             </button>
-            <button onclick="fillProjectExample('SG90 servo motor ve HC-SR04 ile ultrasonik radar sistemi')" class="px-2.5 py-1 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-300 transition">
-              SG90 & HC-SR04 Radar
+            <button onclick="fillProjectExample('SG90 servo motor ve HC-SR04 ile ultrasonik radar sistemi')" class="px-2.5 py-1 rounded-full bg-white/5 hover:bg-white/10 text-[#d1d1d6] text-[11px] transition">
+              SG90 & Radar
             </button>
-            <button onclick="fillProjectExample('Arduino Uno ile LCD ekranlı nem ve sıcaklık göstergesi')" class="px-2.5 py-1 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-300 transition">
-              Arduino & LCD Gösterge
+            <button onclick="fillProjectExample('Arduino Uno ile LCD ekranlı nem ve sıcaklık göstergesi')" class="px-2.5 py-1 rounded-full bg-white/5 hover:bg-white/10 text-[#d1d1d6] text-[11px] transition">
+              Arduino & LCD
             </button>
           </div>
         </div>
       </div>
 
       <!-- Proje Analiz Sonuç Alanı -->
-      <div id="project-results-wrapper" class="hidden space-y-6">
+      <div id="project-results-wrapper" class="hidden space-y-4">
         <!-- 1. Stokta Sağlam Olanlar -->
-        <div class="bg-slate-900 border border-emerald-500/30 rounded-xl p-5 space-y-3">
-          <div class="flex items-center gap-2 text-emerald-400 font-semibold">
-            <i class="fa-solid fa-circle-check text-lg"></i>
-            <h3>Stokta Mevcut & Kullanıma Hazır Parçalarınız</h3>
+        <div class="apple-card p-5 space-y-3">
+          <div class="flex items-center gap-2 text-white font-medium text-sm">
+            <span class="w-2 h-2 rounded-full bg-[#34c759]"></span>
+            <h3>Stokta Mevcut & Sağlam Parçalarınız</h3>
           </div>
-          <div id="project-working-list" class="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+          <div id="project-working-list" class="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
             <!-- JS -->
           </div>
         </div>
 
         <!-- 2. Arızalı Parça Uyarıları -->
-        <div id="project-defective-card" class="bg-slate-900 border border-amber-500/40 rounded-xl p-5 space-y-3">
-          <div class="flex items-center gap-2 text-amber-400 font-semibold">
-            <i class="fa-solid fa-triangle-exclamation text-lg"></i>
-            <h3>⚠️ Arızalı / Test Bekleyen Parça Uyarıları (Yenisini Almadan Önce İnceleyin!)</h3>
+        <div id="project-defective-card" class="apple-card p-5 space-y-3">
+          <div class="flex items-center gap-2 text-[#ffd60a] font-medium text-sm">
+            <span class="w-2 h-2 rounded-full bg-[#ffd60a]"></span>
+            <h3>Arızalı Parça Uyarıları (Yenisini Almadan Önce İnceleyin)</h3>
           </div>
-          <div id="project-defective-list" class="space-y-2 text-sm">
+          <div id="project-defective-list" class="space-y-2 text-xs">
             <!-- JS -->
           </div>
         </div>
 
-        <!-- 3. Eksik Parçalar ve Robotistan Canlı Fiyatları -->
-        <div class="bg-slate-900 border border-cyan-500/30 rounded-xl p-5 space-y-4">
+        <!-- 3. Eksik Parçalar ve Canlı Fiyatlar -->
+        <div class="apple-card p-5 space-y-4">
           <div class="flex items-center justify-between">
-            <div class="flex items-center gap-2 text-cyan-400 font-semibold">
-              <i class="fa-solid fa-cart-shopping text-lg"></i>
-              <h3>Eksik Parçalar & Robotistan Canlı Stok / Fiyat Önerileri</h3>
+            <div class="flex items-center gap-2 text-white font-medium text-sm">
+              <span class="w-2 h-2 rounded-full bg-[#0a84ff]"></span>
+              <h3>Eksik Parçalar & Piyasa Fiyat Önerileri</h3>
             </div>
-            <div id="project-cost-badge" class="text-sm font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-3 py-1 rounded-lg">
-              Tahmini Tutar: ~0 TL
+            <div id="project-cost-badge" class="text-xs font-semibold text-white bg-white/10 px-3 py-1 rounded-full">
+              Tahmini: ~0 TL
             </div>
           </div>
-          <div id="project-robotistan-list" class="space-y-4">
+          <div id="project-robotistan-list" class="space-y-3">
             <!-- JS -->
           </div>
         </div>
@@ -440,94 +421,81 @@
 
     <!-- TAB 5: ÇOKLU TEDARİKÇİ & PİYASA CANLI FİYAT KARŞILAŞTIRMA -->
     <section id="tab-robotistan" class="tab-content hidden space-y-4">
-      <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-3">
+      <div class="apple-card p-4 space-y-3">
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div>
-            <h2 class="text-lg font-bold text-white flex items-center gap-2">
-              <i class="fa-solid fa-store text-orange-400"></i> Türkiye Pazarı Canlı Stok & Fiyat Karşılaştırma
+            <h2 class="text-sm font-semibold text-white flex items-center gap-2">
+              <i class="fa-solid fa-store text-[#8e8e93]"></i> Türkiye Pazarı Stok & Fiyat Karşılaştırma
             </h2>
-            <p class="text-xs text-slate-400 mt-0.5">
-              Robotronik, Robotistan, Direnç.net ve Motorobit mağazalarında eşzamanlı parça arayın; en ucuz fiyatı, stok durumunu ve doğrudan satın alma linklerini karşılaştırın.
+            <p class="text-xs text-[#8e8e93] mt-0.5">
+              Robotronik, Robotistan, Direnç.net ve Motorobit mağazalarında eşzamanlı parça ve fiyat araştırması yapın.
             </p>
           </div>
-          <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 whitespace-nowrap self-start">
-            <i class="fa-solid fa-bolt"></i> 4 Tedarikçi Canlı
+          <span class="apple-badge apple-badge-default self-start">
+            4 Tedarikçi Canlı
           </span>
         </div>
 
         <div class="flex flex-wrap gap-2 pt-1">
-          <input type="text" id="rob-search-input" onkeydown="if(event.key==='Enter') searchRobotistanDirect()" placeholder="Parça adı veya kod ara (örn: ESP32-C3, SG90, TP4056, BMP280, 1S LiPo)..." 
-                 class="flex-1 min-w-[200px] bg-slate-950 border border-slate-800 rounded-lg px-4 py-2.5 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-orange-500">
+          <input type="text" id="rob-search-input" onkeydown="if(event.key==='Enter') searchRobotistanDirect()" placeholder="Parça adı veya kod ara (örn: ESP32-C3, SG90, TP4056, BMP280)..." 
+                 class="apple-input flex-1 min-w-[200px] px-3.5 py-2 text-xs">
           
-          <select id="market-vendor-select" class="bg-slate-950 border border-slate-800 rounded-lg px-3 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-orange-500 font-medium">
-            <option value="all">⭐ Tüm Siteler (Fiyat Karşılaştırmalı)</option>
+          <select id="market-vendor-select" class="apple-input px-3 py-2 text-xs">
+            <option value="all">⭐ Tüm Siteler (Karşılaştırmalı)</option>
             <option value="robotronik">Robotronik (robotronik.com.tr)</option>
             <option value="robotistan">Robotistan (robotistan.com)</option>
             <option value="direnc">Direnç.net (direnc.net)</option>
             <option value="motorobit">Motorobit (motorobit.com)</option>
           </select>
 
-          <label class="flex items-center gap-2 text-xs text-slate-300 cursor-pointer bg-slate-950 px-3 rounded-lg border border-slate-800">
-            <input type="checkbox" id="rob-only-stock" checked class="rounded accent-emerald-500">
+          <label class="flex items-center gap-2 text-xs text-[#d1d1d6] cursor-pointer apple-input px-3 py-2">
+            <input type="checkbox" id="rob-only-stock" checked class="rounded accent-white">
             <span>Sadece Stokta Olanlar</span>
           </label>
 
-          <button onclick="searchRobotistanDirect()" id="btn-rob-search" class="px-5 py-2.5 rounded-lg bg-orange-600 hover:bg-orange-500 text-white font-medium text-sm flex items-center gap-2 transition cursor-pointer shadow">
-            <i class="fa-solid fa-magnifying-glass"></i> Ara & Kıyasla
+          <button onclick="searchRobotistanDirect()" id="btn-rob-search" class="apple-btn-primary">
+            <i class="fa-solid fa-magnifying-glass text-xs"></i> <span>Ara & Kıyasla</span>
           </button>
         </div>
       </div>
 
       <!-- Sonuçlar Container -->
       <div id="rob-results-container" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-        <div class="col-span-full py-12 text-center text-slate-500">
-          <i class="fa-solid fa-store text-3xl mb-2 text-slate-600"></i>
-          <p>Yukarıdaki arama çubuğundan Türkiye elektronik pazarındaki ürünleri ve fiyatları tarayabilirsiniz.</p>
+        <div class="col-span-full py-12 text-center text-[#8e8e93]">
+          <i class="fa-solid fa-store text-3xl mb-2 text-[#636366]"></i>
+          <p class="text-xs">Türkiye elektronik pazarında arama yapmak için yukarıdaki arama kutusunu kullanın.</p>
         </div>
       </div>
     </section>
 
     <!-- TAB 6: ROBOTİSTAN ATÖLYE SEPETİ -->
-    <section id="tab-cart" class="tab-content hidden space-y-6">
-      <div class="bg-gradient-to-r from-slate-900 to-slate-900/90 border border-slate-800 rounded-2xl p-6 shadow-xl relative overflow-hidden">
-        <div class="max-w-3xl">
-          <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 mb-3">
-            <i class="fa-solid fa-cart-shopping"></i> Robotistan Alışveriş Sepeti & Sipariş Yöneticisi
-          </span>
-          <h2 class="text-xl font-bold text-white">Atölye Sepetiniz</h2>
-          <p class="text-sm text-slate-300 mt-1">
-            Projelerinizden çıkan eksik parçaları veya Robotistan'dan almayı planladığınız ürünleri burada toplayabilirsiniz. 
-            <b>"⚡ Tek Tıkla Robotistan'a Aktar"</b> butonu ile bu ürünlerin tamamını doğrudan Robotistan'daki sepetinize yükleyebilir ve tek tıkla sipariş verebilirsiniz.
-          </p>
-        </div>
-      </div>
-
+    <section id="tab-cart" class="tab-content hidden space-y-4">
       <!-- Sepet Tablosu ve Özet -->
-      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <!-- Sol: Ürün Listesi Tablosu -->
-        <div class="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-sm">
-          <div class="p-4 border-b border-slate-800 flex items-center justify-between">
-            <h3 class="font-bold text-slate-200 text-sm flex items-center gap-2">
-              <i class="fa-solid fa-boxes-stacked text-emerald-400"></i>
+        <div class="lg:col-span-2 apple-card overflow-hidden">
+          <div class="p-3.5 border-b border-[#242426] flex items-center justify-between">
+            <h3 class="font-medium text-white text-xs flex items-center gap-2">
+              <i class="fa-solid fa-cart-shopping text-[#8e8e93]"></i>
               Sepetteki Parçalar
             </h3>
-            <button onclick="clearCartPrompt()" class="text-xs text-rose-400 hover:text-rose-300 flex items-center gap-1 transition">
-              <i class="fa-solid fa-trash-can"></i> Sepeti Boşalt
+            <button onclick="clearCartPrompt()" class="text-xs text-[#8e8e93] hover:text-red-400 flex items-center gap-1 transition">
+              <i class="fa-solid fa-trash-can text-[11px]"></i> Sepeti Boşalt
             </button>
           </div>
 
           <div class="overflow-x-auto">
-            <table class="w-full text-left text-sm text-slate-300">
-              <thead class="bg-slate-950/60 text-slate-400 text-xs uppercase font-semibold border-b border-slate-800">
+            <table class="w-full text-left text-xs text-[#d1d1d6]">
+              <thead class="bg-[#101012] text-[#8e8e93] text-[11px] font-medium uppercase tracking-wider border-b border-[#242426]">
                 <tr>
-                  <th class="py-3 px-4">Ürün Adı</th>
-                  <th class="py-3 px-3">Birim Fiyat</th>
-                  <th class="py-3 px-3 text-center">Adet</th>
-                  <th class="py-3 px-3">Toplam</th>
-                  <th class="py-3 px-4 text-right">İşlem</th>
+                  <th class="py-2.5 px-3.5">Ürün Adı</th>
+                  <th class="py-2.5 px-3">Birim Fiyat</th>
+                  <th class="py-2.5 px-3 text-center">Adet</th>
+                  <th class="py-2.5 px-3">Toplam</th>
+                  <th class="py-2.5 px-3.5 text-right">İşlem</th>
                 </tr>
               </thead>
-              <tbody id="cart-tbody" class="divide-y divide-slate-800/80">
+              <tbody id="cart-tbody" class="divide-y divide-[#1f1f23]">
                 <!-- JS ile dolacak -->
               </tbody>
             </table>
@@ -535,40 +503,40 @@
         </div>
 
         <!-- Sağ: Sipariş & Robotistan Aktarım Paneli -->
-        <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-5 h-fit">
-          <h3 class="font-bold text-slate-200 text-sm border-b border-slate-800 pb-3">Sipariş Özeti</h3>
+        <div class="apple-card p-4 space-y-4 h-fit">
+          <h3 class="font-medium text-white text-xs border-b border-[#242426] pb-2.5">Sipariş Özeti</h3>
           
-          <div class="space-y-2 text-sm">
-            <div class="flex justify-between text-slate-400">
+          <div class="space-y-2 text-xs">
+            <div class="flex justify-between text-[#8e8e93]">
               <span>Toplam Çeşit:</span>
-              <span id="cart-summary-items" class="font-medium text-slate-200">0</span>
+              <span id="cart-summary-items" class="font-medium text-white">0</span>
             </div>
-            <div class="flex justify-between text-slate-400">
+            <div class="flex justify-between text-[#8e8e93]">
               <span>Toplam Ürün Adedi:</span>
-              <span id="cart-summary-qty" class="font-medium text-slate-200">0</span>
+              <span id="cart-summary-qty" class="font-medium text-white">0</span>
             </div>
-            <div class="pt-3 border-t border-slate-800 flex justify-between items-baseline">
-              <span class="text-base font-semibold text-slate-200">Tahmini Tutar:</span>
-              <span id="cart-summary-total" class="text-2xl font-black text-emerald-400">0.00 TL</span>
+            <div class="pt-2.5 border-t border-[#242426] flex justify-between items-baseline">
+              <span class="text-xs font-medium text-white">Tahmini Tutar:</span>
+              <span id="cart-summary-total" class="text-xl font-semibold text-white">0.00 TL</span>
             </div>
           </div>
 
           <!-- Robotistan Aksiyon Butonları -->
-          <div class="space-y-2.5 pt-2">
-            <button onclick="exportToRobotistanCart()" id="btn-export-robotistan" class="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-500 hover:to-amber-500 text-white font-bold text-sm shadow-lg shadow-orange-600/20 flex items-center justify-center gap-2 transition">
-              <i class="fa-solid fa-bolt"></i> <span>⚡ Robotistan Sepetime Aktar</span>
+          <div class="space-y-2 pt-1">
+            <button onclick="exportToRobotistanCart()" id="btn-export-robotistan" class="apple-btn-primary w-full justify-center py-2.5">
+              <i class="fa-solid fa-bolt text-xs"></i> <span>Robotistan Sepetine Aktar</span>
             </button>
-            <button onclick="openAllCartUrls()" class="w-full py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium text-xs flex items-center justify-center gap-2 border border-slate-700 transition">
-              <i class="fa-solid fa-arrow-up-right-from-square"></i> <span>Ürün Sayfalarını Yeni Sekmelerde Aç</span>
+            <button onclick="openAllCartUrls()" class="apple-btn-secondary w-full justify-center py-2 text-xs">
+              <i class="fa-solid fa-arrow-up-right-from-square text-[10px]"></i> <span>Sayfaları Yeni Sekmede Aç</span>
             </button>
           </div>
 
-          <div class="bg-slate-950/70 rounded-lg p-3 text-xs text-slate-400 border border-slate-800 space-y-1">
-            <p class="font-semibold text-slate-300 flex items-center gap-1">
-              <i class="fa-solid fa-circle-info text-cyan-400"></i> Nasıl Çalışır?
+          <div class="bg-white/5 rounded-xl p-3 text-[11px] text-[#8e8e93] border border-white/5 space-y-1">
+            <p class="font-medium text-[#d1d1d6] flex items-center gap-1">
+              <i class="fa-solid fa-circle-info text-[#0a84ff]"></i> Tek Tıkla Aktarım
             </p>
             <p>
-              <b>"Robotistan Sepetime Aktar"</b> butonuna bastığınızda, Robotistan'ın yerleşik çoklu sepet API'si (T-Soft multiCart) üzerinden tüm ürünler otomatik olarak Robotistan sepetinize eklenir.
+              "Robotistan Sepetine Aktar" butonu, Robotistan'ın yerleşik çoklu sepet API'si üzerinden ürünleri doğrudan sepetinize doldurur.
             </p>
           </div>
         </div>
@@ -576,111 +544,89 @@
     </section>
 
     <!-- TAB 7: AI VE KULLANICI DRAFT SİPARİŞLERİ -->
-    <section id="tab-drafts" class="tab-content hidden space-y-6">
-      <div class="bg-gradient-to-r from-slate-900 to-slate-900/90 border border-slate-800 rounded-2xl p-6 shadow-xl relative overflow-hidden">
-        <div class="max-w-3xl">
-          <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-purple-500/10 text-purple-400 border border-purple-500/20 mb-3">
-            <i class="fa-solid fa-clipboard-list"></i> AI Destekli Taslak Siparişler & BOM Listeleri
-          </span>
-          <h2 class="text-xl font-bold text-white">Draft Sipariş Listeleri</h2>
-          <p class="text-sm text-slate-300 mt-1">
-            Yapay zeka botları (Cursor, Claude Desktop vb.) veya sizin tarafınızdan oluşturulan proje bazlı malzeme ve sipariş taslakları burada saklanır. 
-            Tek tıkla inceleyebilir, ürünleri Robotistan sepetinize aktarabilir veya sipariş durumunu takip edebilirsiniz.
-          </p>
-        </div>
+    <section id="tab-drafts" class="tab-content hidden space-y-4">
+      <div class="apple-card p-4 text-xs space-y-1">
+        <h3 class="font-semibold text-white text-sm">Taslak Sipariş Listeleri</h3>
+        <p class="text-[#8e8e93]">
+          Yapay zeka asistanları veya sizin tarafınızdan oluşturulan proje bazlı malzeme ve sipariş taslakları.
+        </p>
       </div>
 
       <!-- Taslak Siparişler Listesi Container -->
-      <div id="draft-orders-container" class="space-y-4">
+      <div id="draft-orders-container" class="space-y-3">
         <!-- JS ile dolacak -->
       </div>
     </section>
 
     <!-- TAB 8: GELİŞTİRİCİ & MCP API DOKÜMANTASYONU -->
-    <section id="tab-developer" class="tab-content hidden space-y-8">
+    <section id="tab-developer" class="tab-content hidden space-y-6">
       
-      <!-- Başlık & Giriş Banner -->
-      <div class="bg-gradient-to-r from-slate-900 via-indigo-950/40 to-slate-900 border border-indigo-500/30 rounded-2xl p-6 shadow-xl relative overflow-hidden">
-        <div class="max-w-3xl">
-          <div class="flex items-center gap-2 mb-3">
-            <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-indigo-500/10 text-indigo-400 border border-indigo-500/30">
-              <i class="fa-solid fa-terminal"></i> Model Context Protocol (MCP)
-            </span>
-            <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-              <i class="fa-solid fa-circle text-[8px]"></i> 24 Araç Aktif
-            </span>
-          </div>
-          <h2 class="text-2xl font-bold text-white flex items-center gap-2">
-            Geliştirici & AI Entegrasyon Rehberi
-          </h2>
-          <p class="text-sm text-slate-300 mt-2 leading-relaxed">
-            Electra, harici yapay zeka asistanlarının (Cursor, Claude Desktop, Antigravity, Windsurf vb.) atölye stoklarınızı sorgulayabilmesi, sağlam/arızalı parçalarınızı kontrol edebilmesi ve Robotistan üzerinden eksikleri tespit edip taslak siparişler oluşturabilmesi için tam donanımlı bir <b>Model Context Protocol (MCP)</b> sunucusuna sahiptir.
-          </p>
+      <!-- Başlık & Giriş -->
+      <div class="apple-card p-5 space-y-2">
+        <div class="flex items-center gap-2">
+          <span class="apple-badge apple-badge-default">
+            Model Context Protocol
+          </span>
+          <span class="apple-badge apple-badge-green">
+            24 Araç Aktif
+          </span>
         </div>
+        <h2 class="text-base font-semibold text-white">
+          Geliştirici & AI Entegrasyon Rehberi
+        </h2>
+        <p class="text-xs text-[#8e8e93] leading-relaxed">
+          Electra, Cursor, Claude Desktop, Antigravity ve Windsurf gibi yapay zeka asistanlarının atölye stoklarınızı okuyabilmesi, sağlam/arızalı parçalarınızı kontrol edebilmesi ve piyasa fiyatlarını karşılaştırabilmesi için tam donanımlı bir <b>MCP sunucusuna</b> sahiptir.
+        </p>
       </div>
 
       <!-- Hızlı Kurulum Konfigürasyonları -->
-      <div class="space-y-4">
-        <h3 class="text-lg font-bold text-white flex items-center gap-2">
-          <i class="fa-solid fa-sliders text-indigo-400"></i> AI Asistanı Yapılandırması (Config)
+      <div class="space-y-3">
+        <h3 class="text-xs font-semibold text-[#8e8e93] uppercase tracking-wider">
+          AI Asistanı Yapılandırması (JSON Config)
         </h3>
-        <p class="text-xs text-slate-400">
-          Aşağıdaki JSON yapılandırmalarını AI editörünüzün ayar dosyasına ekleyerek Electra MCP sunucusunu anında aktif edebilirsiniz.
-        </p>
 
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <!-- CANLI HTTPS / SSE URL (Cursor, Windsurf vb. - SIFIR KURULUM) -->
-          <div class="bg-gradient-to-br from-indigo-950/40 via-slate-900 to-slate-900 border-2 border-indigo-500/50 rounded-xl p-5 space-y-3 lg:col-span-2 shadow-lg shadow-indigo-950/30">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-3">
+          <!-- CANLI HTTPS / SSE URL (Cursor, Windsurf vb.) -->
+          <div class="apple-card p-4 space-y-2.5 lg:col-span-2">
             <div class="flex items-center justify-between">
-              <div class="flex items-center gap-2.5">
-                <span class="p-2 bg-indigo-500/20 text-indigo-400 rounded-lg text-lg flex items-center justify-center">
-                  <i class="fa-solid fa-cloud-bolt"></i>
-                </span>
-                <div>
-                  <div class="flex items-center gap-2">
-                    <h4 class="font-bold text-white text-sm">Canlı HTTPS / SSE URL (Cursor, Windsurf, Web AI)</h4>
-                    <span class="text-[10px] bg-emerald-500/20 text-emerald-300 font-semibold px-2 py-0.5 rounded-full border border-emerald-500/30">
-                      ⚡ ÖNERİLEN • SIFIR KURULUM
-                    </span>
-                  </div>
-                  <p class="text-xs text-slate-400">Python veya dosya indirmeden, doğrudan canlı sunucu URL'si ile bağlanın.</p>
-                </div>
+              <div class="flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full bg-[#34c759]"></span>
+                <h4 class="font-medium text-white text-xs">Canlı HTTPS / SSE URL (Cursor, Windsurf, Claude Code)</h4>
+                <span class="apple-badge apple-badge-green text-[10px]">Önerilen</span>
               </div>
-              <button onclick="copyCode('code-cursor-cloud', this)" class="px-3 py-1.5 text-xs rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-medium flex items-center gap-1.5 transition shadow-sm">
-                <i class="fa-solid fa-copy"></i> Kopyala
+              <button onclick="copyCode('code-cursor-cloud', this)" class="apple-btn-secondary text-xs px-2.5 py-1">
+                <i class="fa-solid fa-copy text-[10px]"></i> Kopyala
               </button>
             </div>
-            <p class="text-xs text-slate-300">
-              Dosya: <code class="text-indigo-300 bg-slate-950 px-1.5 py-0.5 rounded">.cursor/mcp.json</code> veya Cursor Ayarları &gt; Features &gt; MCP:
-            </p>
-            <pre class="bg-slate-950 p-3.5 rounded-lg border border-slate-800 text-xs font-mono text-indigo-300 overflow-x-auto"><code id="code-cursor-cloud">{
+            <pre class="bg-[#0c0c0e] p-3 rounded-xl border border-[#222225] text-xs font-mono text-white/90 overflow-x-auto"><code id="code-cursor-cloud">{
   "mcpServers": {
     "electra": {
       "url": "https://electra.matelab.dev/mcp?token=alp236330"
     }
   }
 }</code></pre>
-            <p class="text-[11px] text-slate-400 flex items-center gap-2">
-              <i class="fa-solid fa-circle-info text-indigo-400"></i>
-              <span>SSE protokolü tercih eden araçlar için: <code class="text-slate-200 bg-slate-950 px-1.5 py-0.5 rounded">https://electra.matelab.dev/sse?token=alp236330</code></span>
-            </p>
           </div>
 
-          <!-- Claude Desktop (Remote Bridge) -->
-          <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-3">
+          <!-- Claude Code (Terminal CLI) -->
+          <div class="apple-card p-4 space-y-2.5">
             <div class="flex items-center justify-between">
-              <div class="flex items-center gap-2">
-                <i class="fa-solid fa-brain text-amber-400 text-lg"></i>
-                <h4 class="font-bold text-white text-sm">Claude Desktop (Uzak Köprü / Remote)</h4>
-              </div>
-              <button onclick="copyCode('code-claude-remote', this)" class="px-2.5 py-1 text-xs rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 flex items-center gap-1.5 transition">
-                <i class="fa-solid fa-copy"></i> Kopyala
+              <h4 class="font-medium text-white text-xs">Claude Code (Terminal CLI)</h4>
+              <button onclick="copyCode('code-claude-cli', this)" class="apple-btn-secondary text-xs px-2.5 py-1">
+                <i class="fa-solid fa-copy text-[10px]"></i> Kopyala
               </button>
             </div>
-            <p class="text-xs text-slate-400">
-              Claude Desktop'ı uzaktaki canlı sunucuya bağlar (stdio -&gt; HTTPS köprüsü):
-            </p>
-            <pre class="bg-slate-950 p-3 rounded-lg border border-slate-800 text-xs font-mono text-amber-300 overflow-x-auto"><code id="code-claude-remote">{
+            <pre class="bg-[#0c0c0e] p-3 rounded-xl border border-[#222225] text-xs font-mono text-white/90 overflow-x-auto"><code id="code-claude-cli">claude mcp add --transport http electra "https://electra.matelab.dev/mcp?token=alp236330"</code></pre>
+          </div>
+
+          <!-- Claude Desktop (Uzak Köprü) -->
+          <div class="apple-card p-4 space-y-2.5">
+            <div class="flex items-center justify-between">
+              <h4 class="font-medium text-white text-xs">Claude Desktop (Remote Bridge)</h4>
+              <button onclick="copyCode('code-claude-remote', this)" class="apple-btn-secondary text-xs px-2.5 py-1">
+                <i class="fa-solid fa-copy text-[10px]"></i> Kopyala
+              </button>
+            </div>
+            <pre class="bg-[#0c0c0e] p-3 rounded-xl border border-[#222225] text-xs font-mono text-white/90 overflow-x-auto"><code id="code-claude-remote">{
   "mcpServers": {
     "electra": {
       "command": "python3",
@@ -696,41 +642,15 @@
 }</code></pre>
           </div>
 
-          <!-- Claude Code (Terminal CLI) -->
-          <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-3">
+          <!-- Yerel Python Modu -->
+          <div class="apple-card p-4 space-y-2.5">
             <div class="flex items-center justify-between">
-              <div class="flex items-center gap-2">
-                <i class="fa-solid fa-terminal text-orange-400 text-lg"></i>
-                <h4 class="font-bold text-white text-sm">Claude Code (Terminal CLI)</h4>
-              </div>
-              <button onclick="copyCode('code-claude-cli', this)" class="px-2.5 py-1 text-xs rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 flex items-center gap-1.5 transition">
-                <i class="fa-solid fa-copy"></i> Kopyala
+              <h4 class="font-medium text-white text-xs">Yerel Python Modu (Local stdio)</h4>
+              <button onclick="copyCode('code-cursor-local', this)" class="apple-btn-secondary text-xs px-2.5 py-1">
+                <i class="fa-solid fa-copy text-[10px]"></i> Kopyala
               </button>
             </div>
-            <p class="text-xs text-slate-400">
-              Terminalde tek satır komutla canlı sunucuyu bağlayın:
-            </p>
-            <pre class="bg-slate-950 p-3 rounded-lg border border-slate-800 text-xs font-mono text-orange-300 overflow-x-auto"><code id="code-claude-cli">claude mcp add --transport http electra "https://electra.matelab.dev/mcp?token=alp236330"</code></pre>
-            <p class="text-[11px] text-slate-400">
-              Kontrol etmek için: <code class="text-slate-300 bg-slate-950 px-1 py-0.5 rounded">claude mcp list</code>
-            </p>
-          </div>
-
-          <!-- Cursor IDE (Yerel / Local stdio) -->
-          <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-3">
-            <div class="flex items-center justify-between">
-              <div class="flex items-center gap-2">
-                <i class="fa-solid fa-laptop-code text-emerald-400 text-lg"></i>
-                <h4 class="font-bold text-white text-sm">Yerel Python Modu (Local stdio)</h4>
-              </div>
-              <button onclick="copyCode('code-cursor-local', this)" class="px-2.5 py-1 text-xs rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 flex items-center gap-1.5 transition">
-                <i class="fa-solid fa-copy"></i> Kopyala
-              </button>
-            </div>
-            <p class="text-xs text-slate-400">
-              İnternet olmadan, doğrudan bilgisayarınızdaki yerel SQLite dosyasını kullanır:
-            </p>
-            <pre class="bg-slate-950 p-3 rounded-lg border border-slate-800 text-xs font-mono text-emerald-300 overflow-x-auto"><code id="code-cursor-local">{
+            <pre class="bg-[#0c0c0e] p-3 rounded-xl border border-[#222225] text-xs font-mono text-white/90 overflow-x-auto"><code id="code-cursor-local">{
   "mcpServers": {
     "electra": {
       "command": "python3",
@@ -743,28 +663,18 @@
           </div>
 
           <!-- Remote SSH -->
-          <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-3 lg:col-span-2">
+          <div class="apple-card p-4 space-y-2.5">
             <div class="flex items-center justify-between">
-              <div class="flex items-center gap-2">
-                <i class="fa-solid fa-network-wired text-cyan-400 text-lg"></i>
-                <h4 class="font-bold text-white text-sm">Sunucu Üzerinden Uzak Bağlantı (SSH Bridge)</h4>
-              </div>
-              <button onclick="copyCode('code-remote-ssh', this)" class="px-2.5 py-1 text-xs rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 flex items-center gap-1.5 transition">
-                <i class="fa-solid fa-copy"></i> Kopyala
+              <h4 class="font-medium text-white text-xs">Uzak Sunucu (SSH Bridge)</h4>
+              <button onclick="copyCode('code-remote-ssh', this)" class="apple-btn-secondary text-xs px-2.5 py-1">
+                <i class="fa-solid fa-copy text-[10px]"></i> Kopyala
               </button>
             </div>
-            <p class="text-xs text-slate-400">
-              SSH anahtarınız ile doğrudan <code class="text-cyan-300 bg-slate-950 px-1 py-0.5 rounded">ms</code> sunucusundaki Python sürecini başlatır:
-            </p>
-            <pre class="bg-slate-950 p-3 rounded-lg border border-slate-800 text-xs font-mono text-cyan-300 overflow-x-auto"><code id="code-remote-ssh">{
+            <pre class="bg-[#0c0c0e] p-3 rounded-xl border border-[#222225] text-xs font-mono text-white/90 overflow-x-auto"><code id="code-remote-ssh">{
   "mcpServers": {
     "electra-prod": {
       "command": "ssh",
-      "args": [
-        "ms",
-        "python3",
-        "/var/www/electra/mcp_server.py"
-      ]
+      "args": ["ms", "python3", "/var/www/electra/mcp_server.py"]
     }
   }
 }</code></pre>
@@ -772,468 +682,99 @@
         </div>
       </div>
 
-      <!-- Kullanılabilir MCP Araçları (Tools Kataloğu) -->
-      <div class="space-y-4">
-        <h3 class="text-lg font-bold text-white flex items-center gap-2">
-          <i class="fa-solid fa-toolbox text-indigo-400"></i> Dahili MCP Araçları (24 Tools)
+      <!-- Kullanılabilir MCP Araçları -->
+      <div class="space-y-3">
+        <h3 class="text-xs font-semibold text-[#8e8e93] uppercase tracking-wider">
+          Dahili MCP Araç Kataloğu (24 Araç)
         </h3>
-        <p class="text-xs text-slate-400">
-          AI asistanınız bu araçları otomatik olarak algılar ve sohbette ihtiyaç duyulduğunda arka planda çalıştırır.
-        </p>
 
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-          
-          <!-- Tool 1 -->
-          <div class="bg-slate-900/90 border border-indigo-500/30 rounded-xl p-4 space-y-2 hover:border-indigo-500/60 transition">
+          <div class="apple-card p-3.5 space-y-1.5 text-xs">
             <div class="flex items-center justify-between">
-              <span class="text-xs font-mono font-bold text-indigo-300">electro_plan_project_draft_order</span>
-              <span class="text-[10px] bg-indigo-500/20 text-indigo-300 px-1.5 py-0.5 rounded border border-indigo-500/30">AI Planlama</span>
+              <span class="font-mono font-medium text-white">electro_compare_part_prices</span>
+              <span class="apple-badge apple-badge-default text-[10px]">Piyasa</span>
             </div>
-            <p class="text-xs text-slate-300">
-              Proje fikrini analiz eder, eldeki sağlam/arızalı parçaları eşleştirir, eksikler için Robotistan'da stok ve fiyat arar ve otomatik bir <b>Draft Sipariş</b> kaydeder.
+            <p class="text-[#8e8e93]">
+              Robotistan, Robotronik, Direnç.net ve Motorobit mağazalarında canlı fiyat karşılaştırması yapar, kargo ve 100 TL eşiğini kontrol eder.
             </p>
-            <div class="text-[11px] text-slate-400 pt-1 border-t border-slate-800">
-              <b>Parametreler:</b> <code class="text-slate-300">project_description (str)</code>
-            </div>
           </div>
 
-          <!-- Tool 2 -->
-          <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-4 space-y-2 hover:border-slate-700 transition">
+          <div class="apple-card p-3.5 space-y-1.5 text-xs">
             <div class="flex items-center justify-between">
-              <span class="text-xs font-mono font-bold text-emerald-400">electro_suggest_project_components</span>
-              <span class="text-[10px] bg-emerald-500/20 text-emerald-300 px-1.5 py-0.5 rounded border border-emerald-500/30">Stok Analizi</span>
+              <span class="font-mono font-medium text-white">electro_find_best_bom_deal</span>
+              <span class="apple-badge apple-badge-default text-[10px]">BOM Plan</span>
             </div>
-            <p class="text-xs text-slate-300">
-              Devre fikrini dinler; elinizdeki sağlam parçaları, yerlerini ve adetlerini çıkarır. Arızalı parçalar hakkında kullanıcıyı uyarır.
+            <p class="text-[#8e8e93]">
+              BOM parça listesi için tahmini kargo ücretlerini hesaba katarak en uygun mağaza dağılımını hesaplar.
             </p>
-            <div class="text-[11px] text-slate-400 pt-1 border-t border-slate-800">
-              <b>Parametreler:</b> <code class="text-slate-300">project_description, check_robotistan</code>
-            </div>
           </div>
 
-          <!-- Tool 3 -->
-          <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-4 space-y-2 hover:border-slate-700 transition">
+          <div class="apple-card p-3.5 space-y-1.5 text-xs">
             <div class="flex items-center justify-between">
-              <span class="text-xs font-mono font-bold text-cyan-400">electro_search_inventory</span>
-              <span class="text-[10px] bg-cyan-500/20 text-cyan-300 px-1.5 py-0.5 rounded border border-cyan-500/30">Arama</span>
+              <span class="font-mono font-medium text-white">electro_get_component_equivalents</span>
+              <span class="apple-badge apple-badge-default text-[10px]">Muadil</span>
             </div>
-            <p class="text-xs text-slate-300">
-              İsim, değer (10k, 100nF), kılıf (DIP-8, 0805) veya saklama konumuna göre atölye stoğunda akıllı arama yapar.
+            <p class="text-[#8e8e93]">
+              11 temel kategoride (MOSFET, LDO, GPS, MCU, op-amp vb.) pin-uyumlu veya modern alternatif parçaları canlı piyasa fiyatlarıyla önerir.
             </p>
-            <div class="text-[11px] text-slate-400 pt-1 border-t border-slate-800">
-              <b>Parametreler:</b> <code class="text-slate-300">query, category, status, location</code>
-            </div>
           </div>
 
-          <!-- Tool 4 -->
-          <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-4 space-y-2 hover:border-slate-700 transition">
+          <div class="apple-card p-3.5 space-y-1.5 text-xs">
             <div class="flex items-center justify-between">
-              <span class="text-xs font-mono font-bold text-purple-400">electro_create_draft_order</span>
-              <span class="text-[10px] bg-purple-500/20 text-purple-300 px-1.5 py-0.5 rounded border border-purple-500/30">Draft</span>
+              <span class="font-mono font-medium text-white">electro_suggest_project_components</span>
+              <span class="apple-badge apple-badge-default text-[10px]">Stok</span>
             </div>
-            <p class="text-xs text-slate-300">
-              AI veya kullanıcı tarafından belirlenen ürün kalemleriyle yeni bir taslak sipariş listesi oluşturur.
+            <p class="text-[#8e8e93]">
+              Devre fikrini dinler; elinizdeki sağlam parçaları çıkarır ve arızalı parçalar hakkında uyarır.
             </p>
-            <div class="text-[11px] text-slate-400 pt-1 border-t border-slate-800">
-              <b>Parametreler:</b> <code class="text-slate-300">title, description, items[]</code>
-            </div>
           </div>
 
-          <!-- Tool 5 -->
-          <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-4 space-y-2 hover:border-slate-700 transition">
+          <div class="apple-card p-3.5 space-y-1.5 text-xs">
             <div class="flex items-center justify-between">
-              <span class="text-xs font-mono font-bold text-purple-400">electro_list_draft_orders</span>
-              <span class="text-[10px] bg-purple-500/20 text-purple-300 px-1.5 py-0.5 rounded border border-purple-500/30">Draft</span>
+              <span class="font-mono font-medium text-white">electro_search_inventory</span>
+              <span class="apple-badge apple-badge-default text-[10px]">Arama</span>
             </div>
-            <p class="text-xs text-slate-300">
-              Kayıtlı tüm taslak sipariş listelerini, tahmini tutarlarını ve durumlarını getirir.
+            <p class="text-[#8e8e93]">
+              İsim, değer (10k, 100nF), kılıf (DIP, SMD) veya saklama konumuna göre yerel stokta arama yapar.
             </p>
-            <div class="text-[11px] text-slate-400 pt-1 border-t border-slate-800">
-              <b>Parametreler:</b> <code class="text-slate-300">status (draft, ready, ordered)</code>
-            </div>
           </div>
 
-          <!-- Tool 6 -->
-          <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-4 space-y-2 hover:border-slate-700 transition">
+          <div class="apple-card p-3.5 space-y-1.5 text-xs">
             <div class="flex items-center justify-between">
-              <span class="text-xs font-mono font-bold text-purple-400">electro_apply_draft_order_to_cart</span>
-              <span class="text-[10px] bg-purple-500/20 text-purple-300 px-1.5 py-0.5 rounded border border-purple-500/30">Aktarım</span>
+              <span class="font-mono font-medium text-white">electro_create_draft_order</span>
+              <span class="apple-badge apple-badge-default text-[10px]">Taslak</span>
             </div>
-            <p class="text-xs text-slate-300">
-              Belirtilen taslak siparişteki tüm ürünleri tek tıkla canlı Robotistan sepetine dönüştürür.
+            <p class="text-[#8e8e93]">
+              Parça kalemleriyle yeni bir taslak sipariş listesi oluşturur ve toplam tutarı hesaplar.
             </p>
-            <div class="text-[11px] text-slate-400 pt-1 border-t border-slate-800">
-              <b>Parametreler:</b> <code class="text-slate-300">draft_id (int)</code>
-            </div>
           </div>
-
-          <!-- Tool 7 -->
-          <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-4 space-y-2 hover:border-slate-700 transition">
-            <div class="flex items-center justify-between">
-              <span class="text-xs font-mono font-bold text-orange-400">electro_search_robotistan</span>
-              <span class="text-[10px] bg-orange-500/20 text-orange-300 px-1.5 py-0.5 rounded border border-orange-500/30">Scraper</span>
-            </div>
-            <p class="text-xs text-slate-300">
-              Robotistan üzerinde canlı arama yapar. Ürün linki, aktif stok durumu ve anlık TL fiyatını çeker.
-            </p>
-            <div class="text-[11px] text-slate-400 pt-1 border-t border-slate-800">
-              <b>Parametreler:</b> <code class="text-slate-300">query, only_in_stock, limit</code>
-            </div>
-          </div>
-
-          <!-- Tool 8 -->
-          <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-4 space-y-2 hover:border-slate-700 transition">
-            <div class="flex items-center justify-between">
-              <span class="text-xs font-mono font-bold text-amber-400">electro_get_defective_parts</span>
-              <span class="text-[10px] bg-amber-500/20 text-amber-300 px-1.5 py-0.5 rounded border border-amber-500/30">Arıza Takibi</span>
-            </div>
-            <p class="text-xs text-slate-300">
-              Arızalı, bozuk veya test bekleyen parçaları ve arıza notlarını listeler.
-            </p>
-            <div class="text-[11px] text-slate-400 pt-1 border-t border-slate-800">
-              <b>Parametreler:</b> <code class="text-slate-300">Yok</code>
-            </div>
-          </div>
-
-          <!-- Tool 9 -->
-          <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-4 space-y-2 hover:border-slate-700 transition">
-            <div class="flex items-center justify-between">
-              <span class="text-xs font-mono font-bold text-emerald-400">electro_add_component</span>
-              <span class="text-[10px] bg-emerald-500/20 text-emerald-300 px-1.5 py-0.5 rounded border border-emerald-500/30">Envanter</span>
-            </div>
-            <p class="text-xs text-slate-300">
-              Sohbet sırasında kullanıcının atölyesine yeni bir elektronik parça ve saklama konumu ekler.
-            </p>
-            <div class="text-[11px] text-slate-400 pt-1 border-t border-slate-800">
-              <b>Parametreler:</b> <code class="text-slate-300">name, category, value, quantity, location</code>
-            </div>
-          </div>
-
-          <!-- Tool 10 -->
-          <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-4 space-y-2 hover:border-slate-700 transition">
-            <div class="flex items-center justify-between">
-              <span class="text-xs font-mono font-bold text-emerald-400">electro_update_stock</span>
-              <span class="text-[10px] bg-emerald-500/20 text-emerald-300 px-1.5 py-0.5 rounded border border-emerald-500/30">Envanter</span>
-            </div>
-            <p class="text-xs text-slate-300">
-              Stok miktarını artırır/azaltır veya parça durumunu (working, defective, salvage) günceller.
-            </p>
-            <div class="text-[11px] text-slate-400 pt-1 border-t border-slate-800">
-              <b>Parametreler:</b> <code class="text-slate-300">component_id, delta, status</code>
-            </div>
-          </div>
-
-          <!-- Tool 11 -->
-          <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-4 space-y-2 hover:border-slate-700 transition">
-            <div class="flex items-center justify-between">
-              <span class="text-xs font-mono font-bold text-emerald-400">electro_get_inventory_summary</span>
-              <span class="text-[10px] bg-emerald-500/20 text-emerald-300 px-1.5 py-0.5 rounded border border-emerald-500/30">Özet</span>
-            </div>
-            <p class="text-xs text-slate-300">
-              Atölyenin toplam çeşit, sağlam/arızalı sayıları ve kritik stok uyarılarını markdown formatında özetler.
-            </p>
-            <div class="text-[11px] text-slate-400 pt-1 border-t border-slate-800">
-              <b>Parametreler:</b> <code class="text-slate-300">Yok</code>
-            </div>
-          </div>
-
-          <!-- Tool 12 -->
-          <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-4 space-y-2 hover:border-slate-700 transition">
-            <div class="flex items-center justify-between">
-              <span class="text-xs font-mono font-bold text-emerald-400">electro_add_to_cart</span>
-              <span class="text-[10px] bg-emerald-500/20 text-emerald-300 px-1.5 py-0.5 rounded border border-emerald-500/30">Sepet</span>
-            </div>
-            <p class="text-xs text-slate-300">
-              Robotistan sepetine doğrudan ürün ekler (fiyat, link ve ürün ID bilgisiyle).
-            </p>
-            <div class="text-[11px] text-slate-400 pt-1 border-t border-slate-800">
-              <b>Parametreler:</b> <code class="text-slate-300">title, url, price, product_id</code>
-            </div>
-          </div>
-
-          <!-- Tool 13 -->
-          <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-4 space-y-2 hover:border-slate-700 transition">
-            <div class="flex items-center justify-between">
-              <span class="text-xs font-mono font-bold text-purple-400">electro_get_draft_order</span>
-              <span class="text-[10px] bg-purple-500/20 text-purple-300 px-1.5 py-0.5 rounded border border-purple-500/30">Draft</span>
-            </div>
-            <p class="text-xs text-slate-300">
-              Belirtilen taslak siparişin tüm kalemlerini (Kalem ID, kaynak, adet, fiyat ve stok) listeler.
-            </p>
-            <div class="text-[11px] text-slate-400 pt-1 border-t border-slate-800">
-              <b>Parametreler:</b> <code class="text-slate-300">draft_id (int)</code>
-            </div>
-          </div>
-
-          <!-- Tool 14 -->
-          <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-4 space-y-2 hover:border-slate-700 transition">
-            <div class="flex items-center justify-between">
-              <span class="text-xs font-mono font-bold text-purple-400">electro_add_draft_order_item</span>
-              <span class="text-[10px] bg-purple-500/20 text-purple-300 px-1.5 py-0.5 rounded border border-purple-500/30">Draft</span>
-            </div>
-            <p class="text-xs text-slate-300">
-              Mevcut bir taslak siparişe yeni ürün/parça kalemi ekler ve toplam tutarı otomatik günceller.
-            </p>
-            <div class="text-[11px] text-slate-400 pt-1 border-t border-slate-800">
-              <b>Parametreler:</b> <code class="text-slate-300">draft_id, title, quantity, price, url, source, notes</code>
-            </div>
-          </div>
-
-          <!-- Tool 15 -->
-          <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-4 space-y-2 hover:border-slate-700 transition">
-            <div class="flex items-center justify-between">
-              <span class="text-xs font-mono font-bold text-rose-400">electro_remove_draft_order_item</span>
-              <span class="text-[10px] bg-rose-500/20 text-rose-300 px-1.5 py-0.5 rounded border border-rose-500/30">Draft</span>
-            </div>
-            <p class="text-xs text-slate-300">
-              Taslaktan belirtilen kalemi doğrudan Kalem ID veya isim aramasıyla siler.
-            </p>
-            <div class="text-[11px] text-slate-400 pt-1 border-t border-slate-800">
-              <b>Parametreler:</b> <code class="text-slate-300">item_id (int) veya draft_id + title_query</code>
-            </div>
-          </div>
-
-          <!-- Tool 16 -->
-          <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-4 space-y-2 hover:border-slate-700 transition">
-            <div class="flex items-center justify-between">
-              <span class="text-xs font-mono font-bold text-sky-400">electro_get_product_details</span>
-              <span class="text-[10px] bg-sky-500/20 text-sky-300 px-1.5 py-0.5 rounded border border-sky-500/30">Detay</span>
-            </div>
-            <p class="text-xs text-slate-300">
-              Robotistan ürün sayfasının teknik özellikler tablosunu (boyut, konnektör, voltaj, koruma devresi) çeker.
-            </p>
-            <div class="text-[11px] text-slate-400 pt-1 border-t border-slate-800">
-              <b>Parametreler:</b> <code class="text-slate-300">url (str)</code>
-            </div>
-          </div>
-
-          <!-- Tool 17 -->
-          <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-4 space-y-2 hover:border-slate-700 transition">
-            <div class="flex items-center justify-between">
-              <span class="text-xs font-mono font-bold text-amber-400">electro_get_component_equivalents</span>
-              <span class="text-[10px] bg-amber-500/20 text-amber-300 px-1.5 py-0.5 rounded border border-amber-500/30">Muadil</span>
-            </div>
-            <p class="text-xs text-slate-300">
-              Elektronik parçalar için doğrudan pin/işlev uyumlu muadilleri ve düşük güç alternatiflerini önerir.
-            </p>
-            <div class="text-[11px] text-slate-400 pt-1 border-t border-slate-800">
-              <b>Parametreler:</b> <code class="text-slate-300">component_name (str)</code>
-            </div>
-          </div>
-
-          <!-- Tool 18 -->
-          <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-4 space-y-2 hover:border-slate-700 transition">
-            <div class="flex items-center justify-between">
-              <span class="text-xs font-mono font-bold text-emerald-400">electro_get_cart</span>
-              <span class="text-[10px] bg-emerald-500/20 text-emerald-300 px-1.5 py-0.5 rounded border border-emerald-500/30">Sepet</span>
-            </div>
-            <p class="text-xs text-slate-300">
-              Robotistan canlı sepetindeki ürünleri, adetleri ve toplam tutarı listeler.
-            </p>
-            <div class="text-[11px] text-slate-400 pt-1 border-t border-slate-800">
-              <b>Parametreler:</b> <code class="text-slate-300">Yok</code>
-            </div>
-          </div>
-
-          <!-- Tool 19 -->
-          <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-4 space-y-2 hover:border-slate-700 transition">
-            <div class="flex items-center justify-between">
-              <span class="text-xs font-mono font-bold text-rose-400">electro_clear_cart</span>
-              <span class="text-[10px] bg-rose-500/20 text-rose-300 px-1.5 py-0.5 rounded border border-rose-500/30">Sepet</span>
-            </div>
-            <p class="text-xs text-slate-300">
-              Robotistan sepetini tamamen boşaltır.
-            </p>
-            <div class="text-[11px] text-slate-400 pt-1 border-t border-slate-800">
-              <b>Parametreler:</b> <code class="text-slate-300">Yok</code>
-            </div>
-          </div>
-
-          <!-- Tool 20 -->
-          <div class="bg-slate-900/90 border border-emerald-500/30 rounded-xl p-4 space-y-2 hover:border-emerald-500/60 transition">
-            <div class="flex items-center justify-between">
-              <span class="text-xs font-mono font-bold text-emerald-400">electro_search_market</span>
-              <span class="text-[10px] bg-emerald-500/20 text-emerald-300 px-1.5 py-0.5 rounded border border-emerald-500/30">Piyasa</span>
-            </div>
-            <p class="text-xs text-slate-300">
-              Robotronik, Robotistan, Direnç.net ve Motorobit mağazalarında eşzamanlı arama yapar, fiyatları kıyaslar ve en ucuz seçeneği belirler.
-            </p>
-            <div class="text-[11px] text-slate-400 pt-1 border-t border-slate-800">
-              <b>Parametreler:</b> <code class="text-slate-300">query, vendor, only_in_stock, limit_per_vendor</code>
-            </div>
-          </div>
-
-          <!-- Tool 21 -->
-          <div class="bg-slate-900/90 border border-purple-500/30 rounded-xl p-4 space-y-2 hover:border-purple-500/60 transition">
-            <div class="flex items-center justify-between">
-              <span class="text-xs font-mono font-bold text-purple-400">electro_search_robotronik</span>
-              <span class="text-[10px] bg-purple-500/20 text-purple-300 px-1.5 py-0.5 rounded border border-purple-500/30">Robotronik</span>
-            </div>
-            <p class="text-xs text-slate-300">
-              Robotronik.com.tr üzerinde doğrudan arama yapar. Uygun fiyatlı Arduino, ESP32, sensör ve modüller çeker.
-            </p>
-            <div class="text-[11px] text-slate-400 pt-1 border-t border-slate-800">
-              <b>Parametreler:</b> <code class="text-slate-300">query, only_in_stock, limit</code>
-            </div>
-          </div>
-
-          <!-- Tool 22 -->
-          <div class="bg-slate-900/90 border border-blue-500/30 rounded-xl p-4 space-y-2 hover:border-blue-500/60 transition">
-            <div class="flex items-center justify-between">
-              <span class="text-xs font-mono font-bold text-blue-400">electro_search_direnc</span>
-              <span class="text-[10px] bg-blue-500/20 text-blue-300 px-1.5 py-0.5 rounded border border-blue-500/30">Direnç.net</span>
-            </div>
-            <p class="text-xs text-slate-300">
-              Direnç.net üzerinde arama yapar. Entegre, pasif komponent, MOSFET, LDO ve konnektör stoklarını çeker.
-            </p>
-            <div class="text-[11px] text-slate-400 pt-1 border-t border-slate-800">
-              <b>Parametreler:</b> <code class="text-slate-300">query, only_in_stock, limit</code>
-            </div>
-          </div>
-
-          <!-- Tool 23 -->
-          <div class="bg-slate-900/90 border border-amber-500/30 rounded-xl p-4 space-y-2 hover:border-amber-500/60 transition">
-            <div class="flex items-center justify-between">
-              <span class="text-xs font-mono font-bold text-amber-400">electro_compare_part_prices</span>
-              <span class="text-[10px] bg-amber-500/20 text-amber-300 px-1.5 py-0.5 rounded border border-amber-500/30">Kıyaslama</span>
-            </div>
-            <p class="text-xs text-slate-300">
-              Belirli bir komponentin 4 büyük Türk mağazasındaki fiyatlarını karşılaştırma tablosu halinde döker.
-            </p>
-            <div class="text-[11px] text-slate-400 pt-1 border-t border-slate-800">
-              <b>Parametreler:</b> <code class="text-slate-300">part_name (str)</code>
-            </div>
-          </div>
-
-          <!-- Tool 24 -->
-          <div class="bg-slate-900/90 border border-indigo-500/30 rounded-xl p-4 space-y-2 hover:border-indigo-500/60 transition">
-            <div class="flex items-center justify-between">
-              <span class="text-xs font-mono font-bold text-indigo-300">electro_find_best_bom_deal</span>
-              <span class="text-[10px] bg-indigo-500/20 text-indigo-300 px-1.5 py-0.5 rounded border border-indigo-500/30">BOM Deal</span>
-            </div>
-            <p class="text-xs text-slate-300">
-              Proje malzeme listesindeki tüm parçaları tarayarak en ucuz split sipariş kombinasyonunu hesaplar ve sepetlere böler.
-            </p>
-            <div class="text-[11px] text-slate-400 pt-1 border-t border-slate-800">
-              <b>Parametreler:</b> <code class="text-slate-300">components[], auto_create_split_drafts</code>
-            </div>
-          </div>
-
         </div>
       </div>
 
-      <!-- Örnek AI Sohbet Promptları -->
-      <div class="space-y-4">
-        <h3 class="text-lg font-bold text-white flex items-center gap-2">
-          <i class="fa-solid fa-lightbulb text-amber-400"></i> AI Botunuza Sorabileceğiniz Örnek Promptlar
+      <!-- cURL / REST API Erişimi -->
+      <div class="apple-card p-4 space-y-3">
+        <h3 class="text-xs font-semibold text-white flex items-center gap-2">
+          cURL / REST API Uç Noktaları
         </h3>
-        <p class="text-xs text-slate-400">
-          MCP sunucusu bağlandıktan sonra Cursor veya Claude sohbette şu tarz cümleler kurabilirsiniz:
-        </p>
-
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-2 hover:border-indigo-500/40 transition">
-            <div class="flex items-center justify-between">
-              <span class="text-xs font-bold text-indigo-400 flex items-center gap-1.5">
-                <i class="fa-solid fa-wand-magic-sparkles"></i> Proje Planlama & BOM Çıkarma
-              </span>
-              <button onclick="copyText('Elimdeki parçaları inceleyerek bir ESP32 hava kalitesi ölçüm istasyonu tasarla. Eksik parçaları Robotistan\'dan kontrol edip bir draft sipariş listesi oluştur.', this)" class="text-slate-400 hover:text-white text-xs px-2 py-1 rounded bg-slate-800 border border-slate-700/60 flex items-center gap-1 transition">
-                <i class="fa-solid fa-copy"></i> Kopyala
-              </button>
-            </div>
-            <p class="text-xs text-slate-300 bg-slate-950 p-2.5 rounded-lg border border-slate-800/80 italic">
-              "Elimdeki parçaları inceleyerek bir ESP32 hava kalitesi ölçüm istasyonu tasarla. Eksik parçaları Robotistan'dan kontrol edip bir draft sipariş listesi oluştur."
-            </p>
-          </div>
-
-          <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-2 hover:border-indigo-500/40 transition">
-            <div class="flex items-center justify-between">
-              <span class="text-xs font-bold text-amber-400 flex items-center gap-1.5">
-                <i class="fa-solid fa-triangle-exclamation"></i> Arızalı Parça Sorgulama
-              </span>
-              <button onclick="copyText('Atölyemde arızalı ya da hurda işaretlenmiş hangi sensörler ve parçalar var? Neden bozulmuşlar ve nerede duruyorlar?', this)" class="text-slate-400 hover:text-white text-xs px-2 py-1 rounded bg-slate-800 border border-slate-700/60 flex items-center gap-1 transition">
-                <i class="fa-solid fa-copy"></i> Kopyala
-              </button>
-            </div>
-            <p class="text-xs text-slate-300 bg-slate-950 p-2.5 rounded-lg border border-slate-800/80 italic">
-              "Atölyemde arızalı ya da hurda işaretlenmiş hangi sensörler ve parçalar var? Neden bozulmuşlar ve nerede duruyorlar?"
-            </p>
-          </div>
-
-          <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-2 hover:border-indigo-500/40 transition">
-            <div class="flex items-center justify-between">
-              <span class="text-xs font-bold text-emerald-400 flex items-center gap-1.5">
-                <i class="fa-solid fa-boxes-packing"></i> Hızlı Parça Ekleme
-              </span>
-              <button onclick="copyText('Stoka 10 adet 220 Ohm direnç (Direnç Organizeri 1) ve 2 adet ESP32-WROOM ekle.', this)" class="text-slate-400 hover:text-white text-xs px-2 py-1 rounded bg-slate-800 border border-slate-700/60 flex items-center gap-1 transition">
-                <i class="fa-solid fa-copy"></i> Kopyala
-              </button>
-            </div>
-            <p class="text-xs text-slate-300 bg-slate-950 p-2.5 rounded-lg border border-slate-800/80 italic">
-              "Stoka 10 adet 220 Ohm direnç (Direnç Organizeri 1) ve 2 adet ESP32-WROOM ekle."
-            </p>
-          </div>
-
-          <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-2 hover:border-indigo-500/40 transition">
-            <div class="flex items-center justify-between">
-              <span class="text-xs font-bold text-purple-400 flex items-center gap-1.5">
-                <i class="fa-solid fa-clipboard-check"></i> Draft Sipariş Yönetimi
-              </span>
-              <button onclick="copyText('Kayıtlı taslak siparişlerimi listele ve ilk sıradaki siparişi doğrudan Robotistan sepetine aktar.', this)" class="text-slate-400 hover:text-white text-xs px-2 py-1 rounded bg-slate-800 border border-slate-700/60 flex items-center gap-1 transition">
-                <i class="fa-solid fa-copy"></i> Kopyala
-              </button>
-            </div>
-            <p class="text-xs text-slate-300 bg-slate-950 p-2.5 rounded-lg border border-slate-800/80 italic">
-              "Kayıtlı taslak siparişlerimi listele ve ilk sıradaki siparişi doğrudan Robotistan sepetine aktar."
-            </p>
-          </div>
-        </div>
-      </div>
-
-      <!-- REST API & cURL Rehberi -->
-      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4">
-        <div class="flex items-center justify-between">
-          <div class="flex items-center gap-2">
-            <i class="fa-solid fa-code text-indigo-400 text-lg"></i>
-            <h3 class="text-lg font-bold text-white">REST API & Kimlik Doğrulama (cURL)</h3>
-          </div>
-          <span class="text-xs bg-indigo-500/10 text-indigo-300 px-2.5 py-1 rounded-full border border-indigo-500/20">
-            HTTP Basic & Bearer Token
-          </span>
-        </div>
-        <p class="text-xs text-slate-300">
-          Kendi Python / Node.js scriptlerinizden veya cURL üzerinden Electra REST API'sine erişirken kimlik doğrulama başlığı gereklidir.
-        </p>
-
-        <div class="space-y-3">
+        <div class="space-y-2 text-xs">
           <div>
             <div class="flex items-center justify-between mb-1">
-              <span class="text-xs font-semibold text-slate-300">1. Stok İstatistiklerini Çekme (Basic Auth):</span>
-              <button onclick="copyCode('curl-stats', this)" class="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-1 px-2 py-0.5 rounded bg-slate-800 border border-slate-700/60 transition">
+              <span class="text-[#8e8e93]">1. Stok İstatistikleri:</span>
+              <button onclick="copyCode('curl-stats', this)" class="apple-btn-secondary text-[11px] px-2 py-0.5">
                 <i class="fa-solid fa-copy"></i> Kopyala
               </button>
             </div>
-            <pre class="bg-slate-950 p-2.5 rounded-lg border border-slate-800 text-xs font-mono text-slate-300 overflow-x-auto"><code id="curl-stats">curl -s -u admin:alp236330 https://electra.matelab.dev/api/stats</code></pre>
+            <pre class="bg-[#0c0c0e] p-2.5 rounded-lg border border-[#222225] font-mono text-white/90 overflow-x-auto"><code id="curl-stats">curl -s -u admin:alp236330 https://electra.matelab.dev/api/stats</code></pre>
           </div>
 
           <div>
             <div class="flex items-center justify-between mb-1">
-              <span class="text-xs font-semibold text-slate-300">2. Parça Arama:</span>
-              <button onclick="copyCode('curl-search', this)" class="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-1 px-2 py-0.5 rounded bg-slate-800 border border-slate-700/60 transition">
+              <span class="text-[#8e8e93]">2. Parça Arama:</span>
+              <button onclick="copyCode('curl-search', this)" class="apple-btn-secondary text-[11px] px-2 py-0.5">
                 <i class="fa-solid fa-copy"></i> Kopyala
               </button>
             </div>
-            <pre class="bg-slate-950 p-2.5 rounded-lg border border-slate-800 text-xs font-mono text-slate-300 overflow-x-auto"><code id="curl-search">curl -s -u admin:alp236330 "https://electra.matelab.dev/api/components?q=ESP32"</code></pre>
-          </div>
-
-          <div>
-            <div class="flex items-center justify-between mb-1">
-              <span class="text-xs font-semibold text-slate-300">3. Taslak Siparişleri Getirme:</span>
-              <button onclick="copyCode('curl-drafts', this)" class="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-1 px-2 py-0.5 rounded bg-slate-800 border border-slate-700/60 transition">
-                <i class="fa-solid fa-copy"></i> Kopyala
-              </button>
-            </div>
-            <pre class="bg-slate-950 p-2.5 rounded-lg border border-slate-800 text-xs font-mono text-slate-300 overflow-x-auto"><code id="curl-drafts">curl -s -u admin:alp236330 https://electra.matelab.dev/api/draft-orders</code></pre>
+            <pre class="bg-[#0c0c0e] p-2.5 rounded-lg border border-[#222225] font-mono text-white/90 overflow-x-auto"><code id="curl-search">curl -s -u admin:alp236330 "https://electra.matelab.dev/api/components?q=ESP32"</code></pre>
           </div>
         </div>
       </div>
@@ -1241,34 +782,32 @@
     </section>
   </main>
 
-
-
-  <!-- Parça Ekleme / Düzenleme Modalı -->
-  <div id="component-modal" onclick="if(event.target === this) closeModal()" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
-    <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl animate-fade-in">
-      <div class="px-6 py-4 border-b border-slate-800 flex items-center justify-between">
-        <h3 id="modal-title" class="font-bold text-white text-base">Yeni Elektronik Parça Ekle</h3>
-        <button onclick="closeModal()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+  <!-- Parça Ekleme / Düzenleme Modalı (Apple Sheet) -->
+  <div id="component-modal" onclick="if(event.target === this) closeModal()" class="fixed inset-0 bg-black/70 backdrop-blur-md z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-[#18181b] border border-[#2c2c2e] rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl animate-fade-in">
+      <div class="px-5 py-3.5 border-b border-[#28282b] flex items-center justify-between">
+        <h3 id="modal-title" class="font-semibold text-white text-sm">Elektronik Parça Ekle</h3>
+        <button onclick="closeModal()" class="text-[#8e8e93] hover:text-white"><i class="fa-solid fa-xmark text-sm"></i></button>
       </div>
 
-      <form id="component-form" onsubmit="saveComponent(event)" class="p-6 space-y-4 text-sm">
+      <form id="component-form" onsubmit="saveComponent(event)" class="p-5 space-y-3.5 text-xs">
         <input type="hidden" id="form-comp-id" value="">
 
         <div>
-          <label class="block text-xs font-medium text-slate-300 mb-1">Parça Adı *</label>
+          <label class="block text-[11px] font-medium text-[#8e8e93] mb-1">Parça Adı *</label>
           <input type="text" id="form-name" required placeholder="Örn: 10k Ohm Metal Film Direnç, ESP32 DevKit"
-                 class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:border-emerald-500">
+                 class="apple-input w-full px-3 py-2">
         </div>
 
         <div class="grid grid-cols-2 gap-3">
           <div>
-            <label class="block text-xs font-medium text-slate-300 mb-1">Kategori *</label>
-            <select id="form-category" required class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:border-emerald-500">
+            <label class="block text-[11px] font-medium text-[#8e8e93] mb-1">Kategori *</label>
+            <select id="form-category" required class="apple-input w-full px-3 py-2">
               <option value="resistor">Direnç</option>
               <option value="capacitor">Kondansatör</option>
               <option value="diode_led">Diyot & LED</option>
               <option value="transistor">Transistör & MOSFET</option>
-              <option value="ic_mcu">Entegre & Mikrodenetleyici</option>
+              <option value="ic_mcu">Entegre & MCU</option>
               <option value="sensor">Sensör</option>
               <option value="module">Modül & Kart</option>
               <option value="connector">Konnektör & Kablo</option>
@@ -1279,122 +818,99 @@
           </div>
 
           <div>
-            <label class="block text-xs font-medium text-slate-300 mb-1">Durum *</label>
-            <select id="form-status" required class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:border-emerald-500">
-              <option value="working">🟢 Sağlam / Çalışır</option>
-              <option value="defective">🔴 Arızalı / Bozuk</option>
-              <option value="untested">🟡 Test Bekliyor / Şüpheli</option>
-              <option value="salvage">🟠 Çıkma / Parça Sökülecek</option>
+            <label class="block text-[11px] font-medium text-[#8e8e93] mb-1">Durum *</label>
+            <select id="form-status" required class="apple-input w-full px-3 py-2">
+              <option value="working">Sağlam / Çalışır</option>
+              <option value="defective">Arızalı / Bozuk</option>
+              <option value="untested">Test Bekliyor</option>
+              <option value="salvage">Çıkma / Hurda</option>
             </select>
           </div>
         </div>
 
         <div class="grid grid-cols-2 gap-3">
           <div>
-            <label class="block text-xs font-medium text-slate-300 mb-1">Değer / Özellik</label>
+            <label class="block text-[11px] font-medium text-[#8e8e93] mb-1">Değer / Özellik</label>
             <input type="text" id="form-value" placeholder="Örn: 10kΩ, 100nF, 16MHz, 5V"
-                   class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:border-emerald-500">
+                   class="apple-input w-full px-3 py-2">
           </div>
 
           <div>
-            <label class="block text-xs font-medium text-slate-300 mb-1">Kılıf / Paket Tipi</label>
+            <label class="block text-[11px] font-medium text-[#8e8e93] mb-1">Kılıf / Paket</label>
             <input type="text" id="form-package" placeholder="Örn: DIP-8, SMD 0805, TO-220"
-                   class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:border-emerald-500">
+                   class="apple-input w-full px-3 py-2">
           </div>
         </div>
 
         <div class="grid grid-cols-2 gap-3">
           <div>
-            <label class="block text-xs font-medium text-slate-300 mb-1">Mevcut Adet *</label>
+            <label class="block text-[11px] font-medium text-[#8e8e93] mb-1">Mevcut Adet *</label>
             <input type="number" id="form-quantity" min="0" required value="1"
-                   class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:border-emerald-500">
+                   class="apple-input w-full px-3 py-2">
           </div>
 
           <div>
-            <label class="block text-xs font-medium text-slate-300 mb-1">Kritik Stok Uyarısı (Min)</label>
+            <label class="block text-[11px] font-medium text-[#8e8e93] mb-1">Kritik Stok Uyarısı (Min)</label>
             <input type="number" id="form-min-quantity" min="0" required value="2"
-                   class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:border-emerald-500">
+                   class="apple-input w-full px-3 py-2">
           </div>
         </div>
 
         <div>
-          <label class="block text-xs font-medium text-slate-300 mb-1">Saklama Yeri (Kutu / Çekmece)</label>
+          <label class="block text-[11px] font-medium text-[#8e8e93] mb-1">Saklama Yeri (Kutu / Çekmece)</label>
           <input type="text" id="form-location" placeholder="Örn: Çekmece A-2, Direnç Organizeri 1, Arızalı Kutusu"
-                 class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:border-emerald-500">
+                 class="apple-input w-full px-3 py-2">
         </div>
 
         <div>
-          <label class="block text-xs font-medium text-slate-300 mb-1">Arıza Sebebi / Notlar</label>
-          <textarea id="form-notes" rows="2" placeholder="Örn: Regülatör aşırı ısınıyor, MCU sağlam, 1% tolerans..."
-                    class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:border-emerald-500"></textarea>
+          <label class="block text-[11px] font-medium text-[#8e8e93] mb-1">Arıza / Notlar</label>
+          <textarea id="form-notes" rows="2" placeholder="Örn: Regülatör ısınıyor, MCU sağlam..."
+                    class="apple-input w-full px-3 py-2"></textarea>
         </div>
 
-        <div class="pt-2 flex justify-end gap-2 border-t border-slate-800">
-          <button type="button" onclick="closeModal()" class="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium">İptal</button>
-          <button type="submit" class="px-5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-medium shadow-md">Kaydet</button>
+        <div class="pt-2 flex justify-end gap-2 border-t border-[#28282b]">
+          <button type="button" onclick="closeModal()" class="apple-btn-secondary">İptal</button>
+          <button type="submit" class="apple-btn-primary">Kaydet</button>
         </div>
       </form>
     </div>
   </div>
 
-  <!-- GÜVENLİK VE GİRİŞ EKRANI (AUTH OVERLAY) -->
-  <div id="login-screen" class="fixed inset-0 z-50 bg-[#0b1120]/95 backdrop-blur-md flex items-center justify-center p-4">
-    <div class="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-md p-8 shadow-2xl relative overflow-hidden animate-fade-in">
-      <!-- Glow effect -->
-      <div class="absolute -top-12 -right-12 w-32 h-32 bg-emerald-500/10 rounded-full blur-2xl pointer-events-none"></div>
-      <div class="absolute -bottom-12 -left-12 w-32 h-32 bg-cyan-500/10 rounded-full blur-2xl pointer-events-none"></div>
-
-      <div class="text-center mb-6">
-        <div class="w-16 h-16 mx-auto rounded-2xl bg-gradient-to-tr from-emerald-500 to-cyan-500 flex items-center justify-center text-slate-950 text-2xl font-black shadow-lg shadow-emerald-500/20 mb-3">
-          <i class="fa-solid fa-lock"></i>
-        </div>
-        <h2 class="text-xl font-bold text-white">ElectroStock Girişi</h2>
-        <p class="text-xs text-slate-400 mt-1">Atölye envanteri ve sipariş yönetimine erişin</p>
+  <!-- Güvenlik ve Giriş Ekranı (Apple Login Overlay) -->
+  <div id="login-screen" class="fixed inset-0 z-50 bg-black/90 backdrop-blur-xl flex items-center justify-center p-4">
+    <div class="bg-[#18181b] border border-[#2c2c2e] rounded-3xl w-full max-w-sm p-7 shadow-2xl relative animate-fade-in text-center">
+      
+      <div class="w-12 h-12 mx-auto rounded-2xl bg-white/10 flex items-center justify-center text-white text-lg mb-3">
+        <i class="fa-solid fa-lock"></i>
       </div>
+      <h2 class="text-lg font-semibold text-white">Electra Studio</h2>
+      <p class="text-xs text-[#8e8e93] mt-0.5">Atölye envanteri ve sipariş erişimi</p>
 
-      <!-- Güvenlik Bilgisi -->
-      <div class="bg-slate-950/80 border border-slate-800 rounded-xl p-3 mb-5 text-xs text-slate-400 flex items-center justify-between">
-        <div class="flex items-center gap-2">
-          <i class="fa-solid fa-shield-halved text-emerald-400 text-sm"></i>
-          <span>Güvenli Atölye Paneli</span>
-        </div>
-        <span class="font-mono text-emerald-400/80 text-xs">256-bit Korumalı</span>
-      </div>
-
-      <form id="login-form" onsubmit="event.preventDefault(); handleLoginSubmit(event); return false;" class="space-y-4">
-        <div id="login-error-box" class="hidden p-3 rounded-xl bg-rose-950/40 border border-rose-500/40 text-rose-300 text-xs flex items-center gap-2">
-          <i class="fa-solid fa-triangle-exclamation text-rose-400"></i>
-          <span id="login-error-msg">Hatalı kullanıcı adı veya şifre!</span>
+      <form id="login-form" onsubmit="event.preventDefault(); handleLoginSubmit(event); return false;" class="space-y-3.5 mt-5 text-left text-xs">
+        <div id="login-error-box" class="hidden p-2.5 rounded-xl bg-red-950/40 border border-red-500/40 text-red-300 text-xs flex items-center gap-2">
+          <i class="fa-solid fa-triangle-exclamation"></i>
+          <span id="login-error-msg">Hatalı kullanıcı adı veya şifre</span>
         </div>
 
         <div>
-          <label class="block text-xs font-medium text-slate-300 mb-1">Kullanıcı Adı</label>
-          <div class="relative">
-            <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-500 pointer-events-none">
-              <i class="fa-solid fa-user text-xs"></i>
-            </span>
-            <input type="text" id="login-username" value="admin" required
-                   class="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-emerald-500 transition">
-          </div>
+          <label class="block text-[11px] font-medium text-[#8e8e93] mb-1">Kullanıcı Adı</label>
+          <input type="text" id="login-username" value="admin" required
+                 class="apple-input w-full px-3 py-2 text-xs">
         </div>
 
         <div>
-          <label class="block text-xs font-medium text-slate-300 mb-1">Şifre</label>
+          <label class="block text-[11px] font-medium text-[#8e8e93] mb-1">Şifre</label>
           <div class="relative">
-            <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-500 pointer-events-none">
-              <i class="fa-solid fa-key text-xs"></i>
-            </span>
             <input type="password" id="login-password" required placeholder="••••••••"
                    onkeydown="if(event.key==='Enter'){event.preventDefault(); handleLoginSubmit(event);}"
-                   class="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-10 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-emerald-500 transition">
-            <button type="button" onclick="togglePasswordVisibility('login-password')" class="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-500 hover:text-slate-300">
+                   class="apple-input w-full px-3 py-2 text-xs pr-8">
+            <button type="button" onclick="togglePasswordVisibility('login-password')" class="absolute inset-y-0 right-0 pr-2.5 flex items-center text-[#8e8e93] hover:text-white">
               <i class="fa-solid fa-eye text-xs" id="login-password-eye"></i>
             </button>
           </div>
         </div>
 
-        <button type="button" onclick="handleLoginSubmit(event)" id="login-submit-btn" class="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-medium text-sm shadow-lg shadow-emerald-600/30 flex items-center justify-center gap-2 transition mt-2 cursor-pointer">
-          <i class="fa-solid fa-arrow-right-to-bracket"></i>
+        <button type="button" onclick="handleLoginSubmit(event)" id="login-submit-btn" class="apple-btn-primary w-full justify-center py-2.5 mt-2">
           <span>Giriş Yap</span>
         </button>
       </form>
@@ -1402,94 +918,90 @@
   </div>
 
   <!-- Şifre Değiştirme Modalı -->
-  <div id="change-password-modal" onclick="if(event.target === this) closeChangePasswordModal()" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
-    <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl animate-fade-in">
-      <div class="px-6 py-4 border-b border-slate-800 flex items-center justify-between">
-        <h3 class="font-bold text-white text-base flex items-center gap-2">
-          <i class="fa-solid fa-key text-emerald-400"></i> Şifre Değiştir
-        </h3>
-        <button onclick="closeChangePasswordModal()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+  <div id="change-password-modal" onclick="if(event.target === this) closeChangePasswordModal()" class="fixed inset-0 bg-black/70 backdrop-blur-md z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-[#18181b] border border-[#2c2c2e] rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl animate-fade-in">
+      <div class="px-5 py-3.5 border-b border-[#28282b] flex items-center justify-between">
+        <h3 class="font-semibold text-white text-xs">Şifre Değiştir</h3>
+        <button onclick="closeChangePasswordModal()" class="text-[#8e8e93] hover:text-white"><i class="fa-solid fa-xmark text-sm"></i></button>
       </div>
 
-      <form id="change-password-form" onsubmit="event.preventDefault(); handleChangePasswordSubmit(event); return false;" class="p-6 space-y-4 text-sm">
-        <div id="cp-error-box" class="hidden p-3 rounded-xl bg-rose-950/40 border border-rose-500/40 text-rose-300 text-xs flex items-center gap-2">
+      <form id="change-password-form" onsubmit="event.preventDefault(); handleChangePasswordSubmit(event); return false;" class="p-5 space-y-3.5 text-xs">
+        <div id="cp-error-box" class="hidden p-2.5 rounded-xl bg-red-950/40 border border-red-500/40 text-red-300 text-xs flex items-center gap-2">
           <i class="fa-solid fa-triangle-exclamation"></i>
           <span id="cp-error-msg">Hata oluştu</span>
         </div>
 
         <div>
-          <label class="block text-xs font-medium text-slate-300 mb-1">Mevcut Şifre *</label>
+          <label class="block text-[11px] font-medium text-[#8e8e93] mb-1">Mevcut Şifre *</label>
           <input type="password" id="cp-old-password" required
-                 class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:border-emerald-500">
+                 class="apple-input w-full px-3 py-2">
         </div>
 
         <div>
-          <label class="block text-xs font-medium text-slate-300 mb-1">Yeni Şifre (En az 4 karakter) *</label>
+          <label class="block text-[11px] font-medium text-[#8e8e93] mb-1">Yeni Şifre (En az 4 karakter) *</label>
           <input type="password" id="cp-new-password" required minlength="4"
-                 class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:border-emerald-500">
+                 class="apple-input w-full px-3 py-2">
         </div>
 
         <div>
-          <label class="block text-xs font-medium text-slate-300 mb-1">Yeni Şifre Tekrar *</label>
+          <label class="block text-[11px] font-medium text-[#8e8e93] mb-1">Yeni Şifre Tekrar *</label>
           <input type="password" id="cp-confirm-password" required minlength="4"
-                 class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:border-emerald-500">
+                 class="apple-input w-full px-3 py-2">
         </div>
 
-        <div class="pt-2 flex justify-end gap-2 border-t border-slate-800">
-          <button type="button" onclick="closeChangePasswordModal()" class="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium">İptal</button>
-          <button type="submit" class="px-5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-medium shadow-md">Güncelle</button>
+        <div class="pt-2 flex justify-end gap-2 border-t border-[#28282b]">
+          <button type="button" onclick="closeChangePasswordModal()" class="apple-btn-secondary">İptal</button>
+          <button type="submit" class="apple-btn-primary">Güncelle</button>
         </div>
       </form>
     </div>
   </div>
 
   <!-- Taslak Siparişe Kalem Ekleme Modalı -->
-  <div id="add-draft-item-modal" onclick="if(event.target === this) closeAddDraftItemModal()" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
-    <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl animate-fade-in">
-      <div class="px-6 py-4 border-b border-slate-800 flex items-center justify-between">
-        <h3 class="font-bold text-white text-base flex items-center gap-2">
-          <i class="fa-solid fa-plus-circle text-purple-400"></i> <span id="add-draft-item-modal-title">Taslağa Kalem Ekle</span>
-        </h3>
-        <button onclick="closeAddDraftItemModal()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+  <div id="add-draft-item-modal" onclick="if(event.target === this) closeAddDraftItemModal()" class="fixed inset-0 bg-black/70 backdrop-blur-md z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-[#18181b] border border-[#2c2c2e] rounded-2xl w-full max-w-md overflow-hidden shadow-2xl animate-fade-in">
+      <div class="px-5 py-3.5 border-b border-[#28282b] flex items-center justify-between">
+        <h3 class="font-semibold text-white text-xs" id="add-draft-item-modal-title">Taslağa Kalem Ekle</h3>
+        <button onclick="closeAddDraftItemModal()" class="text-[#8e8e93] hover:text-white"><i class="fa-solid fa-xmark text-sm"></i></button>
       </div>
 
-      <form id="add-draft-item-form" onsubmit="event.preventDefault(); submitAddDraftItem(event); return false;" class="p-6 space-y-4 text-sm">
+      <form id="add-draft-item-form" onsubmit="event.preventDefault(); submitAddDraftItem(event); return false;" class="p-5 space-y-3.5 text-xs">
         <input type="hidden" id="draft-item-draft-id" value="">
         
         <div>
-          <label class="block text-xs font-medium text-slate-300 mb-1">Ürün / Parça Adı *</label>
-          <input type="text" id="draft-item-title" required placeholder="Örn: TP4056 Type-C Lipo Şarj Modülü veya ATGM336H GPS"
-                 class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:border-purple-500">
+          <label class="block text-[11px] font-medium text-[#8e8e93] mb-1">Ürün / Parça Adı *</label>
+          <input type="text" id="draft-item-title" required placeholder="Örn: TP4056 Type-C Lipo Şarj Modülü"
+                 class="apple-input w-full px-3 py-2">
         </div>
 
         <div class="grid grid-cols-2 gap-3">
           <div>
-            <label class="block text-xs font-medium text-slate-300 mb-1">Adet *</label>
+            <label class="block text-[11px] font-medium text-[#8e8e93] mb-1">Adet *</label>
             <input type="number" id="draft-item-quantity" required min="1" value="1"
-                   class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:border-purple-500">
+                   class="apple-input w-full px-3 py-2">
           </div>
           <div>
-            <label class="block text-xs font-medium text-slate-300 mb-1">Kaynak / Tedarikçi</label>
-            <select id="draft-item-source" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:border-purple-500">
-              <option value="market">Piyasa / Genel Arama</option>
+            <label class="block text-[11px] font-medium text-[#8e8e93] mb-1">Tedarikçi</label>
+            <select id="draft-item-source" class="apple-input w-full px-3 py-2">
+              <option value="market">Piyasa / Genel</option>
               <option value="robotistan">Robotistan</option>
               <option value="direnc">Direnç.net</option>
-              <option value="hiberbilisim">Hiber Bilişim</option>
-              <option value="aliexpress">AliExpress</option>
-              <option value="local">Atölye / Yerel</option>
+              <option value="robotronik">Robotronik</option>
+              <option value="motorobit">Motorobit</option>
+              <option value="local">Atölye</option>
             </select>
           </div>
         </div>
 
         <div class="grid grid-cols-2 gap-3">
           <div>
-            <label class="block text-xs font-medium text-slate-300 mb-1">Tahmini Fiyat (TL)</label>
+            <label class="block text-[11px] font-medium text-[#8e8e93] mb-1">Tahmini Fiyat (TL)</label>
             <input type="number" step="0.01" id="draft-item-price" placeholder="Örn: 45.50"
-                   class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:border-purple-500">
+                   class="apple-input w-full px-3 py-2">
           </div>
           <div>
-            <label class="block text-xs font-medium text-slate-300 mb-1">Stok Durumu</label>
-            <select id="draft-item-in-stock" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:border-purple-500">
+            <label class="block text-[11px] font-medium text-[#8e8e93] mb-1">Stok Durumu</label>
+            <select id="draft-item-in-stock" class="apple-input w-full px-3 py-2">
               <option value="0">⚪ Belirsiz / Piyasada Aranacak</option>
               <option value="1">🟢 Stokta Var</option>
             </select>
@@ -1497,37 +1009,36 @@
         </div>
 
         <div>
-          <label class="block text-xs font-medium text-slate-300 mb-1">Ürün Linki (URL)</label>
+          <label class="block text-[11px] font-medium text-[#8e8e93] mb-1">Ürün Linki (URL)</label>
           <input type="url" id="draft-item-url" placeholder="https://..."
-                 class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:border-purple-500">
+                 class="apple-input w-full px-3 py-2">
         </div>
 
         <div>
-          <label class="block text-xs font-medium text-slate-300 mb-1">Not / Teknik Özellik</label>
-          <input type="text" id="draft-item-notes" placeholder="Örn: DW01A + 8205A korumalı, 1S LiPo için"
-                 class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:border-purple-500">
+          <label class="block text-[11px] font-medium text-[#8e8e93] mb-1">Not</label>
+          <input type="text" id="draft-item-notes" placeholder="Örn: 1S LiPo korumalı"
+                 class="apple-input w-full px-3 py-2">
         </div>
 
-        <div class="pt-2 flex justify-end gap-2 border-t border-slate-800">
-          <button type="button" onclick="closeAddDraftItemModal()" class="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium">İptal</button>
-          <button type="submit" class="px-5 py-2 rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-medium shadow-md flex items-center gap-1.5 cursor-pointer">
-            <i class="fa-solid fa-plus"></i> Kalemi Ekle
-          </button>
+        <div class="pt-2 flex justify-end gap-2 border-t border-[#28282b]">
+          <button type="button" onclick="closeAddDraftItemModal()" class="apple-btn-secondary">İptal</button>
+          <button type="submit" class="apple-btn-primary">Kalemi Ekle</button>
         </div>
       </form>
     </div>
   </div>
 
-  <!-- Toast Bildirimi -->
-  <div id="toast" class="fixed bottom-5 right-5 z-50 bg-slate-900 border border-emerald-500 text-white px-4 py-3 rounded-xl shadow-xl flex items-center gap-2 transform translate-y-20 opacity-0 transition-all duration-300">
-    <i class="fa-solid fa-circle-check text-emerald-400"></i>
+  <!-- Toast Bildirimi (Apple Notification Pill) -->
+  <div id="toast" class="fixed bottom-5 right-5 z-50 bg-[#1c1c1e] border border-[#2c2c2e] text-white px-4 py-2.5 rounded-full shadow-2xl flex items-center gap-2 transform translate-y-20 opacity-0 transition-all duration-300 text-xs">
+    <i class="fa-solid fa-circle-check text-[#34c759]"></i>
     <span id="toast-text">İşlem başarıyla gerçekleştirildi</span>
   </div>
 
-  <footer class="border-t border-slate-900 bg-slate-950/80 py-4 text-center text-xs text-slate-500">
-    ElectroStock & AI MCP Server • Robotistan Canlı Stok Entegrasyonu • %100 Yerel ve Güvenli
+  <!-- Minimal Footer -->
+  <footer class="border-t border-[#1f1f23] py-4 text-center text-[11px] text-[#636366]">
+    Electra Studio • Atölye Envanter & Robotistan Stok Entegrasyonu • Yerel & Güvenli
   </footer>
 
-  <script src="/app.js?v=2.9.4"></script>
+  <script src="/app.js?v=2.9.5"></script>
 </body>
 </html>

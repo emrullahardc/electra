@@ -1,43 +1,212 @@
-/* ElectroStock Custom Workbench Theme */
+/* Electra - Apple Minimalist Studio Theme */
+
+:root {
+  --apple-bg: #000000;
+  --apple-surface: #141416;
+  --apple-card: #18181b;
+  --apple-card-hover: #202024;
+  --apple-border: #26262a;
+  --apple-border-subtle: #1f1f23;
+  --apple-text-primary: #f5f5f7;
+  --apple-text-secondary: #8e8e93;
+  --apple-text-tertiary: #636366;
+  --apple-blue: #0071e3;
+  --apple-blue-hover: #0077ed;
+  --apple-green: #34c759;
+  --apple-red: #ff453a;
+  --apple-yellow: #ffd60a;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "SF Pro", -apple-system-subheadline, "Helvetica Neue", Helvetica, Arial, sans-serif;
+  letter-spacing: -0.012em;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: var(--apple-bg);
+  color: var(--apple-text-primary);
+}
+
+/* Smooth micro-animations */
 @keyframes fadeIn {
-  from { opacity: 0; transform: scale(0.97); }
-  to { opacity: 1; transform: scale(1); }
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 .animate-fade-in {
-  animation: fadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: fadeIn 0.18s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
-.active-tab {
-  background-color: #1e293b;
-  color: #38bdf8;
-  border-bottom: 2px solid #06b6d4;
+/* Apple Segmented Control Navigation */
+.apple-segmented-nav {
+  display: inline-flex;
+  background-color: rgba(255, 255, 255, 0.06);
+  padding: 3px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  gap: 2px;
 }
 
-.tab-btn:not(.active-tab) {
-  color: #94a3b8;
+.tab-btn {
+  padding: 6px 13px;
+  font-size: 13px;
+  font-weight: 500;
+  border-radius: 9px;
+  color: #8e8e93;
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+  border: none;
+  background: transparent;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
 }
 
-.tab-btn:not(.active-tab):hover {
-  color: #f1f5f9;
-  background-color: #1e293b66;
+.tab-btn:hover {
+  color: #f5f5f7;
+  background-color: rgba(255, 255, 255, 0.04);
 }
 
-/* Custom scrollbar */
+.tab-btn.active-tab {
+  background-color: rgba(255, 255, 255, 0.14);
+  color: #ffffff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4), inset 0 0.5px 0.5px rgba(255, 255, 255, 0.2);
+  font-weight: 600;
+}
+
+/* Custom Minimalist Scrollbar */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #0f172a;
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #334155;
+  background: #2c2c2e;
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #475569;
+  background: #3a3a3c;
+}
+
+/* Apple Cards */
+.apple-card {
+  background-color: #141416;
+  border: 1px solid #242426;
+  border-radius: 16px;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.apple-card:hover {
+  border-color: #323236;
+}
+
+/* Apple Inputs */
+.apple-input {
+  background-color: #101012;
+  border: 1px solid #28282b;
+  border-radius: 10px;
+  color: #f5f5f7;
+  font-size: 13px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.apple-input:focus {
+  outline: none;
+  border-color: #0071e3;
+  box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.18);
+}
+
+/* Apple Buttons */
+.apple-btn-primary {
+  background-color: #ffffff;
+  color: #000000;
+  font-weight: 500;
+  font-size: 13px;
+  border-radius: 980px;
+  padding: 6px 14px;
+  transition: background-color 0.15s ease, transform 0.05s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: none;
+  cursor: pointer;
+}
+
+.apple-btn-primary:hover {
+  background-color: #e5e5ea;
+}
+
+.apple-btn-primary:active {
+  transform: scale(0.98);
+}
+
+.apple-btn-secondary {
+  background-color: rgba(255, 255, 255, 0.07);
+  color: #f5f5f7;
+  font-weight: 500;
+  font-size: 13px;
+  border-radius: 980px;
+  padding: 6px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.apple-btn-secondary:hover {
+  background-color: rgba(255, 255, 255, 0.12);
+}
+
+.apple-btn-secondary:active {
+  transform: scale(0.98);
+}
+
+/* Apple Badges */
+.apple-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  border-radius: 980px;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+
+.apple-badge-default {
+  background-color: rgba(255, 255, 255, 0.06);
+  color: #a1a1aa;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.apple-badge-green {
+  background-color: rgba(52, 199, 89, 0.12);
+  color: #34c759;
+  border: 1px solid rgba(52, 199, 89, 0.22);
+}
+
+.apple-badge-amber {
+  background-color: rgba(255, 214, 10, 0.12);
+  color: #ffd60a;
+  border: 1px solid rgba(255, 214, 10, 0.22);
+}
+
+.apple-badge-red {
+  background-color: rgba(255, 69, 58, 0.12);
+  color: #ff453a;
+  border: 1px solid rgba(255, 69, 58, 0.22);
+}
+
+.apple-badge-blue {
+  background-color: rgba(10, 132, 255, 0.12);
+  color: #0a84ff;
+  border: 1px solid rgba(10, 132, 255, 0.22);
 }
