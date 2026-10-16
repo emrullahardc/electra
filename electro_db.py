@@ -12,7 +12,7 @@ import re
 from datetime import datetime, timedelta
 from typing import List, Dict, Any, Optional, Tuple
 
-DB_PATH = "electro_stock.db"
+DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "electro_stock.db")
 
 CATEGORIES = {
     "resistor": "Direnç",

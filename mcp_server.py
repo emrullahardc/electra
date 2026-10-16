@@ -584,7 +584,13 @@ class MCPServer:
                         "doğrudan o mağazayı eklemek yerine KULLANICIYA SOR: 'Bu parça Robotistan'da X TL (Aynı gün kargo), "
                         "fakat [Mağaza]'da Y TL (Z TL daha ucuz). Kargo süresini bekleyip [Mağaza] üzerinden mi alalım, "
                         "yoksa aynı gün gelmesi için Robotistan'ı mı seçelim?'.\n"
-                        "4. ROBOTİSTAN'DA STOK YOKSA: En uygun alternatif mağazayı açıkça belirterek taslağa ekle."
+                        "4. ROBOTİSTAN'DA STOK YOKSA: En uygun alternatif mağazayı açıkça belirterek taslağa ekle.\n"
+                        "5. ANLAMSAL VE TEKNİK UYUMLULUK DİKKATİ:\n"
+                        "   - PİL / BATARYA: Pil ararken 'koruma kartı' (BMS/PCM), şarj devresi, yuva veya gösterge gibi aksesuarları ASLA pil sanma. Sadece gerçek kimyasal hücreleri/bataryaları (LiPo/18650) seç.\n"
+                        "   - KONNEKTÖR: Pin sayısına dikkat et (örn: 2 pin istendiyse 4 veya 6 pinli ürünleri eşleştirme).\n"
+                        "   - KONDANSATÖR: SMD/Seramik (MLCC) istendiyse 63V Elektrolitik kutu/can tipi seçme; montaj ve dielektrik tipini kontrol et.\n"
+                        "   - DİRENÇ: El lehimine uygunluk (DIP / THT 1/4W) veya SMD (0805 vb.) kılıf ayrımına dikkat et.\n"
+                        "6. DONANIM VE ALIAS BİLİNCİ: Bir parça Robotistan'da ana adıyla (örn: NEO-6M) bulunamazsa, popüler kart/modül kodunu (örn: GY-NEO6MV2) veya muadilini (ATGM336H) mutlaka tara."
                     )
                 }
             }
@@ -1073,7 +1079,7 @@ class MCPServer:
 
             elif tool_name == "electro_get_product_details":
                 p_url = str(args.get("url", "")).strip()
-                details = scraper.get_product_details(p_url)
+                details = market_scraper.get_universal_product_details(p_url)
                 if details.get("error"):
                     return {
                         "jsonrpc": "2.0",
@@ -1084,7 +1090,7 @@ class MCPServer:
                 md = [f"# 🔍 Ürün Teknik Detayları: {details['title']}\n"]
                 md.append(f"- **Fiyat:** {details['price']}")
                 md.append(f"- **Stok Durumu:** {details['stock_status']}")
-                md.append(f"- **Ürün Linki:** [Robotistan Sayfasını Aç]({details['url']})\n")
+                md.append(f"- **Ürün Linki:** [Ürün Sayfasını Aç]({details['url']})\n")
 
                 if details.get("specs"):
                     md.append("### 📋 Teknik Özellikler & Parametreler:")

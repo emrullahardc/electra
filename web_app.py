@@ -313,6 +313,14 @@ class ElectroRequestHandler(http.server.SimpleHTTPRequestHandler):
             return
 
 
+        # 10. OAuth Discovery / .well-known engelleme (MCP istemcilerinin HTML parse etmesini önle)
+        if path.startswith("/.well-known/"):
+            self.send_json({
+                "error": "not_supported",
+                "message": "OAuth is not configured on this server. Please use Bearer token or URL token parameter."
+            }, status=404)
+            return
+
         # Statik dosya sunumu (HTML, CSS, JS)
         if path == "/" or not os.path.exists(os.path.join(STATIC_DIR, path.lstrip("/"))):
             self.path = "/index.html"

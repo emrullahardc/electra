@@ -131,7 +131,28 @@ class RobotistanScraper:
 
         parsed_items = self._parse_html(html_content)
 
-        # Eğer sonuç çıkmadıysa akıllı arama gevşetme (Relaxed Query) dene:
+        # 1. Eğer sonuç çıkmadıysa donanım alias'larını (örn: NEO-6M -> GY-NEO6MV2) dene:
+        if not parsed_items or not any(it.get("in_stock") for it in parsed_items):
+            try:
+                from component_matcher import get_component_search_aliases
+                aliases = get_component_search_aliases(q)
+                for alias in aliases:
+                    if alias.lower() == q.lower() or alias.lower() == search_target.lower():
+                        continue
+                    try:
+                        alias_url = f"{self.base_url}/arama?q={urllib.parse.quote(alias)}"
+                        alias_html = self._fetch_html(alias_url)
+                        alias_items = self._parse_html(alias_html)
+                        if alias_items:
+                            # Bulunan alias ürünlerini ekle
+                            parsed_items.extend(alias_items)
+                            break
+                    except Exception:
+                        pass
+            except ImportError:
+                pass
+
+        # 2. Eğer hâlâ sonuç yoksa arama gevşetme (Relaxed Query) dene:
         if not parsed_items:
             relaxed = relax_query(search_target)
             if relaxed and relaxed != search_target:
@@ -144,13 +165,26 @@ class RobotistanScraper:
                 except Exception:
                     pass
 
+        # 3. Anlamsal Uyumluluk & Negatif Filtreleme (Entity Guard)
+        # Pil ararken koruma kartı gelmesini, pin sayısı uyuşmazlığını engelle
+        valid_items = []
+        try:
+            from component_matcher import evaluate_component_relevance
+            for it in parsed_items:
+                is_valid, rel_score, reason = evaluate_component_relevance(q, it["title"])
+                if is_valid:
+                    it["relevance_score"] = rel_score
+                    valid_items.append(it)
+        except ImportError:
+            valid_items = parsed_items
+
         # Önbelleğe kaydet
         _CACHE[cache_key] = {
             "timestamp": now,
-            "results": parsed_items
+            "results": valid_items
         }
 
-        final_results = parsed_items
+        final_results = valid_items
         if only_in_stock:
             final_results = [r for r in final_results if r["in_stock"]]
 
