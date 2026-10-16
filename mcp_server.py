@@ -399,14 +399,19 @@ TOOLS = [
     {
         "name": "electro_get_component_equivalents",
         "description": (
-            "Bir elektronik komponentin (GPS modülü, ivmeölçer, MCU, LDO regülatör, MOSFET, şarj kartı vb.) muadillerini, doğrudan yerine geçebilecek (drop-in) veya daha düşük güç/maliyet sağlayan alternatiflerini karşılaştırmalı olarak listeler. (Örn: 'NEO-6M yerine ATGM336H / MAX-M10S', 'LIS3DH yerine MMA8452Q', 'HT7833 LDO')."
+            "Bir elektronik komponentin (MOSFET, LDO regülatör, op-amp, mikrodenetleyici, sensör, motor sürücü vb.) doğrudan yerine geçebilecek (drop-in) veya daha düşük güç/maliyet sağlayan alternatiflerini karşılaştırmalı olarak listeler. İsteğe bağlı olarak bulunan muadillerin Türkiye marketlerindeki (Robotronik, Robotistan, Direnç.net, Motorobit) canlı stok ve fiyatlarını çeker."
         ),
         "inputSchema": {
             "type": "object",
             "properties": {
                 "component_name": {
                     "type": "string",
-                    "description": "Muadili aranan parça veya kategori adı (örn: 'NEO-6M', 'LIS3DH', 'ESP32-C3 Super Mini', 'HT7833', 'AO3401A', 'LDO 3.3V')"
+                    "description": "Muadili aranan parça veya kategori adı (örn: 'IRFZ44N', 'LM358', 'DHT11', 'L298N', 'NEO-6M', '7805', 'HC-05')"
+                },
+                "check_market_prices": {
+                    "type": "boolean",
+                    "description": "Muadiller için Türk tedarikçilerinden canlı fiyat ve stok taraması yapılsın mı (varsayılan: true)",
+                    "default": True
                 }
             },
             "required": ["component_name"]
@@ -1086,17 +1091,8 @@ class MCPServer:
 
             elif tool_name == "electro_get_component_equivalents":
                 c_name = str(args.get("component_name", "")).strip()
-                eq_res = component_equivalents.find_component_equivalents(c_name)
-                if not eq_res:
-                    return {
-                        "jsonrpc": "2.0",
-                        "id": msg_id,
-                        "result": {
-                            "content": [{"type": "text", "text": f"'{c_name}' parçası veya kategorisi için yerleşik muadil listesi bulunamadı. Genel arama yapabilirsiniz."}],
-                            "found": False
-                        }
-                    }
-
+                check_prices = bool(args.get("check_market_prices", True))
+                eq_res = component_equivalents.find_component_equivalents_with_market(c_name, check_market_prices=check_prices)
                 return {
                     "jsonrpc": "2.0",
                     "id": msg_id,
