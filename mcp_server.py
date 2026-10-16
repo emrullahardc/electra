@@ -18,6 +18,7 @@ import logging
 from typing import Dict, Any, List, Optional
 import electro_db
 import project_matcher
+import component_equivalents
 from robotistan_scraper import scraper
 
 # Logları stderr'e yaz (stdio MCP protokolünde stdout yalnızca JSON-RPC içindir)
@@ -357,6 +358,57 @@ TOOLS = [
                     "description": "Silinecek kalemin başlığı veya anahtar kelimesi (örn: 'MAX-M10S', 'LIS3DH')"
                 }
             }
+        }
+    },
+    {
+        "name": "electro_add_draft_order_item",
+        "description": (
+            "Mevcut bir taslak (draft) sipariş listesine yeni bir ürün/parça kalemi ekler ve taslağın toplam tutarını günceller. "
+            "Robotistan dışı parçalar için 'source' ('market', 'direnc', 'hiberbilisim', 'aliexpress', 'local') belirtilebilir."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "draft_id": {"type": "integer", "description": "Kalemin ekleneceği taslak sipariş ID numarası"},
+                "title": {"type": "string", "description": "Parça/ürün adı (örn: '1S LiPo Koruma Kartı (PCM/BMS)')"},
+                "quantity": {"type": "integer", "description": "Adet (varsayılan: 1)"},
+                "price": {"type": "string", "description": "Metin fiyatı (örn: '25.00 TL')"},
+                "price_value": {"type": "number", "description": "Sayısal TL fiyatı (örn: 25.0)"},
+                "url": {"type": "string", "description": "Varsa ürün satın alma linki"},
+                "source": {"type": "string", "description": "Tedarik kaynağı (örn: 'robotistan', 'direnc', 'hiberbilisim', 'market', 'aliexpress')", "default": "market"},
+                "in_stock": {"type": "boolean", "description": "Stok durumu"},
+                "notes": {"type": "string", "description": "Parça notu veya gereksinim açıklaması"}
+            },
+            "required": ["draft_id", "title"]
+        }
+    },
+    {
+        "name": "electro_get_product_details",
+        "description": (
+            "Robotistan veya diğer elektronik mağaza ürün sayfasının detaylı teknik özelliklerini (boyut, konnektör tipi, koruma devresi, voltaj, kapasite, ağırlık, parametre tablosu) çeker ve karşılaştırma için özetler."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "url": {"type": "string", "description": "İncelenecek ürünün tam web linki"}
+            },
+            "required": ["url"]
+        }
+    },
+    {
+        "name": "electro_get_component_equivalents",
+        "description": (
+            "Bir elektronik komponentin (GPS modülü, ivmeölçer, MCU, LDO regülatör, MOSFET, şarj kartı vb.) muadillerini, doğrudan yerine geçebilecek (drop-in) veya daha düşük güç/maliyet sağlayan alternatiflerini karşılaştırmalı olarak listeler. (Örn: 'NEO-6M yerine ATGM336H / MAX-M10S', 'LIS3DH yerine MMA8452Q', 'HT7833 LDO')."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "component_name": {
+                    "type": "string",
+                    "description": "Muadili aranan parça veya kategori adı (örn: 'NEO-6M', 'LIS3DH', 'ESP32-C3 Super Mini', 'HT7833', 'AO3401A', 'LDO 3.3V')"
+                }
+            },
+            "required": ["component_name"]
         }
     }
 ]
@@ -853,6 +905,104 @@ class MCPServer:
                         "id": msg_id,
                         "error": {"code": -32602, "message": "Lütfen silinecek kalemin 'item_id' numarasını veya 'draft_id' + 'title_query' parametrelerini belirtin."}
                     }
+
+            elif tool_name == "electro_add_draft_order_item":
+                draft_id = int(args.get("draft_id", 0))
+                title = str(args.get("title", "")).strip()
+                if not draft_id or not title:
+                    return {
+                        "jsonrpc": "2.0",
+                        "id": msg_id,
+                        "error": {"code": -32602, "message": "Lütfen 'draft_id' ve 'title' belirtin."}
+                    }
+
+                url = str(args.get("url", "")).strip()
+                in_stock = bool(args.get("in_stock", True if url else False))
+                source = str(args.get("source", "")).strip() or ("robotistan" if url else "market")
+                price = str(args.get("price", "")).strip()
+                price_val = float(args.get("price_value") or 0.0)
+
+                new_item_id = electro_db.add_item_to_draft_order(
+                    draft_id=draft_id,
+                    item={
+                        "title": title,
+                        "product_id": args.get("product_id"),
+                        "url": url,
+                        "price": price,
+                        "price_value": price_val,
+                        "quantity": int(args.get("quantity", 1)),
+                        "in_stock": in_stock,
+                        "source": source,
+                        "notes": str(args.get("notes", "")).strip()
+                    }
+                )
+                msg = f"✅ '{title}' (Kalem #{new_item_id}) [Kaynak: {source.upper()}] taslak #{draft_id} listesine başarıyla eklendi!"
+                return {
+                    "jsonrpc": "2.0",
+                    "id": msg_id,
+                    "result": {
+                        "content": [{"type": "text", "text": msg}],
+                        "success": True,
+                        "item_id": new_item_id,
+                        "draft_id": draft_id
+                    }
+                }
+
+            elif tool_name == "electro_get_product_details":
+                p_url = str(args.get("url", "")).strip()
+                details = scraper.get_product_details(p_url)
+                if details.get("error"):
+                    return {
+                        "jsonrpc": "2.0",
+                        "id": msg_id,
+                        "error": {"code": -32602, "message": details["error"]}
+                    }
+
+                md = [f"# 🔍 Ürün Teknik Detayları: {details['title']}\n"]
+                md.append(f"- **Fiyat:** {details['price']}")
+                md.append(f"- **Stok Durumu:** {details['stock_status']}")
+                md.append(f"- **Ürün Linki:** [Robotistan Sayfasını Aç]({details['url']})\n")
+
+                if details.get("specs"):
+                    md.append("### 📋 Teknik Özellikler & Parametreler:")
+                    for sp in details["specs"]:
+                        md.append(f"- {sp}")
+                    md.append("")
+
+                if details.get("description"):
+                    md.append("### 📝 Ürün Açıklaması:")
+                    md.append(details["description"])
+
+                return {
+                    "jsonrpc": "2.0",
+                    "id": msg_id,
+                    "result": {
+                        "content": [{"type": "text", "text": "\n".join(md)}],
+                        "details": details
+                    }
+                }
+
+            elif tool_name == "electro_get_component_equivalents":
+                c_name = str(args.get("component_name", "")).strip()
+                eq_res = component_equivalents.find_component_equivalents(c_name)
+                if not eq_res:
+                    return {
+                        "jsonrpc": "2.0",
+                        "id": msg_id,
+                        "result": {
+                            "content": [{"type": "text", "text": f"'{c_name}' parçası veya kategorisi için yerleşik muadil listesi bulunamadı. Genel arama yapabilirsiniz."}],
+                            "found": False
+                        }
+                    }
+
+                return {
+                    "jsonrpc": "2.0",
+                    "id": msg_id,
+                    "result": {
+                        "content": [{"type": "text", "text": eq_res["markdown_report"]}],
+                        "data": eq_res
+                    }
+                }
 
             else:
                 return {

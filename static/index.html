@@ -590,7 +590,7 @@
               <i class="fa-solid fa-terminal"></i> Model Context Protocol (MCP)
             </span>
             <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-              <i class="fa-solid fa-circle text-[8px]"></i> 15 Araç Aktif
+              <i class="fa-solid fa-circle text-[8px]"></i> 19 Araç Aktif
             </span>
           </div>
           <h2 class="text-2xl font-bold text-white flex items-center gap-2">
@@ -758,7 +758,7 @@
       <!-- Kullanılabilir MCP Araçları (Tools Kataloğu) -->
       <div class="space-y-4">
         <h3 class="text-lg font-bold text-white flex items-center gap-2">
-          <i class="fa-solid fa-toolbox text-indigo-400"></i> Dahili MCP Araçları (15 Tools)
+          <i class="fa-solid fa-toolbox text-indigo-400"></i> Dahili MCP Araçları (19 Tools)
         </h3>
         <p class="text-xs text-slate-400">
           AI asistanınız bu araçları otomatik olarak algılar ve sohbette ihtiyaç duyulduğunda arka planda çalıştırır.
@@ -931,6 +931,104 @@
             </p>
             <div class="text-[11px] text-slate-400 pt-1 border-t border-slate-800">
               <b>Parametreler:</b> <code class="text-slate-300">title, url, price, product_id</code>
+            </div>
+          </div>
+
+          <!-- Tool 13 -->
+          <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-4 space-y-2 hover:border-slate-700 transition">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-mono font-bold text-purple-400">electro_get_draft_order</span>
+              <span class="text-[10px] bg-purple-500/20 text-purple-300 px-1.5 py-0.5 rounded border border-purple-500/30">Draft</span>
+            </div>
+            <p class="text-xs text-slate-300">
+              Belirtilen taslak siparişin tüm kalemlerini (Kalem ID, kaynak, adet, fiyat ve stok) listeler.
+            </p>
+            <div class="text-[11px] text-slate-400 pt-1 border-t border-slate-800">
+              <b>Parametreler:</b> <code class="text-slate-300">draft_id (int)</code>
+            </div>
+          </div>
+
+          <!-- Tool 14 -->
+          <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-4 space-y-2 hover:border-slate-700 transition">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-mono font-bold text-purple-400">electro_add_draft_order_item</span>
+              <span class="text-[10px] bg-purple-500/20 text-purple-300 px-1.5 py-0.5 rounded border border-purple-500/30">Draft</span>
+            </div>
+            <p class="text-xs text-slate-300">
+              Mevcut bir taslak siparişe yeni ürün/parça kalemi ekler ve toplam tutarı otomatik günceller.
+            </p>
+            <div class="text-[11px] text-slate-400 pt-1 border-t border-slate-800">
+              <b>Parametreler:</b> <code class="text-slate-300">draft_id, title, quantity, price, url, source, notes</code>
+            </div>
+          </div>
+
+          <!-- Tool 15 -->
+          <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-4 space-y-2 hover:border-slate-700 transition">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-mono font-bold text-rose-400">electro_remove_draft_order_item</span>
+              <span class="text-[10px] bg-rose-500/20 text-rose-300 px-1.5 py-0.5 rounded border border-rose-500/30">Draft</span>
+            </div>
+            <p class="text-xs text-slate-300">
+              Taslaktan belirtilen kalemi doğrudan Kalem ID veya isim aramasıyla siler.
+            </p>
+            <div class="text-[11px] text-slate-400 pt-1 border-t border-slate-800">
+              <b>Parametreler:</b> <code class="text-slate-300">item_id (int) veya draft_id + title_query</code>
+            </div>
+          </div>
+
+          <!-- Tool 16 -->
+          <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-4 space-y-2 hover:border-slate-700 transition">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-mono font-bold text-sky-400">electro_get_product_details</span>
+              <span class="text-[10px] bg-sky-500/20 text-sky-300 px-1.5 py-0.5 rounded border border-sky-500/30">Detay</span>
+            </div>
+            <p class="text-xs text-slate-300">
+              Robotistan ürün sayfasının teknik özellikler tablosunu (boyut, konnektör, voltaj, koruma devresi) çeker.
+            </p>
+            <div class="text-[11px] text-slate-400 pt-1 border-t border-slate-800">
+              <b>Parametreler:</b> <code class="text-slate-300">url (str)</code>
+            </div>
+          </div>
+
+          <!-- Tool 17 -->
+          <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-4 space-y-2 hover:border-slate-700 transition">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-mono font-bold text-amber-400">electro_get_component_equivalents</span>
+              <span class="text-[10px] bg-amber-500/20 text-amber-300 px-1.5 py-0.5 rounded border border-amber-500/30">Muadil</span>
+            </div>
+            <p class="text-xs text-slate-300">
+              Elektronik parçalar için doğrudan pin/işlev uyumlu muadilleri ve düşük güç alternatiflerini önerir.
+            </p>
+            <div class="text-[11px] text-slate-400 pt-1 border-t border-slate-800">
+              <b>Parametreler:</b> <code class="text-slate-300">component_name (str)</code>
+            </div>
+          </div>
+
+          <!-- Tool 18 -->
+          <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-4 space-y-2 hover:border-slate-700 transition">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-mono font-bold text-emerald-400">electro_get_cart</span>
+              <span class="text-[10px] bg-emerald-500/20 text-emerald-300 px-1.5 py-0.5 rounded border border-emerald-500/30">Sepet</span>
+            </div>
+            <p class="text-xs text-slate-300">
+              Robotistan canlı sepetindeki ürünleri, adetleri ve toplam tutarı listeler.
+            </p>
+            <div class="text-[11px] text-slate-400 pt-1 border-t border-slate-800">
+              <b>Parametreler:</b> <code class="text-slate-300">Yok</code>
+            </div>
+          </div>
+
+          <!-- Tool 19 -->
+          <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-4 space-y-2 hover:border-slate-700 transition">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-mono font-bold text-rose-400">electro_clear_cart</span>
+              <span class="text-[10px] bg-rose-500/20 text-rose-300 px-1.5 py-0.5 rounded border border-rose-500/30">Sepet</span>
+            </div>
+            <p class="text-xs text-slate-300">
+              Robotistan sepetini tamamen boşaltır.
+            </p>
+            <div class="text-[11px] text-slate-400 pt-1 border-t border-slate-800">
+              <b>Parametreler:</b> <code class="text-slate-300">Yok</code>
             </div>
           </div>
 
@@ -1258,6 +1356,81 @@
     </div>
   </div>
 
+  <!-- Taslak Siparişe Kalem Ekleme Modalı -->
+  <div id="add-draft-item-modal" onclick="if(event.target === this) closeAddDraftItemModal()" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl animate-fade-in">
+      <div class="px-6 py-4 border-b border-slate-800 flex items-center justify-between">
+        <h3 class="font-bold text-white text-base flex items-center gap-2">
+          <i class="fa-solid fa-plus-circle text-purple-400"></i> <span id="add-draft-item-modal-title">Taslağa Kalem Ekle</span>
+        </h3>
+        <button onclick="closeAddDraftItemModal()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+      </div>
+
+      <form id="add-draft-item-form" onsubmit="event.preventDefault(); submitAddDraftItem(event); return false;" class="p-6 space-y-4 text-sm">
+        <input type="hidden" id="draft-item-draft-id" value="">
+        
+        <div>
+          <label class="block text-xs font-medium text-slate-300 mb-1">Ürün / Parça Adı *</label>
+          <input type="text" id="draft-item-title" required placeholder="Örn: TP4056 Type-C Lipo Şarj Modülü veya ATGM336H GPS"
+                 class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:border-purple-500">
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-medium text-slate-300 mb-1">Adet *</label>
+            <input type="number" id="draft-item-quantity" required min="1" value="1"
+                   class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:border-purple-500">
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-slate-300 mb-1">Kaynak / Tedarikçi</label>
+            <select id="draft-item-source" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:border-purple-500">
+              <option value="market">Piyasa / Genel Arama</option>
+              <option value="robotistan">Robotistan</option>
+              <option value="direnc">Direnç.net</option>
+              <option value="hiberbilisim">Hiber Bilişim</option>
+              <option value="aliexpress">AliExpress</option>
+              <option value="local">Atölye / Yerel</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-medium text-slate-300 mb-1">Tahmini Fiyat (TL)</label>
+            <input type="number" step="0.01" id="draft-item-price" placeholder="Örn: 45.50"
+                   class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:border-purple-500">
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-slate-300 mb-1">Stok Durumu</label>
+            <select id="draft-item-in-stock" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:border-purple-500">
+              <option value="0">⚪ Belirsiz / Piyasada Aranacak</option>
+              <option value="1">🟢 Stokta Var</option>
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-medium text-slate-300 mb-1">Ürün Linki (URL)</label>
+          <input type="url" id="draft-item-url" placeholder="https://..."
+                 class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:border-purple-500">
+        </div>
+
+        <div>
+          <label class="block text-xs font-medium text-slate-300 mb-1">Not / Teknik Özellik</label>
+          <input type="text" id="draft-item-notes" placeholder="Örn: DW01A + 8205A korumalı, 1S LiPo için"
+                 class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:border-purple-500">
+        </div>
+
+        <div class="pt-2 flex justify-end gap-2 border-t border-slate-800">
+          <button type="button" onclick="closeAddDraftItemModal()" class="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium">İptal</button>
+          <button type="submit" class="px-5 py-2 rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-medium shadow-md flex items-center gap-1.5 cursor-pointer">
+            <i class="fa-solid fa-plus"></i> Kalemi Ekle
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <!-- Toast Bildirimi -->
   <div id="toast" class="fixed bottom-5 right-5 z-50 bg-slate-900 border border-emerald-500 text-white px-4 py-3 rounded-xl shadow-xl flex items-center gap-2 transform translate-y-20 opacity-0 transition-all duration-300">
     <i class="fa-solid fa-circle-check text-emerald-400"></i>
@@ -1268,6 +1441,6 @@
     ElectroStock & AI MCP Server • Robotistan Canlı Stok Entegrasyonu • %100 Yerel ve Güvenli
   </footer>
 
-  <script src="/app.js?v=2.9.1"></script>
+  <script src="/app.js?v=2.9.2"></script>
 </body>
 </html>

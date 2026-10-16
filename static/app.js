@@ -1299,11 +1299,14 @@ async function loadDraftOrders() {
           <!-- Aksiyonlar -->
           <div class="pt-3 border-t border-slate-800 flex flex-wrap items-center justify-between gap-2">
             <div class="flex items-center gap-2">
-              <button onclick="applyDraftOrderToCart(${o.id})" class="px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-xs flex items-center gap-1.5 shadow transition">
+              <button onclick="applyDraftOrderToCart(${o.id})" class="px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-xs flex items-center gap-1.5 shadow transition cursor-pointer">
                 <i class="fa-solid fa-cart-plus"></i> Bu Listeyi Sepete Aktar
               </button>
+              <button onclick="openAddDraftItemModal(${o.id}, '${escapeHtml(o.title).replace(/'/g, "\\'")}')" class="px-3 py-2 rounded-lg bg-purple-600/80 hover:bg-purple-600 text-white font-medium text-xs flex items-center gap-1.5 shadow transition cursor-pointer" title="Bu taslağa elle yeni bir ürün kalemi ekle">
+                <i class="fa-solid fa-plus"></i> Kalem Ekle
+              </button>
             </div>
-            <button onclick="deleteDraftOrderPrompt(${o.id})" class="p-2 rounded hover:bg-rose-950/30 text-slate-400 hover:text-rose-400 transition" title="Taslağı Sil">
+            <button onclick="deleteDraftOrderPrompt(${o.id})" class="p-2 rounded hover:bg-rose-950/30 text-slate-400 hover:text-rose-400 transition cursor-pointer" title="Taslağı Sil">
               <i class="fa-solid fa-trash"></i>
             </button>
           </div>
@@ -1382,6 +1385,83 @@ async function deleteDraftOrderPrompt(draftId) {
     }
   } catch (err) {
     console.error("Taslak silme hatası:", err);
+  }
+}
+
+function openAddDraftItemModal(draftId, draftTitle) {
+  const modal = document.getElementById("add-draft-item-modal");
+  if (!modal) return;
+  document.getElementById("draft-item-draft-id").value = draftId;
+  const titleEl = document.getElementById("add-draft-item-modal-title");
+  if (titleEl) {
+    titleEl.textContent = `Taslağa Kalem Ekle (#${draftId} - ${draftTitle || ''})`;
+  }
+  document.getElementById("draft-item-title").value = "";
+  document.getElementById("draft-item-quantity").value = "1";
+  document.getElementById("draft-item-source").value = "market";
+  document.getElementById("draft-item-price").value = "";
+  document.getElementById("draft-item-in-stock").value = "0";
+  document.getElementById("draft-item-url").value = "";
+  document.getElementById("draft-item-notes").value = "";
+  modal.classList.remove("hidden");
+  setTimeout(() => {
+    const input = document.getElementById("draft-item-title");
+    if (input) input.focus();
+  }, 100);
+}
+
+function closeAddDraftItemModal() {
+  const modal = document.getElementById("add-draft-item-modal");
+  if (modal) modal.classList.add("hidden");
+}
+
+async function submitAddDraftItem(event) {
+  if (event) event.preventDefault();
+  const draftId = document.getElementById("draft-item-draft-id").value;
+  if (!draftId) return;
+
+  const title = (document.getElementById("draft-item-title").value || "").trim();
+  const quantity = parseInt(document.getElementById("draft-item-quantity").value, 10) || 1;
+  const source = document.getElementById("draft-item-source").value;
+  const priceVal = parseFloat(document.getElementById("draft-item-price").value) || 0.0;
+  const inStock = document.getElementById("draft-item-in-stock").value === "1";
+  const url = (document.getElementById("draft-item-url").value || "").trim();
+  const notes = (document.getElementById("draft-item-notes").value || "").trim();
+
+  if (!title) {
+    alert("Lütfen ürün / parça adını girin.");
+    return;
+  }
+
+  try {
+    const payload = {
+      title,
+      quantity,
+      source,
+      price_value: priceVal,
+      price: priceVal > 0 ? `${priceVal.toFixed(2)} TL` : "",
+      in_stock: inStock && Boolean(url),
+      url: url || "",
+      notes: notes || ""
+    };
+
+    const res = await fetch(`/api/draft-orders/${draftId}/items`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+
+    const data = await res.json();
+    if (res.ok && data.success) {
+      closeAddDraftItemModal();
+      showToast(`"${title}" taslak listeye eklendi ✨`);
+      loadDraftOrders();
+    } else {
+      alert("Hata: " + (data.error || "Kalem eklenemedi"));
+    }
+  } catch (err) {
+    console.error("Kalem ekleme hatası:", err);
+    alert("Kalem eklenirken bir hata oluştu: " + err.message);
   }
 }
 
@@ -1531,6 +1611,9 @@ window.copyCode = copyCode;
 window.copyText = copyText;
 window.fallbackCopy = fallbackCopy;
 window.showCopySuccess = showCopySuccess;
+window.openAddDraftItemModal = openAddDraftItemModal;
+window.closeAddDraftItemModal = closeAddDraftItemModal;
+window.submitAddDraftItem = submitAddDraftItem;
 
 
 

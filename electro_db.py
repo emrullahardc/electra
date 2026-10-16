@@ -8,6 +8,7 @@ import json
 import hashlib
 import secrets
 import os
+import re
 from datetime import datetime, timedelta
 from typing import List, Dict, Any, Optional, Tuple
 
@@ -374,9 +375,18 @@ def search_components(
         params = []
 
         if query:
-            q = f"%{query.strip()}%"
-            conditions.append("(name LIKE ? OR value LIKE ? OR package LIKE ? OR notes LIKE ? OR tags LIKE ?)")
-            params.extend([q, q, q, q, q])
+            clean_q = query.strip()
+            # Token bazlı arama: tire, alt çizgi, boşluk ve eğik çizgileri ayırarak her kelimeyi AND ile eşle
+            tokens = [t.strip() for t in re.split(r'[\s\-_/]+', clean_q) if len(t.strip()) > 0]
+            if tokens:
+                for t in tokens:
+                    term = f"%{t}%"
+                    conditions.append("(name LIKE ? OR value LIKE ? OR package LIKE ? OR notes LIKE ? OR tags LIKE ?)")
+                    params.extend([term, term, term, term, term])
+            else:
+                q = f"%{clean_q}%"
+                conditions.append("(name LIKE ? OR value LIKE ? OR package LIKE ? OR notes LIKE ? OR tags LIKE ?)")
+                params.extend([q, q, q, q, q])
 
         if category and category != "all":
             conditions.append("category = ?")
