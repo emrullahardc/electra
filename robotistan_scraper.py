@@ -7,9 +7,15 @@ Robotistan.com üzerinden ürünlerin canlı stok durumunu, fiyatını ve linkin
 import urllib.request
 import urllib.parse
 import urllib.error
+import html as html_lib
 import re
 import time
 from typing import List, Dict, Any, Optional
+
+from component_matcher import (
+    get_component_search_aliases,
+    evaluate_component_relevance,
+)
 
 USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
 CACHE_TTL = 900  # 15 dakika önbellek süresi
@@ -19,11 +25,24 @@ _CACHE: Dict[str, Dict[str, Any]] = {}
 
 
 def clean_price(price_str: str) -> Optional[float]:
-    """Türk Lirası formatındaki fiyatı (örn. '1.298,21 TL') floata çevirir."""
+    """Türk Lirası formatındaki fiyatı (örn. '1.298,21 TL' veya '1,023.54') floata çevirir."""
+    if not price_str:
+        return None
     try:
-        cleaned = price_str.replace("TL", "").replace("₺", "").strip()
-        cleaned = cleaned.replace(".", "").replace(",", ".")
-        return round(float(cleaned), 2)
+        cleaned = re.sub(r'<[^>]+>', '', str(price_str)).replace("TL", "").replace("₺", "").replace("&nbsp;", "").strip()
+        if "." in cleaned and "," in cleaned:
+            if cleaned.rfind(",") > cleaned.rfind("."):
+                cleaned = cleaned.replace(".", "").replace(",", ".")
+            else:
+                cleaned = cleaned.replace(",", "")
+        elif "," in cleaned:
+            parts = cleaned.split(",")
+            if len(parts) == 2 and len(parts[1]) <= 2:
+                cleaned = parts[0] + "." + parts[1]
+            else:
+                cleaned = cleaned.replace(",", "")
+        nums = re.findall(r'\d+(?:\.\d+)?', cleaned)
+        return round(float(nums[0]), 2) if nums else None
     except Exception:
         return None
 
@@ -38,14 +57,16 @@ def normalize_search_query(q: str) -> str:
 
 
 def relax_query(q: str) -> Optional[str]:
-    """Arama 0 sonuç verdiğinde arama gürültüsü oluşturan kelimeleri çıkarıp anahtar kelimeleri bırakır."""
+    """
+    Arama 0 sonuç verdiğinde yalnızca gerçek dolgu kelimelerini çıkarır;
+    asla 'koruma', 'kartı', 'bms', kapasite (mAh) veya voltaj (V) değerlerini silmez.
+    """
     noise_words = {
-        'korumalı', 'korumasiz', 'koruma', 'kartı', 'karti', 'devreli', 'dahili', 'harici',
-        'orijinal', 'adet', 'set', 'seti', 'parça', 'parca', 'modülü', 'modulu', 'uyumlu',
-        'mah', 'v', 'volt', 'amper'
+        'orijinal', 'adet', 'set', 'seti', 'parça', 'parca', 'modülü', 'modulu',
+        'uyumlu', 'dahili', 'harici', 'paket', 'paketi', 'sensörü', 'sensoru'
     }
-    words = [w for w in re.split(r'[\s\-_/]+', q.lower()) if w]
-    filtered = [w for w in words if w not in noise_words and not re.match(r'^\d+(?:mah|v|a|cm|mm)$', w)]
+    words = [w for w in re.split(r'\s+', q.lower().strip()) if w]
+    filtered = [w for w in words if w not in noise_words]
     if filtered and len(filtered) < len(words):
         return " ".join(filtered)
     return None
@@ -67,6 +88,21 @@ class RobotistanScraper:
         with urllib.request.urlopen(req, timeout=12) as response:
             return response.read().decode("utf-8", errors="ignore")
 
+    def _filter_compatible(self, query: str, items: List[Dict[str, Any]], seen_urls: set) -> List[Dict[str, Any]]:
+        """Ayrıştırılan ürünleri anlamsal uyumluluk filtresinden geçirir ve mükerrer URL'leri eler."""
+        valid: List[Dict[str, Any]] = []
+        for it in items:
+            url = it.get("url") or it.get("title", "")
+            if url in seen_urls:
+                continue
+            is_valid, rel_score, reason = evaluate_component_relevance(query, it.get("title", ""))
+            if is_valid:
+                seen_urls.add(url)
+                it["relevance_score"] = rel_score
+                it["compatibility_note"] = reason
+                valid.append(it)
+        return valid
+
     def search(
         self,
         query: str,
@@ -76,11 +112,9 @@ class RobotistanScraper:
     ) -> Dict[str, Any]:
         """
         Robotistan'da ürün arar.
-        Döndürdüğü alanlar:
-        - query: Arama terimi
-        - total_found: Bulunan ürün sayısı
-        - in_stock_count: Stokta olan ürün sayısı
-        - results: [ {title, price, price_value, in_stock, url, image}, ... ]
+        Önce birincil sorguyu dener ve anlamsal uyumluluk filtresinden geçirir.
+        Eğer uyumlu ve stokta olan bir ürün bulunamazsa donanım alias'larını (örn. NEO-6M -> GY-NEO6MV2,
+        MPU-6050 -> MPU6050 / GY-521) sırasıyla dener.
         """
         q = query.strip()
         if not q:
@@ -92,7 +126,7 @@ class RobotistanScraper:
         if not bypass_cache and cache_key in _CACHE:
             entry = _CACHE[cache_key]
             if now - entry["timestamp"] < self.cache_ttl:
-                results = entry["results"]
+                results = list(entry["results"])
                 if only_in_stock:
                     results = [r for r in results if r["in_stock"]]
                 return {
@@ -103,7 +137,6 @@ class RobotistanScraper:
                     "results": results[:limit]
                 }
 
-        # Sorguyu normalize et (örn: 'Lityum Polimer Pil korumalı' -> 'lipo pil korumalı')
         norm_q = normalize_search_query(q)
         search_target = norm_q if norm_q else q
         search_url = f"{self.base_url}/arama?q={urllib.parse.quote(search_target)}"
@@ -111,7 +144,6 @@ class RobotistanScraper:
         try:
             html_content = self._fetch_html(search_url)
         except urllib.error.URLError as e:
-            # Network erişimi yoksa
             return {
                 "query": q,
                 "error": f"Robotistan sunucusuna ulaşılamadı: {e}",
@@ -129,70 +161,64 @@ class RobotistanScraper:
                 "results": []
             }
 
-        parsed_items = self._parse_html(html_content)
+        seen_urls: set = set()
+        raw_items = self._parse_html(html_content)
+        valid_items = self._filter_compatible(q, raw_items, seen_urls)
 
-        # 1. Eğer sonuç çıkmadıysa donanım alias'larını (örn: NEO-6M -> GY-NEO6MV2) dene:
-        if not parsed_items or not any(it.get("in_stock") for it in parsed_items):
-            try:
-                from component_matcher import get_component_search_aliases
-                aliases = get_component_search_aliases(q)
-                for alias in aliases:
-                    if alias.lower() == q.lower() or alias.lower() == search_target.lower():
-                        continue
-                    try:
-                        alias_url = f"{self.base_url}/arama?q={urllib.parse.quote(alias)}"
-                        alias_html = self._fetch_html(alias_url)
-                        alias_items = self._parse_html(alias_html)
-                        if alias_items:
-                            # Bulunan alias ürünlerini ekle
-                            parsed_items.extend(alias_items)
-                            break
-                    except Exception:
-                        pass
-            except ImportError:
-                pass
-
-        # 2. Eğer hâlâ sonuç yoksa arama gevşetme (Relaxed Query) dene:
-        if not parsed_items:
-            relaxed = relax_query(search_target)
-            if relaxed and relaxed != search_target:
+        # 1. Eğer uyumlu ve stokta olan ürün bulunamadıysa donanım ve ortografik alias'ları dene
+        if not any(it.get("in_stock") for it in valid_items):
+            aliases = get_component_search_aliases(q)
+            tried_queries = {q.lower(), search_target.lower()}
+            for alias in aliases:
+                a_low = alias.strip().lower()
+                if not a_low or a_low in tried_queries:
+                    continue
+                tried_queries.add(a_low)
                 try:
-                    rel_url = f"{self.base_url}/arama?q={urllib.parse.quote(relaxed)}"
-                    rel_html = self._fetch_html(rel_url)
-                    rel_items = self._parse_html(rel_html)
-                    if rel_items:
-                        parsed_items = rel_items
+                    alias_url = f"{self.base_url}/arama?q={urllib.parse.quote(alias)}"
+                    alias_html = self._fetch_html(alias_url)
+                    alias_raw = self._parse_html(alias_html)
+                    alias_valid = self._filter_compatible(q, alias_raw, seen_urls)
+                    if alias_valid:
+                        valid_items.extend(alias_valid)
+                        if any(it.get("in_stock") for it in valid_items):
+                            break
                 except Exception:
                     pass
 
-        # 3. Anlamsal Uyumluluk & Negatif Filtreleme (Entity Guard)
-        # Pil ararken koruma kartı gelmesini, pin sayısı uyuşmazlığını engelle
-        valid_items = []
-        try:
-            from component_matcher import evaluate_component_relevance
-            for it in parsed_items:
-                is_valid, rel_score, reason = evaluate_component_relevance(q, it["title"])
-                if is_valid:
-                    it["relevance_score"] = rel_score
-                    valid_items.append(it)
-        except ImportError:
-            valid_items = parsed_items
+        # 2. Hâlâ uyumlu ürün bulunamadıysa gevşetilmiş sorguyu (relaxed query) dene
+        if not valid_items:
+            relaxed = relax_query(search_target)
+            if relaxed and relaxed.lower() not in {q.lower(), search_target.lower()}:
+                try:
+                    rel_url = f"{self.base_url}/arama?q={urllib.parse.quote(relaxed)}"
+                    rel_html = self._fetch_html(rel_url)
+                    rel_raw = self._parse_html(rel_html)
+                    valid_items.extend(self._filter_compatible(q, rel_raw, seen_urls))
+                except Exception:
+                    pass
 
-        # Önbelleğe kaydet
+        # Stokta olanları ve yüksek uyumluluk skoruna sahip olanları öne sırala
+        valid_items.sort(
+            key=lambda x: (
+                0 if x.get("in_stock") else 1,
+                -(x.get("relevance_score", 0.5)),
+                x.get("price_value") if (x.get("price_value") and x.get("price_value") > 0) else 999999
+            )
+        )
+
         _CACHE[cache_key] = {
             "timestamp": now,
             "results": valid_items
         }
 
-        final_results = valid_items
-        if only_in_stock:
-            final_results = [r for r in final_results if r["in_stock"]]
+        final_results = [r for r in valid_items if r["in_stock"]] if only_in_stock else valid_items
 
         return {
             "query": q,
             "from_cache": False,
             "total_found": len(final_results),
-            "in_stock_count": sum(1 for r in parsed_items if r["in_stock"]),
+            "in_stock_count": sum(1 for r in valid_items if r["in_stock"]),
             "results": final_results[:limit]
         }
 
@@ -200,7 +226,6 @@ class RobotistanScraper:
         """Robotistan T-Soft HTML sayfasından ürün kartlarını ayrıştırır."""
         items: List[Dict[str, Any]] = []
 
-        # Ürün kartları container'ı
         product_cards = re.findall(
             r'<div[^>]*class=[\"\'][^\"\']*product-item[^\"\']*[\"\'][^>]*>(.*?)</div>\s*</div>\s*</div>',
             html,
@@ -208,7 +233,6 @@ class RobotistanScraper:
         )
 
         for card in product_cards:
-            # Başlık ve Ürün Linki
             title_match = re.search(
                 r'<a[^>]+class=[\"\'][^\"\']*product-title[^\"\']*[\"\'][^>]*>([^<]+)</a>',
                 card
@@ -219,40 +243,30 @@ class RobotistanScraper:
                     card
                 )
 
-            # Link
             link_match = re.search(r'href=[\"\'](/[^\"\']+)[\"\']', card)
-
-            # Fiyat
             price_match = re.search(r'class=[\"\']product-price[\"\']>([^<]+)</strong>', card)
-
-            # Stok durumu kontrolü
             is_out_of_stock = ("out-of-stock" in card.lower()) or ("tükendi" in card.lower())
-
-            # Görsel
             img_match = re.search(r'<img[^>]+(?:data-src|src)=[\"\']([^\"\']+)[\"\']', card)
 
             if title_match:
-                # Başlık
                 if len(title_match.groups()) == 2:
                     link = title_match.group(1).strip()
-                    title = title_match.group(2).strip()
+                    title = html_lib.unescape(title_match.group(2).strip())
                 else:
-                    title = title_match.group(1).strip()
+                    title = html_lib.unescape(title_match.group(1).strip())
                     link = link_match.group(1).strip() if link_match else ""
 
                 if link and not link.startswith("http"):
                     link = self.base_url + link
 
-                # Fiyat formatlama
                 if price_match:
                     raw_price = price_match.group(1).strip()
-                    formatted_price = f"{raw_price} TL"
                     price_val = clean_price(raw_price)
+                    formatted_price = f"{price_val:.2f} TL" if price_val else f"{raw_price} TL"
                 else:
                     formatted_price = "Tükendi / Fiyat Yok" if is_out_of_stock else "Fiyat Belirtilmemiş"
                     price_val = None
 
-                # Görsel formatlama
                 image_url = ""
                 if img_match:
                     img_src = img_match.group(1).strip()
@@ -263,7 +277,6 @@ class RobotistanScraper:
                     else:
                         image_url = img_src
 
-                # Ürün ID (T-Soft Product ID)
                 pid_match = re.search(r'addToCart\((\d+)', card)
                 if not pid_match:
                     pid_match = re.search(r'data-id=[\"\'](\d+)[\"\']', card)
@@ -283,78 +296,9 @@ class RobotistanScraper:
         return items
 
     def get_product_details(self, url: str) -> Dict[str, Any]:
-        """Belirtilen Robotistan ürün sayfasının detaylı teknik özelliklerini ve açıklamasını çeker."""
-        if not url or not url.startswith("http"):
-            return {"error": "Geçersiz URL"}
-
-        try:
-            html = self._fetch_html(url)
-        except Exception as e:
-            return {"error": f"Ürün sayfasına ulaşılamadı: {e}", "url": url}
-
-        # 1. Başlık
-        m_title = re.search(r'<h1[^>]*>(.*?)</h1>', html, re.DOTALL)
-        title = re.sub(r'<[^>]+>', '', m_title.group(1)).strip() if m_title else ""
-        if not title:
-            m_t = re.search(r'<title>([^<]+)</title>', html)
-            title = m_t.group(1).replace("Satın Al", "").strip() if m_t else ""
-
-        # 2. Fiyat
-        m_price = re.search(r'class=[\"\'][^\"\']*(?:product-price|price-current|current-price|price)[^\"\']*[\"\']>\s*([0-9.,]+)', html)
-        if not m_price:
-            m_price = re.search(r'(\d+[\.,]\d+)\s*(?:TL|₺)', html)
-        price_val = None
-        price_str = "Fiyat Belirtilmedi"
-        if m_price:
-            raw_p = m_price.group(1).strip()
-            price_str = f"{raw_p} TL"
-            price_val = clean_price(raw_p)
-
-        # 3. Stok
-        is_out = ("out-of-stock" in html.lower()) or ("tükendi" in html.lower()) or ("gelince haber ver" in html.lower())
-
-        # 4. Teknik Özellikler ve Parametre Tablosu
-        specs = []
-        m_feat = re.search(r'<div[^>]+id=[\"\']product-features[\"\'][^>]*>(.*?)</div>\s*</div>', html, re.DOTALL)
-        if m_feat:
-            content = m_feat.group(1)
-            # Tablo satırları
-            for tr in re.findall(r'<tr[^>]*>(.*?)</tr>', content, re.DOTALL):
-                tds = re.findall(r'<td[^>]*>(.*?)</td>', tr)
-                if len(tds) >= 2:
-                    k = re.sub(r'<[^>]+>', '', tds[0]).strip()
-                    v = re.sub(r'<[^>]+>', '', tds[1]).strip()
-                    if k and v and k.lower() != "parametre":
-                        specs.append(f"{k}: {v}")
-            # Liste maddeleri
-            for li in re.findall(r'<li[^>]*>(.*?)</li>', content):
-                clean_li = re.sub(r'<[^>]+>', '', li).strip()
-                if clean_li and clean_li not in specs and len(clean_li) > 2:
-                    specs.append(clean_li)
-
-        # 5. Açıklama metni
-        desc_text = ""
-        m_desc = re.search(r'<div[^>]+id=[\"\']product-detail[\"\'][^>]*>(.*?)</div>\s*</div>', html, re.DOTALL)
-        if not m_desc:
-            m_desc = m_feat
-        if m_desc:
-            clean_desc = re.sub(r'<style[^>]*>.*?</style>', '', m_desc.group(1), flags=re.DOTALL)
-            clean_desc = re.sub(r'<script[^>]*>.*?</script>', '', clean_desc, flags=re.DOTALL)
-            clean_desc = re.sub(r'<[^>]+>', ' ', clean_desc)
-            desc_text = re.sub(r'\s+', ' ', clean_desc).strip()
-            if len(desc_text) > 600:
-                desc_text = desc_text[:600] + "..."
-
-        return {
-            "title": title,
-            "price": price_str,
-            "price_value": price_val,
-            "in_stock": not is_out,
-            "stock_status": "Stokta Var" if not is_out else "Tükendi",
-            "specs": specs,
-            "description": desc_text,
-            "url": url
-        }
+        """Belirtilen ürün sayfasının detaylı teknik özelliklerini, KDV dahil fiyatını ve stok durumunu çeker."""
+        from market_scraper import get_universal_product_details
+        return get_universal_product_details(url)
 
     def _generate_fallback_results(self, query: str) -> List[Dict[str, Any]]:
         """Ağ erişimi olmadığında doğrudan arama URL'sini ve örnek bilgiyi sunar."""
@@ -368,7 +312,7 @@ class RobotistanScraper:
                 "stock_status": "Robotistan Sayfasına Git",
                 "url": f"https://www.robotistan.com/arama?q={safe_q}",
                 "image": "https://robotistan.witcdn.net/Data/EditorFiles/logo/logo-1.png",
-                "note": "Canlı fiyat ve stok için linke tıklayabilirsiniz (veya MCP/Web servis ağ izniyle çalıştırıldığında anlık çeker)."
+                "note": "Canlı fiyat ve stok için linke tıklayabilirsiniz."
             }
         ]
 

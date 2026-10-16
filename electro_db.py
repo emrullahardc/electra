@@ -368,25 +368,15 @@ def search_components(
     limit: int = 100,
     db_path: str = DB_PATH
 ) -> List[Dict[str, Any]]:
-    """Gelişmiş filtreleme ve arama."""
+    """
+    Gelişmiş filtreleme ve esnek donanım araması.
+    Tire/boşluk/bitişik yazım farklarını (örn: 'ESP32-C3 SuperMini' <-> 'esp32 c3 super mini'),
+    Türkçe karakterleri ve ek açıklama kelimelerini ('SIM800L Modül' <-> 'sim800l') tolere eder.
+    """
     with get_connection(db_path) as conn:
         cursor = conn.cursor()
         conditions = []
         params = []
-
-        if query:
-            clean_q = query.strip()
-            # Token bazlı arama: tire, alt çizgi, boşluk ve eğik çizgileri ayırarak her kelimeyi AND ile eşle
-            tokens = [t.strip() for t in re.split(r'[\s\-_/]+', clean_q) if len(t.strip()) > 0]
-            if tokens:
-                for t in tokens:
-                    term = f"%{t}%"
-                    conditions.append("(name LIKE ? OR value LIKE ? OR package LIKE ? OR notes LIKE ? OR tags LIKE ?)")
-                    params.extend([term, term, term, term, term])
-            else:
-                q = f"%{clean_q}%"
-                conditions.append("(name LIKE ? OR value LIKE ? OR package LIKE ? OR notes LIKE ? OR tags LIKE ?)")
-                params.extend([q, q, q, q, q])
 
         if category and category != "all":
             conditions.append("category = ?")
@@ -406,12 +396,54 @@ def search_components(
         sql = "SELECT * FROM components"
         if conditions:
             sql += " WHERE " + " AND ".join(conditions)
-        sql += " ORDER BY status ASC, name ASC LIMIT ?"
-        params.append(limit)
+        sql += " ORDER BY status ASC, name ASC"
 
         cursor.execute(sql, tuple(params))
-        rows = cursor.fetchall()
-        return [dict(r) for r in rows]
+        all_rows = [dict(r) for r in cursor.fetchall()]
+
+        if not query or not query.strip():
+            return all_rows[:limit]
+
+        from component_matcher import normalize_tr, normalize_compact, evaluate_component_relevance
+
+        clean_q = query.strip()
+        q_tr = normalize_tr(clean_q)
+        q_compact = normalize_compact(clean_q)
+
+        filler_words = {
+            "modul", "modulu", "kart", "karti", "devre", "devresi",
+            "sensor", "sensoru", "uyumlu", "adet", "set", "ve", "ile"
+        }
+        q_tokens = [
+            t for t in re.split(r'[\s\-_/(),;]+', q_tr)
+            if t and t not in filler_words
+        ]
+
+        scored_matches = []
+        for row in all_rows:
+            full_blob = f"{row.get('name', '')} {row.get('value', '')} {row.get('package', '')} {row.get('notes', '')} {row.get('tags', '')} {row.get('category', '')}"
+            blob_tr = normalize_tr(full_blob)
+            blob_compact = normalize_compact(full_blob)
+
+            # 1. Doğrudan veya bitişik (compact) alt dizge eşleşmesi
+            if q_tr in blob_tr or (len(q_compact) >= 3 and q_compact in blob_compact):
+                scored_matches.append((1.0, row))
+                continue
+
+            # 2. Tüm anlamlı arama kelimelerinin (veya bitişik karşılıklarının) geçmesi
+            if q_tokens and all((tok in blob_tr or normalize_compact(tok) in blob_compact) for tok in q_tokens):
+                scored_matches.append((0.95, row))
+                continue
+
+            # 3. Component Matcher anlamsal ve model kodu uyumluluğu
+            title_candidate = f"{row.get('name', '')} {row.get('value', '')} {row.get('package', '')}".strip()
+            is_valid, rel_score, _ = evaluate_component_relevance(clean_q, title_candidate)
+            if is_valid and rel_score >= 0.5:
+                scored_matches.append((rel_score, row))
+
+        scored_matches.sort(key=lambda x: (-x[0], x[1].get("status", ""), x[1].get("name", "")))
+        return [item for _, item in scored_matches[:limit]]
+
 
 
 def get_summary_stats(db_path: str = DB_PATH) -> Dict[str, Any]:

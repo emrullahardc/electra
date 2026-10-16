@@ -1167,10 +1167,13 @@ class MCPServer:
                 q = str(args.get("query", "")).strip()
                 only_stock = bool(args.get("only_in_stock", True))
                 limit = int(args.get("limit", 6))
-                items = market_scraper.search_robotronik(query=q, only_in_stock=only_stock, limit=limit)
+                m_res = market_scraper.search_market(query=q, vendors=["robotronik"], only_in_stock=only_stock, limit_per_vendor=limit)
+                items = m_res.get("results", [])
 
                 md = [f"# 🤖 Robotronik.com.tr Arama Sonuçları: '{q}'\n"]
-                md.append(f"Toplam {len(items)} ürün bulundu.\n")
+                md.append(f"Toplam {len(items)} uyumlu ürün bulundu.\n")
+                if not items:
+                    md.append("Aradığınız kritere uygun ürün bulunamadı.")
                 for r in items:
                     badge = "🟢 Stokta Var" if r.get("in_stock") else "🔴 Tükendi"
                     md.append(f"- **[{r['title']}]({r['url']})** — **{r['price']}** ({badge})")
@@ -1188,10 +1191,13 @@ class MCPServer:
                 q = str(args.get("query", "")).strip()
                 only_stock = bool(args.get("only_in_stock", True))
                 limit = int(args.get("limit", 6))
-                items = market_scraper.search_direnc(query=q, only_in_stock=only_stock, limit=limit)
+                m_res = market_scraper.search_market(query=q, vendors=["direnc"], only_in_stock=only_stock, limit_per_vendor=limit)
+                items = m_res.get("results", [])
 
                 md = [f"# ⚡ Direnç.net Arama Sonuçları: '{q}'\n"]
-                md.append(f"Toplam {len(items)} ürün bulundu.\n")
+                md.append(f"Toplam {len(items)} uyumlu ürün bulundu.\n")
+                if not items:
+                    md.append("Aradığınız kritere uygun ürün bulunamadı.")
                 for r in items:
                     badge = "🟢 Stokta Var" if r.get("in_stock") else "🔴 Tükendi"
                     md.append(f"- **[{r['title']}]({r['url']})** — **{r['price']}** ({badge})")
@@ -1211,7 +1217,22 @@ class MCPServer:
                 results = comp_res.get("results", [])
                 decision = comp_res.get("decision_advice", {})
 
+                # Yerel envanter kontrolü
+                local_hits = []
+                try:
+                    from component_matcher import evaluate_component_relevance
+                    for lc in electro_db.search_components(query=part_name):
+                        if lc.get("status") == "working" and lc.get("quantity", 0) > 0:
+                            if evaluate_component_relevance(part_name, lc.get("name", ""))[0]:
+                                local_hits.append(lc)
+                except Exception:
+                    pass
+
                 md = [f"# ⚖️ Parça Fiyat Karşılaştırması: '{part_name}'\n"]
+                if local_hits:
+                    lh = local_hits[0]
+                    md.append(f"🏠 **Yerel Envanterinizde Mevcut:** **`{lh['name']}`** ({lh['quantity']} Adet, Çalışıyor — Konum: {lh.get('location') or 'Belirtilmemiş'})\n")
+
                 cheapest = comp_res.get("cheapest")
                 if cheapest:
                     md.append(f"🏆 **En Uygun Fiyat:** **{cheapest['price']}** ({cheapest['vendor']}) — [{cheapest['title']}]({cheapest['url']})\n")
@@ -1227,12 +1248,17 @@ class MCPServer:
                     elif decision.get("action") == "external_vendor":
                         md.append(f"- 📦 **Robotistan Stoğu Yok:** {decision.get('summary')}\n")
 
-                md.append("| Mağaza | Ürün Adı | Fiyat | Stok | Link |")
-                md.append("|---|---|---|---|---|")
-                for r in results:
-                    best_icon = "⭐ **EN UCUZ**" if r.get("is_cheapest") else ""
-                    stok_str = "🟢 Stokta" if r.get("in_stock") else "🔴 Tükendi"
-                    md.append(f"| **{r['vendor']}** {best_icon} | {r['title']} | **{r['price']}** | {stok_str} | [Ürünü Aç]({r['url']}) |")
+                if results:
+                    md.append("| Mağaza | Ürün Adı | Fiyat | Stok | Link |")
+                    md.append("|---|---|---|---|---|")
+                    for r in results:
+                        best_icon = "⭐ **EN UCUZ**" if r.get("is_cheapest") else ""
+                        stok_str = "🟢 Stokta" if r.get("in_stock") else "🔴 Tükendi"
+                        md.append(f"| **{r['vendor']}** {best_icon} | {r['title']} | **{r['price']}** | {stok_str} | [Ürünü Aç]({r['url']}) |")
+                else:
+                    sugg = market_scraper.get_suggested_sourcing_channel(part_name)
+                    md.append(f"⚠️ Türkiye yerel perakende mağazalarında (Robotistan, Robotronik, Direnç.net, Motorobit) **`{part_name}`** için uyumlu aktif stok bulunamadı.")
+                    md.append(f"👉 **Önerilen Tedarik Kanalı:** {sugg}")
 
                 return {
                     "jsonrpc": "2.0",
@@ -1240,6 +1266,7 @@ class MCPServer:
                     "result": {
                         "content": [{"type": "text", "text": "\n".join(md)}],
                         "data": comp_res,
+                        "local_inventory": local_hits,
                         "decision_advice": decision
                     }
                 }
@@ -1252,15 +1279,23 @@ class MCPServer:
                 total_req = bom_res.get("total_items_requested", 0)
                 found_cnt = bom_res.get("found_items_count", 0)
                 unfound_cnt = bom_res.get("unfound_items_count", 0)
+                local_hits = bom_res.get("local_inventory_hits", [])
 
                 md = ["# 🎯 Akıllı Çoklu Mağaza BOM & Satın Alma Planı\n"]
-                md.append(f"**Talep Edilen Parça Sayısı:** {total_req} (🟢 Türkiye'de Bulunan: {found_cnt} • ⚠️ Alternatif/Yurt Dışı: {unfound_cnt})")
+                md.append(f"**Talep Edilen Parça Sayısı:** {total_req} (🟢 Türkiye'de Bulunan: {found_cnt} • ⚠️ Alternatif/Yurt Dışı: {unfound_cnt} • 🏠 Envanterde Mevcut: {len(local_hits)})")
                 md.append(f"**Türkiye Mağazaları Parça Maliyeti:** ~{bom_res.get('total_smart_parts_cost', 0.0):.2f} TL")
                 if bom_res.get("estimated_shipping_total", 0.0) > 0:
                     md.append(f"**Tahmini Harici Kargo Ücreti ({bom_res.get('external_vendor_count')} Harici Mağaza):** ~{bom_res.get('estimated_shipping_total', 0.0):.2f} TL")
                     md.append(f"**Toplam Landed Maliyet (Kargo Dahil):** **~{bom_res.get('total_landed_cost', 0.0):.2f} TL**\n")
                 else:
                     md.append(f"**Tüm Parçalar Robotistan'dan (0 TL Harici Kargo & Aynı Gün Teslimat):** **~{bom_res.get('total_landed_cost', 0.0):.2f} TL**\n")
+
+                if local_hits:
+                    md.append("### 🏠 Kendi Envanterinizde (Atölyede) Zaten Bulunan Parçalar:")
+                    for lh in local_hits:
+                        m0 = lh["matches"][0]
+                        md.append(f"- **{lh['part_query']}** 👉 Envanterde **`{m0['name']}`** ({m0['quantity']} Adet, Çalışıyor) mevcut! Satın almanıza gerek olmayabilir.")
+                    md.append("")
 
                 smart_plan = bom_res.get("smart_plan", {})
                 prompt_qs = bom_res.get("prompt_questions", [])
@@ -1314,6 +1349,7 @@ class MCPServer:
                     md.append("### 📝 Otomatik Oluşturulan Taslak Siparişler:")
                     for cd in created_drafts:
                         md.append(f"- **Draft #{cd['draft_id']}**: {cd['vendor']} ({cd['count']} Kalem)")
+
 
                 return {
                     "jsonrpc": "2.0",

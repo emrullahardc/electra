@@ -461,14 +461,19 @@ EQUIVALENTS_DATABASE = [
     # -------------------------------------------------------------
     {
         "category": "Pil Şarj ve Koruma Kartları (1S LiPo / Li-ion)",
-        "keywords": ["şarj", "lipo şarj", "tp4056", "tp4057", "mcp73831", "ip5306", "pcm", "bms", "batarya koruma"],
-        "summary": "1S LiPo pillerde aşırı deşarj pilin ölmesine yol açar; korumalı TP4056 veya harici PCM kartı şarttır.",
+        "keywords": ["şarj", "lipo şarj", "tp4056", "tp4057", "mcp73831", "ip5306", "pcm", "bms", "batarya koruma", "koruma kartı", "koruma devresi", "koruma modülü", "1s koruma"],
+        "summary": "1S LiPo pillerde aşırı deşarj pilin ölmesine yol açar; korumalı TP4056 veya harici 1S BMS/PCM koruma kartı şarttır.",
         "parts": [
             {
                 "name": "TP4056 Korumalı Modül (DW01 + FS8205A)",
                 "features": "1S LiPo/Li-ion 1A şarj, Type-C / Micro-USB giriş, dahili aşırı deşarj (2.5V) ve kısa devre koruması.",
-                "pros": "Çok ucuz (~15-20 TL), hazır modül, pili derin deşarjdan ve aşırı akımdan korur.",
+                "pros": "Çok ucuz (~15-25 TL), hazır modül, pili derin deşarjdan ve aşırı akımdan korur.",
                 "cons": "Fabrika çıkışı 1A akım küçük piller için (örn 500mAh) fazladır; Rprog direnci değiştirilmelidir."
+            },
+            {
+                "name": "1S 3.7V BMS / PCM Koruma Kartı (2A - 3A)",
+                "features": "Sadece pilin uçlarına lehimlenen ince şerit koruma devresi (~32x4x2 mm, 2.5V kesme, 4.25V aşırı şarj koruması).",
+                "pros": "Şarj devresinden bağımsız olarak korumasız LiPo/18650 pilleri doğrudan güvenli hale getirir, pilin yanına sığar."
             },
             {
                 "name": "Microchip MCP73831",
@@ -481,47 +486,127 @@ EQUIVALENTS_DATABASE = [
                 "features": "2.1A şarj + 5V 2.4A Senkron Boost dönüştürücü tek çipte, I2C pil yüzdesi takibi.",
                 "pros": "Tek pilden hem 5V yüksek akım üretir hem Type-C'den hızlı şarj eder (M5Stack kartlarında kullanılır).",
                 "cons": "Düşük akımlı IoT cihazlarda otomatik kapanma (auto-cutoff) yapabilir."
-            },
-            {
-                "name": "1S 3.7V Mini PCM / BMS Koruma Kartı",
-                "features": "Sadece pilin uçlarına lehimlenen yuvarlak/dikdörtgen minik koruma devresi (2.4V kesme, 4.28V aşırı şarj).",
-                "pros": "Şarj devresinden bağımsız olarak pili doğrudan korur; korumasız pilleri güvenli hale getirir."
             }
         ]
     }
 ]
 
 
+_GENERIC_PART_WORDS = {
+    "modülü", "modulu", "modül", "modul", "kartı", "karti", "kart", "devresi", "devre",
+    "sensörü", "sensoru", "sensör", "sensor", "standart", "mini", "küçük", "kucuk",
+    "sinyal", "genel", "beyaz", "mavi", "korumalı", "korumali", "entegre", "entegresi",
+    "step", "down", "buck", "boost", "kanal", "logic", "level", "high", "side",
+    "holtek", "torex", "microne", "microchip", "bosch", "aosong", "injoinic",
+    "nordic", "ti", "st", "invensense", "analog", "devices", "espressif", "ublox",
+    "sot", "dip", "smd", "tht", "pil", "batarya", "koruma", "şarj", "sarj"
+}
+
+_VENDOR_PREFIXES = (
+    "Holtek ", "Torex ", "MicrOne ", "Microchip ", "Bosch ", "Aosong ",
+    "Injoinic ", "Nordic ", "TI ", "ST ", "InvenSense ", "Analog Devices ",
+    "Espressif ", "u-blox "
+)
+
+
+def _clean_part_search_name(part_name: str) -> str:
+    """Piyasa araması için parça adındaki üretici öneklerini ve parantez açıklamalarını temizler."""
+    base = part_name.split("(")[0].split("/")[0].strip()
+    for pref in _VENDOR_PREFIXES:
+        if base.lower().startswith(pref.lower()):
+            base = base[len(pref):].strip()
+    # Uzun açıklamaları kısalt
+    base = re.sub(r'\b(?:Mini Step-Down Buck Modülü|Step-Down Modül|Korumalı Modül|PowerBank Entegresi|Pil Koruma Kartı)\b', '', base, flags=re.I).strip()
+    if "1S 3.7V BMS" in part_name:
+        return "1S BMS Koruma Kartı"
+    if "TP4056" in part_name:
+        return "TP4056"
+    if "XC6206" in base:
+        return "XC6206"
+    if "MP1584" in base:
+        return "MP1584"
+    return base or part_name.split("(")[0].strip()
+
+
 def find_component_equivalents(query: str) -> Optional[Dict[str, Any]]:
     """Girilen parça adı veya kategoriye göre eşdeğer ve muadil parça önerilerini döndürür."""
+    from component_matcher import normalize_tr, normalize_compact, extract_model_codes
+
     q = query.strip().lower()
     if not q:
         return None
 
+    q_tr = normalize_tr(q)
+    q_comp = normalize_compact(q)
+    q_models = [normalize_compact(m) for m in extract_model_codes(q)]
+
     best_match = None
     matched_part = None
+    best_score = 0.0
 
     for category_group in EQUIVALENTS_DATABASE:
-        # 1. Parça isimleri içinde ara
+        cat_score = 0.0
+        cat_matched_part = None
+
+        # 1. Spesifik parça / model kodları içinde ara
         for p in category_group["parts"]:
-            p_name_lower = p["name"].lower()
-            tokens = [t for t in re.split(r'[\s\-_/]+', p_name_lower) if len(t) > 2]
-            if any(t in q for t in tokens) or q in p_name_lower or p_name_lower in q:
-                best_match = category_group
-                matched_part = p
-                break
-        if best_match:
-            break
+            p_name = p["name"]
+            p_tr = normalize_tr(p_name)
+            p_comp = normalize_compact(p_name)
+            p_base = normalize_tr(p_name.split("(")[0])
+            p_models = [normalize_compact(m) for m in extract_model_codes(p_name)]
 
-        # 2. Anahtar kelimelerde ara
+            part_score = 0.0
+
+            # Model kodu tam veya kök eşleşmesi (örn: ao3401 <-> ao3401a, mp1584 <-> mp1584en)
+            for qm in q_models:
+                for pm in p_models:
+                    if qm == pm or (len(qm) >= 5 and (pm.startswith(qm) or qm.startswith(pm))):
+                        part_score = max(part_score, 10.0)
+
+            # Parantez dışı özel parça belirteçleri
+            if part_score == 0.0:
+                tokens = [
+                    t for t in re.split(r'[\s\-_/()]+', p_base)
+                    if len(t) >= 3 and t not in _GENERIC_PART_WORDS
+                ]
+                for tok in tokens:
+                    tok_comp = normalize_compact(tok)
+                    if len(tok_comp) >= 4 and (re.search(rf'\b{re.escape(tok)}\b', q_tr) or tok_comp in q_comp):
+                        part_score = max(part_score, 6.0)
+
+            # Kanal kutupluluğu uyumu (P-Kanal vs N-Kanal MOSFET aramaları için)
+            if "p-kanal" in q_tr or "p kanal" in q_tr or "pmos" in q_tr:
+                if "p-kanal" in p_tr:
+                    part_score = max(part_score, 5.0)
+                elif "n-kanal" in p_tr:
+                    part_score = 0.0
+            elif "n-kanal" in q_tr or "n kanal" in q_tr or "nmos" in q_tr:
+                if "n-kanal" in p_tr:
+                    part_score = max(part_score, 5.0)
+                elif "p-kanal" in p_tr:
+                    part_score = 0.0
+
+            if part_score > cat_score:
+                cat_score = part_score
+                cat_matched_part = p
+
+        # 2. Kategori anahtar kelimelerinde ara
+        kw_hits = 0.0
         for kw in category_group["keywords"]:
-            if kw in q:
-                best_match = category_group
-                break
-        if best_match:
-            break
+            kw_tr = normalize_tr(kw)
+            if kw_tr == q_tr:
+                kw_hits += 5.0
+            elif len(kw_tr) >= 3 and kw_tr in q_tr:
+                kw_hits += 2.0 + (len(kw_tr) * 0.1)
 
-    if not best_match:
+        total_cat_score = cat_score + kw_hits
+        if total_cat_score > best_score:
+            best_score = total_cat_score
+            best_match = category_group
+            matched_part = cat_matched_part
+
+    if not best_match or best_score < 1.5:
         return None
 
     # Markdown formatında karşılaştırma raporu hazırla
@@ -568,39 +653,46 @@ def find_component_equivalents_with_market(query: str, check_market_prices: bool
     Türkiye pazarındaki (Robotronik, Robotistan, Direnç.net, Motorobit) canlı fiyat ve stoklarını getirir.
     """
     eq_res = find_component_equivalents(query)
-    
+
     # Yerleşik veritabanında yoksa genel kategori analizi ve piyasa araması yap
     if not eq_res:
         import market_scraper
         market_res = market_scraper.search_market(query, only_in_stock=True, limit_per_vendor=2)
         md = [f"# 🔍 '{query}' İçin Piyasa Araması & Olası Alternatifler\n"]
-        md.append("Bu parça yerleşik muadil kütüphanesinde doğrudan listelenmemiş, ancak Türkiye pazarında bulunan ürünler aşağıdadır:\n")
-        for it in market_res.get("results", []):
-            md.append(f"- **[{it['vendor']}] [{it['title']}]({it['url']})** — **{it['price']}**")
-        
+        results = market_res.get("results", [])
+        if results:
+            md.append("Bu parça yerleşik muadil kütüphanesinde doğrudan listelenmemiş, ancak Türkiye pazarında bulunan uyumlu ürünler aşağıdadır:\n")
+            for it in results:
+                md.append(f"- **[{it['vendor']}] [{it['title']}]({it['url']})** — **{it['price']}**")
+        else:
+            md.append(f"Bu parça (`{query}`) için Türkiye yerel mağazalarında (Robotistan, Robotronik, Direnç.net, Motorobit) aktif stok bulunamadı.")
+
         return {
             "found_in_database": False,
             "query": query,
             "markdown_report": "\n".join(md),
-            "market_results": market_res.get("results", [])
+            "market_results": results
         }
 
     # Yerleşik veritabanında varsa ve piyasa fiyatları isteniyorsa
     if check_market_prices:
         try:
             import market_scraper
-            market_lines = ["\n### 💰 Alternatiflerin Canlı Piyasa Fiyatları (Robotronik / Robotistan / Direnç.net / Motorobit):"]
-            
-            # İlk 2 alternatifi piyasada sorgula
-            queried_parts = eq_res["equivalents"][:3]
+            market_lines = ["\n### 💰 Alternatiflerin Canlı Piyasa Fiyatları (Robotistan / Robotronik / Direnç.net / Motorobit):"]
+
+            queried_parts = eq_res["equivalents"][:4]
             for p in queried_parts:
-                p_name_short = p["name"].split("(")[0].strip()
-                m_res = market_scraper.search_market(p_name_short, only_in_stock=True, limit_per_vendor=1, sort_by_price=True)
+                search_term = _clean_part_search_name(p["name"])
+                m_res = market_scraper.search_market(search_term, only_in_stock=True, limit_per_vendor=1, sort_by_price=True)
                 cheapest = m_res.get("cheapest")
+                rob_opt = m_res.get("robotistan_option")
                 if cheapest:
-                    market_lines.append(f"- **{p['name']}**: En uygun **{cheapest['price']}** ([{cheapest['vendor']}]({cheapest['url']}))")
+                    line = f"- **{p['name']}**: En uygun **{cheapest['price']}** ([{cheapest['vendor']}]({cheapest['url']}))"
+                    if rob_opt and rob_opt.get("vendor_key") != cheapest.get("vendor_key"):
+                        line += f" | Robotistan: **{rob_opt['price']}** ([Link]({rob_opt['url']}))"
+                    market_lines.append(line)
                 else:
-                    market_lines.append(f"- **{p['name']}**: *Türkiye pazarında aktif stok aranıyor*")
+                    market_lines.append(f"- **{p['name']}**: *Türkiye perakende mağazalarında aktif stok yok (AliExpress / Özdisan / Mouser önerilir)*")
 
             eq_res["markdown_report"] += "\n" + "\n".join(market_lines)
         except Exception:
@@ -611,3 +703,4 @@ def find_component_equivalents_with_market(query: str, check_market_prices: bool
 
 
 get_component_equivalents = find_component_equivalents
+
