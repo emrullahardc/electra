@@ -338,17 +338,25 @@ TOOLS = [
     {
         "name": "electro_remove_draft_order_item",
         "description": (
-            "Taslak (draft) sipariş listesinden tek bir kalemi çıkarır/siler ve taslağın toplam tutarını otomatik günceller."
+            "Taslak (draft) sipariş listesinden tek bir kalemi çıkarır/siler. "
+            "Doğrudan kalemin ID'si ('item_id') verilerek VEYA taslak ID ('draft_id') + parça adı/anahtar kelime ('title_query') verilerek silinebilir."
         ),
         "inputSchema": {
             "type": "object",
             "properties": {
                 "item_id": {
                     "type": "integer",
-                    "description": "Taslak siparişten çıkarılacak kalemin ID numarası"
+                    "description": "Taslak siparişten çıkarılacak kalemin ID numarası (örn: 13)"
+                },
+                "draft_id": {
+                    "type": "integer",
+                    "description": "Kalemin bulunduğu taslak sipariş ID'si (item_id bilinmiyorsa title_query ile birlikte kullanılır)"
+                },
+                "title_query": {
+                    "type": "string",
+                    "description": "Silinecek kalemin başlığı veya anahtar kelimesi (örn: 'MAX-M10S', 'LIS3DH')"
                 }
-            },
-            "required": ["item_id"]
+            }
         }
     }
 ]
@@ -751,10 +759,20 @@ class MCPServer:
                 md.append(f"- **Tahmini Toplam Tutar:** ~{float(order.get('total_estimated_price') or 0):.2f} TL\n")
                 md.append("### Kalemler:")
                 for it in order.get("items", []):
-                    stok_badge = "🟢 Stokta Var" if it.get("in_stock") else "🔴 Tükendi"
-                    link_str = f" | [Robotistan Linki]({it['url']})" if it.get("url") else ""
+                    # Stok ve kaynak doğrulaması
+                    if not it.get("url"):
+                        stok_badge = "⚪ Fiyat/Stok Belirsiz (Piyasada Aranacak)"
+                    elif it.get("in_stock"):
+                        stok_badge = "🟢 Stokta Var"
+                    else:
+                        stok_badge = "🔴 Tükendi"
+
+                    source_tag = f" [{it.get('source').upper()}]" if it.get("source") and it.get("source") != "robotistan" else ""
+                    link_str = f" | [Ürün Linki]({it['url']})" if it.get("url") else ""
                     pid_str = f" [PID: {it['product_id']}]" if it.get("product_id") else ""
-                    md.append(f"- **{it['title']}**{pid_str} — {it['quantity']} Adet x {it.get('price', 'Fiyat Yok')} ({stok_badge}){link_str}")
+                    price_str = it.get('price') or (f"{it['price_value']} TL" if it.get('price_value') else "Fiyat Belirtilmedi")
+                    
+                    md.append(f"- **[Kalem ID: #{it['id']}]{source_tag} {it['title']}**{pid_str} — {it['quantity']} Adet x {price_str} ({stok_badge}){link_str}")
                     if it.get("notes"):
                         md.append(f"  *Not:* {it['notes']}")
 
@@ -788,22 +806,52 @@ class MCPServer:
                 }
 
             elif tool_name == "electro_remove_draft_order_item":
-                item_id = int(args.get("item_id", 0))
-                success = electro_db.delete_draft_order_item(item_id)
-                if success:
-                    return {
-                        "jsonrpc": "2.0",
-                        "id": msg_id,
-                        "result": {
-                            "content": [{"type": "text", "text": f"✅ Kalem #{item_id} taslak sipariş listesinden başarıyla çıkarıldı."}],
-                            "success": True
+                item_id = args.get("item_id")
+                draft_id = args.get("draft_id")
+                title_query = args.get("title_query") or args.get("title")
+
+                if item_id:
+                    item_id = int(item_id)
+                    success = electro_db.delete_draft_order_item(item_id)
+                    if success:
+                        return {
+                            "jsonrpc": "2.0",
+                            "id": msg_id,
+                            "result": {
+                                "content": [{"type": "text", "text": f"✅ Kalem #{item_id} taslak sipariş listesinden başarıyla çıkarıldı."}],
+                                "success": True,
+                                "deleted_item_id": item_id
+                            }
                         }
-                    }
+                    else:
+                        return {
+                            "jsonrpc": "2.0",
+                            "id": msg_id,
+                            "error": {"code": -32602, "message": f"Kalem #{item_id} bulunamadı veya silinemedi."}
+                        }
+                elif draft_id and title_query:
+                    del_res = electro_db.delete_draft_order_item_by_query(int(draft_id), str(title_query))
+                    if del_res:
+                        return {
+                            "jsonrpc": "2.0",
+                            "id": msg_id,
+                            "result": {
+                                "content": [{"type": "text", "text": f"✅ '{del_res['title']}' (Kalem #{del_res['id']}) taslak #{draft_id} listesinden başarıyla silindi."}],
+                                "success": True,
+                                "deleted_item": del_res
+                            }
+                        }
+                    else:
+                        return {
+                            "jsonrpc": "2.0",
+                            "id": msg_id,
+                            "error": {"code": -32602, "message": f"Taslak #{draft_id} içinde '{title_query}' ile eşleşen bir kalem bulunamadı."}
+                        }
                 else:
                     return {
                         "jsonrpc": "2.0",
                         "id": msg_id,
-                        "error": {"code": -32602, "message": f"Kalem #{item_id} bulunamadı veya silinemedi."}
+                        "error": {"code": -32602, "message": "Lütfen silinecek kalemin 'item_id' numarasını veya 'draft_id' + 'title_query' parametrelerini belirtin."}
                     }
 
             else:

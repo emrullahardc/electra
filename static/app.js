@@ -1265,24 +1265,29 @@ async function loadDraftOrders() {
               ${items.length === 0 ? '<p class="text-slate-500 italic col-span-full py-2">Bu taslakta hiç ürün kalmadı.</p>' : items.map(it => `
                 <div class="bg-slate-950 p-2.5 rounded-lg border border-slate-800 flex items-center justify-between gap-2 hover:border-slate-700 transition">
                   <div class="min-w-0 flex-1">
-                    <p class="font-medium text-slate-200 truncate" title="${escapeHtml(it.title)}">${escapeHtml(it.title)}</p>
-                    <div class="flex items-center gap-2 text-[11px] text-slate-400 mt-1">
-                      <span class="text-emerald-400 font-mono font-medium">${formatPrice(it.price_value || it.price)}</span>
+                    <div class="flex items-center gap-1.5 flex-wrap">
+                      <span class="text-[10px] px-1.5 py-0.2 rounded bg-slate-900 border border-slate-800 text-slate-400 font-mono font-bold" title="Kalem ID">#${it.id}</span>
+                      <p class="font-medium text-slate-200 truncate flex-1 min-w-[120px]" title="${escapeHtml(it.title)}">${escapeHtml(it.title)}</p>
+                      ${it.source && it.source !== 'robotistan' ? `<span class="text-[9px] px-1.5 py-0.2 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30 uppercase font-mono">${escapeHtml(it.source)}</span>` : ''}
+                    </div>
+                    <div class="flex items-center gap-2 text-[11px] text-slate-400 mt-1 flex-wrap">
+                      <span class="text-emerald-400 font-mono font-medium">${it.price_value > 0 ? formatPrice(it.price_value) : (it.price ? formatPrice(it.price) : 'Fiyat Belirtilmedi')}</span>
+                      ${it.url ? (it.in_stock ? '<span class="text-[10px] px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300">Stokta Var</span>' : '<span class="text-[10px] px-1.5 py-0.2 rounded bg-rose-500/20 text-rose-300">Tükendi</span>') : '<span class="text-[10px] px-1.5 py-0.2 rounded bg-amber-500/10 text-amber-300/80 border border-amber-500/20" title="Market araması yapılmadı veya stok bulunamadı">⚪ Piyasada Aranacak</span>'}
                       <span class="flex items-center gap-1 bg-slate-900 px-1.5 py-0.5 rounded border border-slate-800">
                         <button onclick="changeDraftItemQuantity(${it.id}, ${it.quantity - 1})" class="w-4 h-4 rounded hover:bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center font-bold" title="1 Azalt">-</button>
                         <span class="text-slate-200 font-semibold px-1">${it.quantity}</span>
                         <button onclick="changeDraftItemQuantity(${it.id}, ${it.quantity + 1})" class="w-4 h-4 rounded hover:bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center font-bold" title="1 Artır">+</button>
                       </span>
-                      ${it.notes ? `<span class="text-slate-500 italic truncate">• ${escapeHtml(it.notes)}</span>` : ''}
+                      ${it.notes ? `<span class="text-slate-500 italic truncate max-w-[220px]" title="${escapeHtml(it.notes)}">• ${escapeHtml(it.notes)}</span>` : ''}
                     </div>
                   </div>
                   <div class="flex items-center gap-1.5 flex-shrink-0">
                     ${it.url ? `
-                      <a href="${it.url}" target="_blank" class="p-1.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700/60 transition" title="Robotistan'da Gör">
+                      <a href="${it.url}" target="_blank" class="p-1.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700/60 transition" title="Ürün Sayfasına Git">
                         <i class="fa-solid fa-arrow-up-right-from-square text-[10px]"></i>
                       </a>
                     ` : ''}
-                    <button onclick="removeDraftOrderItem(${it.id}, '${escapeHtml(it.title)}')" class="p-1.5 rounded bg-slate-800/80 hover:bg-rose-950/60 text-slate-400 hover:text-rose-400 border border-slate-700/60 hover:border-rose-500/50 transition" title="Bu Kalemi Listeden Çıkar">
+                    <button onclick="removeDraftOrderItem(${it.id}, '${escapeHtml(it.title)}')" class="p-1.5 rounded bg-slate-800/80 hover:bg-rose-950/60 text-slate-400 hover:text-rose-400 border border-slate-700/60 hover:border-rose-500/50 transition" title="Bu Kalemi Listeden Çıkar (Kalem ID: #${it.id})">
                       <i class="fa-solid fa-trash-can text-xs"></i>
                     </button>
                   </div>

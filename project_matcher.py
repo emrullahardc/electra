@@ -283,7 +283,11 @@ def match_project_components(
             else:
                 draft_items.append({
                     "title": rec["missing_part_role"],
-                    "source": "other",
+                    "source": "market",
+                    "in_stock": False,
+                    "url": "",
+                    "price": "",
+                    "price_value": 0.0,
                     "notes": f"Robotistan'da doğrudan stok bulunamadı ({rec['searched_query']})"
                 })
 

@@ -212,6 +212,9 @@ def init_db(db_path: str = DB_PATH) -> None:
         cursor.execute("UPDATE draft_orders SET total_estimated_price = ROUND(total_estimated_price, 2)")
         cursor.execute("UPDATE draft_order_items SET price_value = ROUND(price_value, 2)")
         cursor.execute("UPDATE cart_items SET price_value = ROUND(price_value, 2)")
+        # Linki olmayan veya sorgulanmamış parçaların hatalı 'Stokta Var' etiketini düzelt
+        cursor.execute("UPDATE draft_order_items SET in_stock = 0 WHERE (url = '' OR url IS NULL)")
+        cursor.execute("UPDATE draft_order_items SET source = 'market' WHERE (url = '' OR url IS NULL) AND (source = 'robotistan' OR source IS NULL)")
 
         conn.commit()
 
@@ -615,8 +618,8 @@ def create_draft_order(
                     it.get("price", "").strip(),
                     round(float(it.get("price_value") or 0.0), 2),
                     int(it.get("quantity", 1)),
-                    1 if it.get("in_stock", True) else 0,
-                    it.get("source", "robotistan"),
+                    1 if (it.get("in_stock", True) and it.get("url")) else 0,
+                    it.get("source") or ("robotistan" if it.get("url") else "market"),
                     it.get("matched_inventory_id"),
                     it.get("notes", "").strip()
                 ))
@@ -692,8 +695,8 @@ def add_item_to_draft_order(draft_id: int, item: Dict[str, Any], db_path: str = 
             item.get("price", "").strip(),
             round(float(item.get("price_value") or 0.0), 2),
             int(item.get("quantity", 1)),
-            1 if item.get("in_stock", True) else 0,
-            item.get("source", "robotistan"),
+            1 if (item.get("in_stock", True) and item.get("url")) else 0,
+            item.get("source") or ("robotistan" if item.get("url") else "market"),
             item.get("matched_inventory_id"),
             item.get("notes", "").strip()
         ))
@@ -743,6 +746,25 @@ def delete_draft_order_item(item_id: int, db_path: str = DB_PATH) -> bool:
         """, (draft_id, now, draft_id))
         conn.commit()
         return True
+
+
+def delete_draft_order_item_by_query(draft_id: int, query: str, db_path: str = DB_PATH) -> Optional[Dict[str, Any]]:
+    """Taslak sipariş içindeki kalemi başlık aramasıyla bulup siler."""
+    with get_connection(db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT id, title FROM draft_order_items WHERE draft_order_id = ? AND title LIKE ? LIMIT 1",
+            (draft_id, f"%{query.strip()}%")
+        )
+        row = cursor.fetchone()
+        if not row:
+            return None
+        item_id = row["id"]
+        item_title = row["title"]
+        success = delete_draft_order_item(item_id, db_path=db_path)
+        if success:
+            return {"id": item_id, "title": item_title}
+        return None
 
 
 def update_draft_order_item_quantity(item_id: int, quantity: int, db_path: str = DB_PATH) -> bool:
