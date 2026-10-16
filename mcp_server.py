@@ -19,6 +19,7 @@ from typing import Dict, Any, List, Optional
 import electro_db
 import project_matcher
 import component_equivalents
+import market_scraper
 from robotistan_scraper import scraper
 
 # Logları stderr'e yaz (stdio MCP protokolünde stdout yalnızca JSON-RPC içindir)
@@ -409,6 +410,107 @@ TOOLS = [
                 }
             },
             "required": ["component_name"]
+        }
+    },
+    {
+        "name": "electro_search_market",
+        "description": (
+            "Türkiye'deki büyük elektronik ve robotik parça marketlerinde "
+            "(Robotronik, Robotistan, Direnç.net, Motorobit) eşzamanlı canlı arama yapar. "
+            "Fiyatları yan yana kıyaslar, en ucuz mağazayı tespit eder, doğrudan satın alma linklerini ve stok durumlarını listeler."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "Aranacak elektronik komponent veya ürün (örn: 'ESP32-C3', 'SG90', 'TP4056', 'BMP280', '1S Lipo Pil')"
+                },
+                "vendor": {
+                    "type": "string",
+                    "description": "Belirli bir mağaza veya hepsi: 'all' (tüm siteler), 'robotronik', 'robotistan', 'direnc', 'motorobit'",
+                    "default": "all"
+                },
+                "only_in_stock": {
+                    "type": "boolean",
+                    "description": "Yalnızca aktif stokta olan ürünleri listele",
+                    "default": True
+                },
+                "limit_per_vendor": {
+                    "type": "integer",
+                    "description": "Mağaza başına maksimum ürün sayısı (varsayılan: 4)",
+                    "default": 4
+                }
+            },
+            "required": ["query"]
+        }
+    },
+    {
+        "name": "electro_search_robotronik",
+        "description": (
+            "Robotronik (robotronik.com.tr) üzerinde canlı parça araması yapar. "
+            "Özellikle uygun fiyatlı Arduino, ESP32, sensör, LiPo ve robotik modülleri için Türkiye'nin en hesaplı marketlerinden biridir."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "description": "Robotronik'te aranacak ürün (örn: 'ESP32-S3', 'SG90', 'Lipo Pil')"},
+                "only_in_stock": {"type": "boolean", "default": True},
+                "limit": {"type": "integer", "default": 6}
+            },
+            "required": ["query"]
+        }
+    },
+    {
+        "name": "electro_search_direnc",
+        "description": (
+            "Direnç.net (direnc.net) üzerinde canlı parça araması yapar. "
+            "Türkiye'nin en zengin entegre, yarıiletken, pasif komponent (direnç, kondansatör), konnektör ve röle arşivine sahiptir."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "description": "Direnç.net'te aranacak ürün (örn: 'AO3401A', '2N7002', 'ESP32', 'TPS7A02')"},
+                "only_in_stock": {"type": "boolean", "default": True},
+                "limit": {"type": "integer", "default": 6}
+            },
+            "required": ["query"]
+        }
+    },
+    {
+        "name": "electro_compare_part_prices",
+        "description": (
+            "Bir parça için Robotistan, Robotronik, Direnç.net ve Motorobit mağazalarındaki canlı fiyatları tek bir tabloda kıyaslar, en ucuz seçeneği (Best Deal) önerir."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "part_name": {"type": "string", "description": "Fiyatı kıyaslanacak parça adı (örn: 'ESP32-C3 Super Mini', 'SG90 Servo', 'TP4056')"}
+            },
+            "required": ["part_name"]
+        }
+    },
+    {
+        "name": "electro_find_best_bom_deal",
+        "description": (
+            "Verilen bir proje malzeme listesindeki (BOM) tüm parçaları Türkiye mağazalarında (Robotronik, Robotistan, Direnç.net, Motorobit) tarar. "
+            "Hangi parçanın hangi siteden alınması durumunda en düşük toplam maliyetin çıkacağını ('Buradan şunlar, şuradan şunlar') hesaplar ve optimal sipariş planı çıkarır."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "components": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Proje için gereken parça adları listesi (örn: ['ESP32-C3', 'SG90 servo', 'TP4056', '1S Lipo 1000mAh'])"
+                },
+                "auto_create_split_drafts": {
+                    "type": "boolean",
+                    "description": "Tedarikçilere göre ayrılmış taslak sipariş listeleri (örn: 'Robotronik Sepeti', 'Direnç.net Sepeti') otomatik oluşturulsun mu",
+                    "default": False
+                }
+            },
+            "required": ["components"]
         }
     }
 ]
@@ -1001,6 +1103,167 @@ class MCPServer:
                     "result": {
                         "content": [{"type": "text", "text": eq_res["markdown_report"]}],
                         "data": eq_res
+                    }
+                }
+
+            elif tool_name == "electro_search_market":
+                q = str(args.get("query", "")).strip()
+                v = str(args.get("vendor", "all")).strip().lower()
+                vendors = [v] if v and v != "all" else None
+                only_stock = bool(args.get("only_in_stock", True))
+                limit = int(args.get("limit_per_vendor", 4))
+
+                market_res = market_scraper.search_market(
+                    query=q,
+                    vendors=vendors,
+                    only_in_stock=only_stock,
+                    limit_per_vendor=limit
+                )
+
+                md = [f"# 🛒 Türkiye Elektronik Pazarı Arama Sonuçları: '{q}'\n"]
+                counts = market_res.get("vendor_counts", {})
+                count_str = " • ".join([f"{market_scraper.VENDORS.get(k, {}).get('name', k)}: {cnt}" for k, cnt in counts.items()])
+                md.append(f"**Taranan Mağazalar:** {count_str}")
+                md.append(f"**Toplam Bulunan Ürün:** {market_res.get('total_results', 0)} (Stokta Olan: {market_res.get('in_stock_results', 0)})\n")
+
+                cheapest = market_res.get("cheapest")
+                if cheapest:
+                    md.append(f"⭐ **En Uygun Fiyat:** [{cheapest['vendor']}] {cheapest['title']} — **{cheapest['price']}** ([Ürünü Gör]({cheapest['url']}))\n")
+
+                md.append("### 📦 Mağazalara Göre Ürünler (Ucuzdan Pahalıya):")
+                for r in market_res.get("results", []):
+                    badge = "🟢 Stokta Var" if r.get("in_stock") else "🔴 Tükendi"
+                    cheap_tag = " ⭐ *(En Ucuz!)*" if r.get("is_cheapest") else ""
+                    md.append(f"- **[{r['vendor']}] [{r['title']}]({r['url']})** — **{r['price']}** ({badge}){cheap_tag}")
+
+                return {
+                    "jsonrpc": "2.0",
+                    "id": msg_id,
+                    "result": {
+                        "content": [{"type": "text", "text": "\n".join(md)}],
+                        "data": market_res
+                    }
+                }
+
+            elif tool_name == "electro_search_robotronik":
+                q = str(args.get("query", "")).strip()
+                only_stock = bool(args.get("only_in_stock", True))
+                limit = int(args.get("limit", 6))
+                items = market_scraper.search_robotronik(query=q, only_in_stock=only_stock, limit=limit)
+
+                md = [f"# 🤖 Robotronik.com.tr Arama Sonuçları: '{q}'\n"]
+                md.append(f"Toplam {len(items)} ürün bulundu.\n")
+                for r in items:
+                    badge = "🟢 Stokta Var" if r.get("in_stock") else "🔴 Tükendi"
+                    md.append(f"- **[{r['title']}]({r['url']})** — **{r['price']}** ({badge})")
+
+                return {
+                    "jsonrpc": "2.0",
+                    "id": msg_id,
+                    "result": {
+                        "content": [{"type": "text", "text": "\n".join(md)}],
+                        "items": items
+                    }
+                }
+
+            elif tool_name == "electro_search_direnc":
+                q = str(args.get("query", "")).strip()
+                only_stock = bool(args.get("only_in_stock", True))
+                limit = int(args.get("limit", 6))
+                items = market_scraper.search_direnc(query=q, only_in_stock=only_stock, limit=limit)
+
+                md = [f"# ⚡ Direnç.net Arama Sonuçları: '{q}'\n"]
+                md.append(f"Toplam {len(items)} ürün bulundu.\n")
+                for r in items:
+                    badge = "🟢 Stokta Var" if r.get("in_stock") else "🔴 Tükendi"
+                    md.append(f"- **[{r['title']}]({r['url']})** — **{r['price']}** ({badge})")
+
+                return {
+                    "jsonrpc": "2.0",
+                    "id": msg_id,
+                    "result": {
+                        "content": [{"type": "text", "text": "\n".join(md)}],
+                        "items": items
+                    }
+                }
+
+            elif tool_name == "electro_compare_part_prices":
+                part_name = str(args.get("part_name", "")).strip()
+                comp_res = market_scraper.search_market(part_name, only_in_stock=True, limit_per_vendor=2, sort_by_price=True)
+                results = comp_res.get("results", [])
+
+                md = [f"# ⚖️ Parça Fiyat Karşılaştırması: '{part_name}'\n"]
+                cheapest = comp_res.get("cheapest")
+                if cheapest:
+                    md.append(f"🏆 **En Uygun Fiyat:** **{cheapest['price']}** ({cheapest['vendor']}) — [{cheapest['title']}]({cheapest['url']})\n")
+
+                md.append("| Mağaza | Ürün Adı | Fiyat | Stok | Link |")
+                md.append("|---|---|---|---|---|")
+                for r in results:
+                    best_icon = "⭐ **EN UCUZ**" if r.get("is_cheapest") else ""
+                    stok_str = "🟢 Stokta" if r.get("in_stock") else "🔴 Tükendi"
+                    md.append(f"| **{r['vendor']}** {best_icon} | {r['title']} | **{r['price']}** | {stok_str} | [Ürünü Aç]({r['url']}) |")
+
+                return {
+                    "jsonrpc": "2.0",
+                    "id": msg_id,
+                    "result": {
+                        "content": [{"type": "text", "text": "\n".join(md)}],
+                        "data": comp_res
+                    }
+                }
+
+            elif tool_name == "electro_find_best_bom_deal":
+                components = args.get("components", [])
+                auto_split = bool(args.get("auto_create_split_drafts", False))
+                bom_res = market_scraper.compare_bom_prices(parts=components, only_in_stock=True)
+
+                md = ["# 🎯 Çoklu Mağaza Optimal BOM & Satın Alma Planı\n"]
+                md.append(f"**Talep Edilen Parça Sayısı:** {bom_res.get('total_items_requested', 0)}")
+                md.append(f"**Optimal Karma Sipariş Tutarı:** **~{bom_res.get('total_optimal_price', 0.0):.2f} TL**\n")
+
+                optimal_plan = bom_res.get("optimal_plan", {})
+                created_drafts = []
+
+                for v_key, items in optimal_plan.items():
+                    v_name = market_scraper.VENDORS.get(v_key, {}).get("name", v_key.upper())
+                    v_total = sum(it.get("price_value", 0.0) for it in items)
+                    md.append(f"### 🏪 {v_name} ({len(items)} Kalem • ~{v_total:.2f} TL):")
+                    for it in items:
+                        md.append(f"- **{it['title']}** — **{it['price']}** ([İncele]({it['url']}))")
+                    md.append("")
+
+                    if auto_split:
+                        draft_title = f"BOM – {v_name} Sepeti"
+                        draft_items = [{
+                            "title": it["title"],
+                            "url": it["url"],
+                            "price": it["price"],
+                            "price_value": it["price_value"],
+                            "quantity": 1,
+                            "source": v_key,
+                            "in_stock": True,
+                            "notes": f"{v_name} en uygun fiyatlı seçenek"
+                        } for it in items]
+                        did = electro_db.create_draft_order(
+                            title=draft_title,
+                            description=f"Optimal BOM analizi ile {v_name} üzerinden seçilen parçalar.",
+                            items=draft_items
+                        )
+                        created_drafts.append({"draft_id": did, "vendor": v_name, "count": len(draft_items)})
+
+                if created_drafts:
+                    md.append("### 📝 Otomatik Oluşturulan Taslak Siparişler:")
+                    for cd in created_drafts:
+                        md.append(f"- **Draft #{cd['draft_id']}**: {cd['vendor']} ({cd['count']} Kalem)")
+
+                return {
+                    "jsonrpc": "2.0",
+                    "id": msg_id,
+                    "result": {
+                        "content": [{"type": "text", "text": "\n".join(md)}],
+                        "bom_data": bom_res,
+                        "created_drafts": created_drafts
                     }
                 }
 

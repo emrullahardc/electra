@@ -720,10 +720,13 @@ function fillProjectExample(text) {
   analyzeProject();
 }
 
-// Robotistan Doğrudan Canlı Arama
+// Türkiye Pazarı & Çoklu Tedarikçi Canlı Arama (Robotronik, Robotistan, Direnç.net, Motorobit)
 async function searchRobotistanDirect() {
   const query = document.getElementById("rob-search-input").value.trim();
   const onlyStock = document.getElementById("rob-only-stock").checked;
+  const vendorSelect = document.getElementById("market-vendor-select");
+  const vendor = vendorSelect ? vendorSelect.value : "all";
+
   if (!query) return;
 
   const btn = document.getElementById("btn-rob-search");
@@ -731,13 +734,19 @@ async function searchRobotistanDirect() {
   btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
 
   const container = document.getElementById("rob-results-container");
-  container.innerHTML = '<div class="col-span-full py-12 text-center text-slate-500"><i class="fa-solid fa-spinner fa-spin text-2xl text-orange-500 mb-2"></i><p>Robotistan canlı taranıyor...</p></div>';
+  container.innerHTML = `
+    <div class="col-span-full py-12 text-center text-slate-500">
+      <i class="fa-solid fa-spinner fa-spin text-2xl text-orange-500 mb-2"></i>
+      <p>Türkiye pazarı (Robotronik, Robotistan, Direnç.net, Motorobit) taranıyor...</p>
+    </div>
+  `;
 
   try {
-    const url = new URL("/api/robotistan/search", window.location.origin);
+    const url = new URL("/api/market/search", window.location.origin);
     url.searchParams.set("q", query);
+    url.searchParams.set("vendor", vendor);
     url.searchParams.set("only_in_stock", onlyStock ? "1" : "0");
-    url.searchParams.set("limit", "15");
+    url.searchParams.set("limit", "8");
 
     const res = await fetch(url);
     if (!res.ok) {
@@ -754,46 +763,131 @@ async function searchRobotistanDirect() {
 
     if (results.length === 0) {
       container.innerHTML = `
-        <div class="col-span-full py-12 text-center text-slate-500">
-          <i class="fa-solid fa-box-open text-3xl mb-2 text-slate-600"></i>
-          <p class="font-medium text-slate-300">"${escapeHtml(query)}" için Robotistan'da ürün bulunamadı.</p>
+        <div class="col-span-full bg-slate-900 border border-slate-800 rounded-xl py-12 text-center text-slate-500 space-y-2">
+          <i class="fa-solid fa-box-open text-4xl mb-2 text-slate-600"></i>
+          <p class="font-medium text-slate-300">"${escapeHtml(query)}" için seçilen mağazalarda stokta ürün bulunamadı.</p>
+          <p class="text-xs text-slate-400">Arama filtresini gevşetmeyi veya "Tüm Siteler" seçeneğini deneyebilirsiniz.</p>
         </div>
       `;
       return;
     }
 
-    container.innerHTML = results.map(item => `
-      <div class="bg-slate-900 border border-slate-800 hover:border-orange-500/40 rounded-xl p-3.5 flex flex-col justify-between space-y-3 transition">
-        <div class="space-y-2">
-          <div class="flex items-start justify-between gap-2">
-            <h4 class="font-semibold text-slate-200 text-sm line-clamp-2">${escapeHtml(item.title)}</h4>
-            <span class="text-[10px] px-2 py-0.5 rounded-full font-medium ${item.in_stock ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'bg-rose-500/20 text-rose-300 border border-rose-500/30'} whitespace-nowrap">
-              ${item.stock_status}
-            </span>
-          </div>
-          <p class="text-base font-bold text-emerald-400 font-mono">${formatPrice(item.price_value || item.price)}</p>
-        </div>
+    const vendorStyles = {
+      robotronik: { badge: "bg-purple-500/20 text-purple-300 border-purple-500/30", name: "Robotronik" },
+      robotistan: { badge: "bg-orange-500/20 text-orange-300 border-orange-500/30", name: "Robotistan" },
+      direnc: { badge: "bg-blue-500/20 text-blue-300 border-blue-500/30", name: "Direnç.net" },
+      motorobit: { badge: "bg-rose-500/20 text-rose-300 border-rose-500/30", name: "Motorobit" }
+    };
 
-        <div class="pt-2 border-t border-slate-800/80 flex items-center justify-between gap-1.5">
-          <button onclick="addToCartFromProduct('${escapeHtml(item.title)}', '${item.url}', '${item.price}', ${item.price_value || 0}, ${item.product_id || 'null'})" class="text-xs px-2.5 py-1.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-medium flex items-center gap-1 transition">
-            <i class="fa-solid fa-cart-plus"></i> Sepete Ekle
-          </button>
-          <button onclick="addRobotistanItemToInventory('${escapeHtml(item.title)}')" class="text-xs px-2.5 py-1.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition" title="Stoğa Ekle">
-            + Stoğa Ekle
-          </button>
-          <a href="${item.url}" target="_blank" class="text-xs px-2.5 py-1.5 rounded bg-orange-600/20 hover:bg-orange-600/30 text-orange-400 border border-orange-500/30 font-medium flex items-center gap-1 transition" title="Robotistan'da İncele">
-            <i class="fa-solid fa-arrow-up-right-from-square"></i>
-          </a>
+    container.innerHTML = results.map(item => {
+      const vKey = item.vendor_key || "other";
+      const vStyle = vendorStyles[vKey] || { badge: "bg-slate-700/40 text-slate-300 border-slate-600/30", name: item.vendor || vKey };
+      const isCheap = Boolean(item.is_cheapest);
+      const cardBorder = isCheap ? "border-emerald-500/70 bg-gradient-to-b from-slate-900 to-emerald-950/20 ring-1 ring-emerald-500/40 shadow-lg shadow-emerald-950/30" : "border-slate-800 hover:border-slate-700";
+
+      return `
+        <div class="bg-slate-900 border ${cardBorder} rounded-xl p-3.5 flex flex-col justify-between space-y-3 transition">
+          <div class="space-y-2">
+            <div class="flex items-center justify-between gap-1.5 flex-wrap">
+              <span class="text-[10px] px-2 py-0.5 rounded-full font-bold border uppercase font-mono ${vStyle.badge}">
+                ${vStyle.name}
+              </span>
+              ${isCheap ? `
+                <span class="text-[10px] px-2 py-0.5 rounded-full font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 flex items-center gap-1 shadow-sm">
+                  <i class="fa-solid fa-star text-amber-400 text-[9px]"></i> En Uygun Fiyat
+                </span>
+              ` : ''}
+              <span class="text-[10px] px-2 py-0.5 rounded-full font-medium ${item.in_stock ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'bg-rose-500/20 text-rose-300 border border-rose-500/30'} whitespace-nowrap ml-auto">
+                ${item.in_stock ? '🟢 Stokta' : '🔴 Tükendi'}
+              </span>
+            </div>
+
+            <h4 class="font-semibold text-slate-200 text-sm line-clamp-2" title="${escapeHtml(item.title)}">
+              ${escapeHtml(item.title)}
+            </h4>
+
+            <p class="text-base font-bold ${isCheap ? 'text-emerald-400 text-lg' : 'text-slate-100'} font-mono">
+              ${formatPrice(item.price_value || item.price)}
+            </p>
+          </div>
+
+          <div class="pt-2 border-t border-slate-800/80 flex flex-wrap items-center justify-between gap-1.5">
+            <div class="flex items-center gap-1 flex-wrap">
+              ${vKey === 'robotistan' ? `
+                <button onclick="addToCartFromProduct('${escapeHtml(item.title).replace(/'/g, "\\'")}', '${item.url}', '${item.price}', ${item.price_value || 0}, ${item.product_id || 'null'})" class="text-xs px-2.5 py-1.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-medium flex items-center gap-1 transition cursor-pointer" title="Robotistan Sepetine Ekle">
+                  <i class="fa-solid fa-cart-plus"></i> Sepete
+                </button>
+              ` : ''}
+              <button onclick="quickAddMarketItemToDraft('${escapeHtml(item.title).replace(/'/g, "\\'")}', '${item.url}', ${item.price_value || 0}, '${vKey}')" class="text-xs px-2.5 py-1.5 rounded bg-purple-600/80 hover:bg-purple-600 text-white font-medium flex items-center gap-1 transition cursor-pointer" title="Bu ürünü taslak sipariş listesine ekle">
+                <i class="fa-solid fa-clipboard-list"></i> Taslağa Ekle
+              </button>
+              <button onclick="addRobotistanItemToInventory('${escapeHtml(item.title).replace(/'/g, "\\'")}')" class="text-xs px-2 py-1.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition cursor-pointer" title="Atölye Envanterine Ekle">
+                + Stoğa
+              </button>
+            </div>
+            <a href="${item.url}" target="_blank" class="text-xs px-2.5 py-1.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 font-medium flex items-center gap-1 transition ml-auto" title="Mağaza Sayfasını Aç">
+              <span>İncele</span> <i class="fa-solid fa-arrow-up-right-from-square text-[10px]"></i>
+            </a>
+          </div>
         </div>
-      </div>
-    `).join("");
+      `;
+    }).join("");
 
   } catch (err) {
-    console.error("Robotistan arama hatası:", err);
+    console.error("Piyasa arama hatası:", err);
     container.innerHTML = `<div class="col-span-full py-8 text-center text-rose-400">Arama sırasında bir hata oluştu: ${err.message}</div>`;
   } finally {
     btn.disabled = false;
-    btn.innerHTML = '<i class="fa-solid fa-magnifying-glass"></i> Ara';
+    btn.innerHTML = '<i class="fa-solid fa-magnifying-glass"></i> Ara & Kıyasla';
+  }
+}
+
+async function quickAddMarketItemToDraft(title, url, priceVal, vendorKey) {
+  try {
+    const res = await fetch("/api/draft-orders");
+    const drafts = await res.json();
+    if (!drafts || drafts.length === 0) {
+      alert("Önce 'Draft Siparişler' sekmesinden bir taslak oluşturmalısınız.");
+      return;
+    }
+
+    // En son güncellenen aktif taslağa ekle (veya tek taslak varsa direkt ona)
+    let targetDraft = drafts[0];
+    if (drafts.length > 1) {
+      const options = drafts.map(d => `#${d.id}: ${d.title}`).join("\n");
+      const chosenId = prompt(`Bu ürünü hangi taslağa eklemek istersiniz?\n\nMevcut Taslaklar:\n${options}\n\nLütfen Taslak ID numarasını girin:`, targetDraft.id);
+      if (!chosenId) return;
+      const found = drafts.find(d => String(d.id) === String(chosenId).trim());
+      if (found) targetDraft = found;
+    }
+
+    const payload = {
+      title,
+      url,
+      quantity: 1,
+      source: vendorKey || "market",
+      price_value: priceVal,
+      price: priceVal > 0 ? `${priceVal.toFixed(2)} TL` : "",
+      in_stock: true,
+      notes: `${vendorKey.toUpperCase()} üzerinden eklendi`
+    };
+
+    const addRes = await fetch(`/api/draft-orders/${targetDraft.id}/items`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+
+    const addData = await addRes.json();
+    if (addRes.ok && addData.success) {
+      showToast(`"${title}" [#${targetDraft.id} ${targetDraft.title}] taslağına eklendi ✨`);
+      loadDraftsBadge();
+    } else {
+      alert("Hata: " + (addData.error || "Kalem eklenemedi"));
+    }
+  } catch (err) {
+    console.error("Taslağa hızlı ekleme hatası:", err);
+    alert("Hata: " + err.message);
   }
 }
 
@@ -1614,6 +1708,7 @@ window.showCopySuccess = showCopySuccess;
 window.openAddDraftItemModal = openAddDraftItemModal;
 window.closeAddDraftItemModal = closeAddDraftItemModal;
 window.submitAddDraftItem = submitAddDraftItem;
+window.quickAddMarketItemToDraft = quickAddMarketItemToDraft;
 
 
 

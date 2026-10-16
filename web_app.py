@@ -18,6 +18,7 @@ from typing import Dict, Any, Optional
 import electro_db
 import project_matcher
 from robotistan_scraper import scraper
+import market_scraper
 import mcp_server
 
 PORT = 8080
@@ -254,6 +255,25 @@ class ElectroRequestHandler(http.server.SimpleHTTPRequestHandler):
                 self.send_json(res)
             except Exception as e:
                 self.send_json({"error": f"Robotistan arama hatası: {str(e)}", "results": []}, status=500)
+            return
+
+        # 5b. API: Çoklu Tedarikçi / Türkiye Pazarı Fiyat Karşılaştırmalı Arama
+        elif path == "/api/market/search":
+            try:
+                q = params.get("q", [""])[0]
+                vendor = params.get("vendor", ["all"])[0]
+                vendors = [vendor] if vendor and vendor != "all" else None
+                only_stock = params.get("only_in_stock", ["1"])[0] in ("1", "true")
+                limit = int(params.get("limit", ["8"])[0])
+                res = market_scraper.search_market(
+                    query=q,
+                    vendors=vendors,
+                    only_in_stock=only_stock,
+                    limit_per_vendor=limit
+                )
+                self.send_json(res)
+            except Exception as e:
+                self.send_json({"error": f"Piyasa arama hatası: {str(e)}", "results": []}, status=500)
             return
 
         # 6. API: Veritabanı Yedeği Dışa Aktarma (Export)
@@ -506,6 +526,14 @@ class ElectroRequestHandler(http.server.SimpleHTTPRequestHandler):
             draft_id = int(parts[3])
             result = electro_db.apply_draft_order_to_cart(draft_id)
             self.send_json(result)
+            return
+
+        # 9. API: Çoklu Tedarikçi BOM Fiyat Karşılaştırması
+        elif path == "/api/market/compare-bom":
+            items = data.get("items", [])
+            only_stock = bool(data.get("only_in_stock", True))
+            res = market_scraper.compare_bom_prices(parts=items, only_in_stock=only_stock)
+            self.send_json(res)
             return
 
         self.send_json({"error": "Not found"}, status=404)

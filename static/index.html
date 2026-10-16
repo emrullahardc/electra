@@ -182,7 +182,7 @@
         <i class="fa-solid fa-wand-magic-sparkles text-cyan-400"></i> Proje Asistanı & Robotistan BOM
       </button>
       <button onclick="switchTab('robotistan')" id="tab-btn-robotistan" class="tab-btn px-4 py-2 text-sm font-medium rounded-lg flex items-center gap-2 transition">
-        <i class="fa-solid fa-globe text-orange-400"></i> Robotistan Canlı Arama
+        <i class="fa-solid fa-store text-orange-400"></i> Piyasa & Tedarikçiler
       </button>
       <button onclick="switchTab('cart')" id="tab-btn-cart" class="tab-btn px-4 py-2 text-sm font-medium rounded-lg flex items-center gap-2 transition">
         <i class="fa-solid fa-cart-shopping text-emerald-400"></i> Robotistan Sepetim
@@ -438,34 +438,51 @@
       </div>
     </section>
 
-    <!-- TAB 5: ROBOTİSTAN CANLI ARAMA -->
+    <!-- TAB 5: ÇOKLU TEDARİKÇİ & PİYASA CANLI FİYAT KARŞILAŞTIRMA -->
     <section id="tab-robotistan" class="tab-content hidden space-y-4">
       <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-3">
-        <h2 class="text-lg font-bold text-white flex items-center gap-2">
-          <i class="fa-solid fa-globe text-orange-400"></i> Robotistan.com Canlı Stok & Fiyat Arama
-        </h2>
-        <p class="text-xs text-slate-400">
-          Robotistan web sitesindeki ürünleri anlık olarak tarar, stokta olup olmadığını (Stokta Var / Tükendi) ve güncel Türk Lirası fiyatını gösterir.
-        </p>
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div>
+            <h2 class="text-lg font-bold text-white flex items-center gap-2">
+              <i class="fa-solid fa-store text-orange-400"></i> Türkiye Pazarı Canlı Stok & Fiyat Karşılaştırma
+            </h2>
+            <p class="text-xs text-slate-400 mt-0.5">
+              Robotronik, Robotistan, Direnç.net ve Motorobit mağazalarında eşzamanlı parça arayın; en ucuz fiyatı, stok durumunu ve doğrudan satın alma linklerini karşılaştırın.
+            </p>
+          </div>
+          <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 whitespace-nowrap self-start">
+            <i class="fa-solid fa-bolt"></i> 4 Tedarikçi Canlı
+          </span>
+        </div>
 
-        <div class="flex gap-2">
-          <input type="text" id="rob-search-input" onkeydown="if(event.key==='Enter') searchRobotistanDirect()" placeholder="Robotistan'da ürün ara (örn: ESP32-S3, SG90, BMP280, 10k Potansiyometre)..." 
-                 class="flex-1 bg-slate-950 border border-slate-800 rounded-lg px-4 py-2.5 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-orange-500">
+        <div class="flex flex-wrap gap-2 pt-1">
+          <input type="text" id="rob-search-input" onkeydown="if(event.key==='Enter') searchRobotistanDirect()" placeholder="Parça adı veya kod ara (örn: ESP32-C3, SG90, TP4056, BMP280, 1S LiPo)..." 
+                 class="flex-1 min-w-[200px] bg-slate-950 border border-slate-800 rounded-lg px-4 py-2.5 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-orange-500">
+          
+          <select id="market-vendor-select" class="bg-slate-950 border border-slate-800 rounded-lg px-3 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-orange-500 font-medium">
+            <option value="all">⭐ Tüm Siteler (Fiyat Karşılaştırmalı)</option>
+            <option value="robotronik">Robotronik (robotronik.com.tr)</option>
+            <option value="robotistan">Robotistan (robotistan.com)</option>
+            <option value="direnc">Direnç.net (direnc.net)</option>
+            <option value="motorobit">Motorobit (motorobit.com)</option>
+          </select>
+
           <label class="flex items-center gap-2 text-xs text-slate-300 cursor-pointer bg-slate-950 px-3 rounded-lg border border-slate-800">
             <input type="checkbox" id="rob-only-stock" checked class="rounded accent-emerald-500">
             <span>Sadece Stokta Olanlar</span>
           </label>
-          <button onclick="searchRobotistanDirect()" id="btn-rob-search" class="px-4 py-2.5 rounded-lg bg-orange-600 hover:bg-orange-500 text-white font-medium text-sm flex items-center gap-2 transition">
-            <i class="fa-solid fa-magnifying-glass"></i> Ara
+
+          <button onclick="searchRobotistanDirect()" id="btn-rob-search" class="px-5 py-2.5 rounded-lg bg-orange-600 hover:bg-orange-500 text-white font-medium text-sm flex items-center gap-2 transition cursor-pointer shadow">
+            <i class="fa-solid fa-magnifying-glass"></i> Ara & Kıyasla
           </button>
         </div>
       </div>
 
-      <!-- Robotistan Sonuçları -->
+      <!-- Sonuçlar Container -->
       <div id="rob-results-container" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         <div class="col-span-full py-12 text-center text-slate-500">
-          <i class="fa-solid fa-magnifying-glass text-3xl mb-2 text-slate-600"></i>
-          <p>Yukarıdaki arama çubuğundan Robotistan ürünlerini tarayabilirsiniz.</p>
+          <i class="fa-solid fa-store text-3xl mb-2 text-slate-600"></i>
+          <p>Yukarıdaki arama çubuğundan Türkiye elektronik pazarındaki ürünleri ve fiyatları tarayabilirsiniz.</p>
         </div>
       </div>
     </section>
@@ -590,7 +607,7 @@
               <i class="fa-solid fa-terminal"></i> Model Context Protocol (MCP)
             </span>
             <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-              <i class="fa-solid fa-circle text-[8px]"></i> 19 Araç Aktif
+              <i class="fa-solid fa-circle text-[8px]"></i> 24 Araç Aktif
             </span>
           </div>
           <h2 class="text-2xl font-bold text-white flex items-center gap-2">
@@ -758,7 +775,7 @@
       <!-- Kullanılabilir MCP Araçları (Tools Kataloğu) -->
       <div class="space-y-4">
         <h3 class="text-lg font-bold text-white flex items-center gap-2">
-          <i class="fa-solid fa-toolbox text-indigo-400"></i> Dahili MCP Araçları (19 Tools)
+          <i class="fa-solid fa-toolbox text-indigo-400"></i> Dahili MCP Araçları (24 Tools)
         </h3>
         <p class="text-xs text-slate-400">
           AI asistanınız bu araçları otomatik olarak algılar ve sohbette ihtiyaç duyulduğunda arka planda çalıştırır.
@@ -1029,6 +1046,76 @@
             </p>
             <div class="text-[11px] text-slate-400 pt-1 border-t border-slate-800">
               <b>Parametreler:</b> <code class="text-slate-300">Yok</code>
+            </div>
+          </div>
+
+          <!-- Tool 20 -->
+          <div class="bg-slate-900/90 border border-emerald-500/30 rounded-xl p-4 space-y-2 hover:border-emerald-500/60 transition">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-mono font-bold text-emerald-400">electro_search_market</span>
+              <span class="text-[10px] bg-emerald-500/20 text-emerald-300 px-1.5 py-0.5 rounded border border-emerald-500/30">Piyasa</span>
+            </div>
+            <p class="text-xs text-slate-300">
+              Robotronik, Robotistan, Direnç.net ve Motorobit mağazalarında eşzamanlı arama yapar, fiyatları kıyaslar ve en ucuz seçeneği belirler.
+            </p>
+            <div class="text-[11px] text-slate-400 pt-1 border-t border-slate-800">
+              <b>Parametreler:</b> <code class="text-slate-300">query, vendor, only_in_stock, limit_per_vendor</code>
+            </div>
+          </div>
+
+          <!-- Tool 21 -->
+          <div class="bg-slate-900/90 border border-purple-500/30 rounded-xl p-4 space-y-2 hover:border-purple-500/60 transition">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-mono font-bold text-purple-400">electro_search_robotronik</span>
+              <span class="text-[10px] bg-purple-500/20 text-purple-300 px-1.5 py-0.5 rounded border border-purple-500/30">Robotronik</span>
+            </div>
+            <p class="text-xs text-slate-300">
+              Robotronik.com.tr üzerinde doğrudan arama yapar. Uygun fiyatlı Arduino, ESP32, sensör ve modüller çeker.
+            </p>
+            <div class="text-[11px] text-slate-400 pt-1 border-t border-slate-800">
+              <b>Parametreler:</b> <code class="text-slate-300">query, only_in_stock, limit</code>
+            </div>
+          </div>
+
+          <!-- Tool 22 -->
+          <div class="bg-slate-900/90 border border-blue-500/30 rounded-xl p-4 space-y-2 hover:border-blue-500/60 transition">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-mono font-bold text-blue-400">electro_search_direnc</span>
+              <span class="text-[10px] bg-blue-500/20 text-blue-300 px-1.5 py-0.5 rounded border border-blue-500/30">Direnç.net</span>
+            </div>
+            <p class="text-xs text-slate-300">
+              Direnç.net üzerinde arama yapar. Entegre, pasif komponent, MOSFET, LDO ve konnektör stoklarını çeker.
+            </p>
+            <div class="text-[11px] text-slate-400 pt-1 border-t border-slate-800">
+              <b>Parametreler:</b> <code class="text-slate-300">query, only_in_stock, limit</code>
+            </div>
+          </div>
+
+          <!-- Tool 23 -->
+          <div class="bg-slate-900/90 border border-amber-500/30 rounded-xl p-4 space-y-2 hover:border-amber-500/60 transition">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-mono font-bold text-amber-400">electro_compare_part_prices</span>
+              <span class="text-[10px] bg-amber-500/20 text-amber-300 px-1.5 py-0.5 rounded border border-amber-500/30">Kıyaslama</span>
+            </div>
+            <p class="text-xs text-slate-300">
+              Belirli bir komponentin 4 büyük Türk mağazasındaki fiyatlarını karşılaştırma tablosu halinde döker.
+            </p>
+            <div class="text-[11px] text-slate-400 pt-1 border-t border-slate-800">
+              <b>Parametreler:</b> <code class="text-slate-300">part_name (str)</code>
+            </div>
+          </div>
+
+          <!-- Tool 24 -->
+          <div class="bg-slate-900/90 border border-indigo-500/30 rounded-xl p-4 space-y-2 hover:border-indigo-500/60 transition">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-mono font-bold text-indigo-300">electro_find_best_bom_deal</span>
+              <span class="text-[10px] bg-indigo-500/20 text-indigo-300 px-1.5 py-0.5 rounded border border-indigo-500/30">BOM Deal</span>
+            </div>
+            <p class="text-xs text-slate-300">
+              Proje malzeme listesindeki tüm parçaları tarayarak en ucuz split sipariş kombinasyonunu hesaplar ve sepetlere böler.
+            </p>
+            <div class="text-[11px] text-slate-400 pt-1 border-t border-slate-800">
+              <b>Parametreler:</b> <code class="text-slate-300">components[], auto_create_split_drafts</code>
             </div>
           </div>
 
@@ -1441,6 +1528,6 @@
     ElectroStock & AI MCP Server • Robotistan Canlı Stok Entegrasyonu • %100 Yerel ve Güvenli
   </footer>
 
-  <script src="/app.js?v=2.9.2"></script>
+  <script src="/app.js?v=2.9.3"></script>
 </body>
 </html>
