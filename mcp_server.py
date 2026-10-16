@@ -418,6 +418,26 @@ TOOLS = [
         }
     },
     {
+        "name": "electro_save_component_knowledge",
+        "description": (
+            "Dinamik muadil ve bileşen bilgi bankasına yeni bir parça veya kategori ekler/günceller. "
+            "Böylece Electra yeni alternatifleri ve mühendislik notlarını SQLite hafızasında tutar."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "category": {"type": "string", "description": "Bileşen kategorisi (örn: 'Akım / Voltaj Sensörleri', 'GPS / GNSS Modülleri')"},
+                "part_name": {"type": "string", "description": "Parça adı ve modeli (örn: 'INA219', 'ACS712', 'CH340G')"},
+                "features": {"type": "string", "description": "Teknik özellikleri (çalışma voltajı, akım, protokol)"},
+                "pros": {"type": "string", "description": "Avantajları"},
+                "cons": {"type": "string", "description": "Dezavantajları ve dikkat edilmesi gerekenler"},
+                "keywords": {"type": "string", "description": "Arama için virgülle ayrılmış anahtar kelimeler"},
+                "summary": {"type": "string", "description": "Kategori özeti veya seçim ipucu"}
+            },
+            "required": ["category", "part_name"]
+        }
+    },
+    {
         "name": "electro_search_market",
         "description": (
             "Türkiye'deki büyük elektronik ve robotik parça marketlerinde "
@@ -1121,6 +1141,33 @@ class MCPServer:
                     "result": {
                         "content": [{"type": "text", "text": eq_res["markdown_report"]}],
                         "data": eq_res
+                    }
+                }
+
+            elif tool_name == "electro_save_component_knowledge":
+                cat = str(args.get("category", "")).strip()
+                p_name = str(args.get("part_name", "")).strip()
+                feats = str(args.get("features", "")).strip()
+                pros = str(args.get("pros", "")).strip()
+                cons = str(args.get("cons", "")).strip()
+                kws = str(args.get("keywords", "")).strip()
+                summ = str(args.get("summary", "")).strip()
+                row_id = component_equivalents.save_learned_equivalent(
+                    category=cat,
+                    part_name=p_name,
+                    features=feats,
+                    pros=pros,
+                    cons=cons,
+                    keywords=kws,
+                    summary=summ
+                )
+                msg = f"✅ `{p_name}` ({cat}) başarıyla dinamik bilgi bankasına kaydedildi."
+                return {
+                    "jsonrpc": "2.0",
+                    "id": msg_id,
+                    "result": {
+                        "content": [{"type": "text", "text": msg}],
+                        "data": {"id": row_id, "category": cat, "part_name": p_name, "success": True}
                     }
                 }
 

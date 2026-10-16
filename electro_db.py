@@ -190,6 +190,35 @@ def init_db(db_path: str = DB_PATH) -> None:
             )
         """)
 
+        # Dinamik Öğrenilen Donanım / Breakout Alias Tablosu (Kod içine gömmek yerine DB'de tutulur)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS component_aliases (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                canonical_compact TEXT NOT NULL,
+                alias_term TEXT NOT NULL,
+                alias_compact TEXT NOT NULL,
+                source TEXT DEFAULT 'auto_discovered',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(canonical_compact, alias_compact)
+            )
+        """)
+
+        # Muadil / Komponent Bilgi Bankası Tablosu (Dinamik genişletilebilir)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS component_knowledge (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                category TEXT NOT NULL,
+                keywords TEXT DEFAULT '',
+                summary TEXT DEFAULT '',
+                part_name TEXT NOT NULL,
+                features TEXT DEFAULT '',
+                pros TEXT DEFAULT '',
+                cons TEXT DEFAULT '',
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(category, part_name)
+            )
+        """)
+
         # Varsayılan kullanıcı kontrolü (Yoksa oluştur)
         cursor.execute("SELECT COUNT(*) FROM users")
         if cursor.fetchone()[0] == 0:
@@ -208,6 +237,8 @@ def init_db(db_path: str = DB_PATH) -> None:
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_comp_location ON components(location)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_comp_value ON components(value)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_session_token ON sessions(token)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_alias_canon ON component_aliases(canonical_compact)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_alias_comp ON component_aliases(alias_compact)")
 
         # Fiyat yuvarlama ve veri tutarlılığı temizliği
         cursor.execute("UPDATE draft_orders SET total_estimated_price = ROUND(total_estimated_price, 2)")
@@ -218,6 +249,18 @@ def init_db(db_path: str = DB_PATH) -> None:
         cursor.execute("UPDATE draft_order_items SET source = 'market' WHERE (url = '' OR url IS NULL) AND (source = 'robotistan' OR source IS NULL)")
 
         conn.commit()
+
+    # Muadil bilgi bankası boş ise başlangıç mühendislik verilerini aktar
+    try:
+        with get_connection(db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT COUNT(*) FROM component_knowledge")
+            if cursor.fetchone()[0] == 0:
+                import seed_knowledge
+                seed_knowledge.seed_baseline_knowledge(db_path)
+    except Exception:
+        pass
+
 
 
 def add_component(
@@ -977,6 +1020,113 @@ def get_user_info(username: str, db_path: str = DB_PATH) -> Optional[Dict[str, A
         if not row:
             return None
         return dict(row)
+
+
+# ==========================================
+# DİNAMİK DONANIM ALIAS VE BİLGİ BANKASI FONKSİYONLARI
+# ==========================================
+
+def save_learned_alias(canonical_compact: str, alias_term: str, alias_compact: str, source: str = "cross_vendor", db_path: str = DB_PATH) -> None:
+    """Mağazalar arası aramada otomatik keşfedilen veya kullanıcı/AI tarafından eklenen donanım alias'ını DB'ye kaydeder."""
+    if not canonical_compact or not alias_compact or canonical_compact == alias_compact:
+        return
+    try:
+        with get_connection(db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "INSERT OR IGNORE INTO component_aliases (canonical_compact, alias_term, alias_compact, source) VALUES (?, ?, ?, ?)",
+                (canonical_compact.lower(), alias_term.strip(), alias_compact.lower(), source)
+            )
+            conn.commit()
+    except Exception:
+        pass
+
+
+def get_learned_aliases(code_compact: str, db_path: str = DB_PATH) -> List[Dict[str, str]]:
+    """Verilen model kodu için veritabanında öğrenilmiş/kayıtlı alias'ları döndürür."""
+    if not code_compact:
+        return []
+    try:
+        with get_connection(db_path) as conn:
+            cursor = conn.cursor()
+            c = code_compact.lower()
+            cursor.execute(
+                "SELECT alias_term, alias_compact, canonical_compact FROM component_aliases WHERE canonical_compact = ? OR alias_compact = ?",
+                (c, c)
+            )
+            results = []
+            for r in cursor.fetchall():
+                results.append(dict(r))
+            return results
+    except Exception:
+        return []
+
+
+def save_component_knowledge(
+    category: str,
+    part_name: str,
+    features: str = "",
+    pros: str = "",
+    cons: str = "",
+    keywords: str = "",
+    summary: str = "",
+    db_path: str = DB_PATH
+) -> int:
+    """Veritabanındaki dinamik muadil / komponent bilgi bankasına yeni bir parça veya güncelleme kaydeder."""
+    with get_connection(db_path) as conn:
+        cursor = conn.cursor()
+        now = datetime.now().isoformat()
+        cursor.execute("""
+            INSERT INTO component_knowledge (category, keywords, summary, part_name, features, pros, cons, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(category, part_name) DO UPDATE SET
+                keywords = CASE WHEN excluded.keywords != '' THEN excluded.keywords ELSE component_knowledge.keywords END,
+                summary = CASE WHEN excluded.summary != '' THEN excluded.summary ELSE component_knowledge.summary END,
+                features = excluded.features,
+                pros = excluded.pros,
+                cons = excluded.cons,
+                updated_at = excluded.updated_at
+        """, (category.strip(), keywords.strip(), summary.strip(), part_name.strip(), features.strip(), pros.strip(), cons.strip(), now))
+        conn.commit()
+        return cursor.lastrowid or 0
+
+
+def get_component_knowledge_groups(db_path: str = DB_PATH) -> List[Dict[str, Any]]:
+    """Veritabanında kayıtlı tüm komponent bilgi bankası gruplarını getirir."""
+    try:
+        with get_connection(db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM component_knowledge ORDER BY category ASC, id ASC")
+            rows = cursor.fetchall()
+            groups: Dict[str, Dict[str, Any]] = {}
+            for r in rows:
+                cat = r["category"]
+                if cat not in groups:
+                    groups[cat] = {
+                        "category": cat,
+                        "keywords": [k.strip() for k in (r["keywords"] or "").split(",") if k.strip()],
+                        "summary": r["summary"] or "",
+                        "parts": []
+                    }
+                else:
+                    if r["summary"] and not groups[cat]["summary"]:
+                        groups[cat]["summary"] = r["summary"]
+                    for k in (r["keywords"] or "").split(","):
+                        if k.strip() and k.strip() not in groups[cat]["keywords"]:
+                            groups[cat]["keywords"].append(k.strip())
+                part_entry: Dict[str, Any] = {
+                    "name": r["part_name"],
+                    "features": r["features"] or ""
+                }
+                if r["pros"]:
+                    part_entry["pros"] = r["pros"]
+                if r["cons"]:
+                    part_entry["cons"] = r["cons"]
+                groups[cat]["parts"].append(part_entry)
+            return list(groups.values())
+    except Exception:
+        return []
+
 
 
 

@@ -20,7 +20,11 @@ from typing import List, Dict, Any, Optional
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from robotistan_scraper import scraper as robotistan_scraper, normalize_search_query, relax_query
-from component_matcher import evaluate_component_relevance, get_component_search_aliases
+from component_matcher import (
+    evaluate_component_relevance,
+    get_component_search_aliases,
+    discover_cooccurring_aliases,
+)
 
 USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
 COMMON_HEADERS = {
@@ -361,10 +365,10 @@ def search_market(
 
     raw_results: List[Dict[str, Any]] = []
 
-    # 1. Birincil sorgu ile paralel arama
+    # 1. Birincil sorgu ile paralel arama (Katalog başlıklarından çapraz alias öğrenebilmek için tüm sonuçları çek)
     with ThreadPoolExecutor(max_workers=max(1, len(active_funcs))) as executor:
         future_to_vendor = {
-            executor.submit(func, q, only_in_stock, limit_per_vendor): v
+            executor.submit(func, q, False, max(limit_per_vendor, 5)): v
             for v, func in active_funcs.items()
         }
         for future in as_completed(future_to_vendor):
@@ -374,8 +378,9 @@ def search_market(
             except Exception:
                 pass
 
-    # 2. Anlamsal Uyumluluk Filtresi & URL Tekilleştirme
+    # 2. Anlamsal Uyumluluk Filtresi & Çapraz Model/Breakout Kodu Öğrenme
     valid_results: List[Dict[str, Any]] = []
+    compatible_titles: List[str] = []
     seen_urls: set = set()
 
     for item in raw_results:
@@ -384,32 +389,32 @@ def search_market(
             continue
         is_valid, rel_score, reason = evaluate_component_relevance(q, item.get("title", ""))
         if is_valid:
+            compatible_titles.append(item.get("title", ""))
+            if only_in_stock and not item.get("in_stock"):
+                continue
             seen_urls.add(u)
             item["is_compatible"] = True
             item["relevance_score"] = rel_score
             item["compatibility_note"] = reason
             valid_results.append(item)
 
-    # 3. Henüz geçerli stok bulamayan mağazalar için donanım ve ortografik alias'ları dene
-    # (Not: search_robotistan kendi içinde zaten alias denediği için yalnız diğer mağazaları veya sonuçsuz kalanları tamamlar)
-    aliases = get_component_search_aliases(q)
+    # Doğrulanan katalog başlıklarında birlikte geçen alternatif modül/breakout kodlarını (örn: NEO-6M <-> GY-NEO6MV2, MPU6050 <-> GY-521) otomatik öğren!
+    discovered_aliases = discover_cooccurring_aliases(q, compatible_titles)
+
+    # 3. Henüz geçerli stok bulamayan mağazalar için öğrenilen ve ortografik alias'ları dene
+    aliases = discovered_aliases + [a for a in get_component_search_aliases(q) if a not in discovered_aliases]
     tried_aliases = {q.lower(), normalize_search_query(q).lower()}
 
-    for alias in aliases[:5]:
+    for alias in aliases[:6]:
         a_low = alias.strip().lower()
         if not a_low or a_low in tried_aliases:
             continue
         tried_aliases.add(a_low)
 
-        # Hangi mağazalarda hâlâ geçerli stoklu ürün yok?
         missing_vendors = {
             v: func for v, func in active_funcs.items()
-            if v != "robotistan" and not any(r.get("vendor_key") == v and r.get("in_stock") for r in valid_results)
+            if not any(r.get("vendor_key") == v and r.get("in_stock") for r in valid_results)
         }
-        # Eğer Robotistan da ilk turda bulamadıysa onu da dahil et
-        if "robotistan" in active_funcs and not any(r.get("vendor_key") == "robotistan" and r.get("in_stock") for r in valid_results):
-            missing_vendors["robotistan"] = active_funcs["robotistan"]
-
         if not missing_vendors:
             break
 
@@ -422,6 +427,8 @@ def search_market(
                 try:
                     a_res = fut.result()
                     for it in a_res:
+                        if only_in_stock and not it.get("in_stock"):
+                            continue
                         u = it.get("url") or f"{it.get('vendor_key')}:{it.get('title')}"
                         if u in seen_urls:
                             continue
@@ -436,7 +443,6 @@ def search_market(
                 except Exception:
                     pass
 
-        # Eğer en az 2 mağazada veya tüm aktif mağazalarda stok bulunduysa erken çık
         vendors_with_stock = {r.get("vendor_key") for r in valid_results if r.get("in_stock")}
         if len(vendors_with_stock) >= min(2, len(active_funcs)):
             break
@@ -447,14 +453,14 @@ def search_market(
         for v in active_funcs.keys()
     }
 
-    # ASLA uyumsuz (is_compatible=False) ürünlere geri düşme!
     candidate_items = list(valid_results)
 
-    # Fiyata göre sırala (Stokta ve fiyatı > 0 olanlar önce, sonra fiyat küçükten büyüğe)
+    # Önce yüksek uyumluluk kademesi (relevance_score >= 0.65), sonra fiyat küçükten büyüğe sırala
     if sort_by_price:
         candidate_items.sort(
             key=lambda x: (
                 0 if (x.get("price_value", 0) > 0 and x.get("in_stock")) else 1,
+                0 if x.get("relevance_score", 0.0) >= 0.65 else 1,
                 x.get("price_value", 999999) if x.get("price_value", 0) > 0 else 999999
             )
         )
@@ -795,6 +801,8 @@ def get_universal_product_details(url: str) -> Dict[str, Any]:
     in_stock = True
     stock_status = "Stokta Var"
     specs: List[str] = []
+    category_name = ""
+    category_url = ""
 
     # 1. ROBOTRONİK (robotronik.com.tr - SoftTr)
     if "robotronik.com.tr" in url_lower:
@@ -823,6 +831,13 @@ def get_universal_product_details(url: str) -> Dict[str, Any]:
             in_stock = has_buy_btn
             stock_status = "Stokta Var" if in_stock else "Tükendi"
 
+        bc_links = re.findall(r'<li[^>]*class=[\"\'][^\"\']*breadcrumb-item[^\"\']*[\"\'][^>]*>\s*<a[^>]+href=[\"\'](?:\.\./)*([^\"\']+)[\"\'][^>]*>([^<]+)</a>', html)
+        if len(bc_links) >= 2:
+            cat_href, cat_label = bc_links[-1]
+            if cat_href.strip("/"):
+                category_name = html_lib.unescape(cat_label.strip())
+                category_url = f"https://www.robotronik.com.tr/{cat_href.lstrip('/')}"
+
         aciklama_m = re.search(r"id=[\"']aciklama[\"'][^>]*>(.*?)</div>\s*</div>", html, re.DOTALL)
         if aciklama_m:
             clean_text = re.sub(r"<[^>]+>", "\n", aciklama_m.group(1))
@@ -833,7 +848,6 @@ def get_universal_product_details(url: str) -> Dict[str, Any]:
 
     # 2. DİRENÇ.NET & MOTOROBİT (T-Soft v5)
     elif "direnc.net" in url_lower or "motorobit.com" in url_lower:
-        # Mega-menüdeki vitrin ürünlerine takılmamak için doğrudan <input id="product-name"> veya <h1> kullan
         name_inp = re.search(r'<input[^>]+id=[\"\']product-name[\"\'][^>]+value=[\"\']([^\"\']+)[\"\']', html)
         h1_m = re.search(r"<h1[^>]*>(.*?)</h1>", html, re.DOTALL)
         if name_inp:
@@ -844,7 +858,6 @@ def get_universal_product_details(url: str) -> Dict[str, Any]:
             m_t = re.search(r"<title>([^<]+)</title>", html)
             title = html_lib.unescape(m_t.group(1).split("|")[0].split("-")[0].strip()) if m_t else ""
 
-        # KDV Dahil fiyatı doğrudan T-Soft hidden input'undan veya <h1> sonrasındaki price-sell-vat alanından çek
         vat_inp = re.search(r'<input[^>]+id=[\"\']product-price-vat-include[\"\'][^>]+value=[\"\']([^\"\']+)[\"\']', html)
         if vat_inp:
             price_val = parse_turkish_price(vat_inp.group(1))
@@ -858,7 +871,6 @@ def get_universal_product_details(url: str) -> Dict[str, Any]:
             if p_m:
                 price_val = parse_turkish_price(p_m.group(1) or p_m.group(2))
 
-        # Stok durumunu <input id="product-stock-status" value="1"> alanından oku
         stk_inp = re.search(r'<input[^>]+id=[\"\']product-stock-status[\"\'][^>]+value=[\"\'](\d+)[\"\']', html)
         if stk_inp:
             in_stock = (stk_inp.group(1) == "1")
@@ -868,7 +880,12 @@ def get_universal_product_details(url: str) -> Dict[str, Any]:
             in_stock = bool(re.search(r'data-toggle=[\"\']add-to-cart[\"\']|SEPETE EKLE', sub_html, re.I))
         stock_status = "Stokta Var" if in_stock else "Tükendi"
 
-        # <h1> sonrasındaki teknik özellik tablolarını ve maddelerini çek
+        bc_items = re.findall(r'data-qa=[\"\']breadcrumb-item[\"\'][^>]*>.*?<a[^>]+href=[\"\']([^\"\']+)[\"\'][^>]*>([^<]+)</a>', html, re.DOTALL)
+        if len(bc_items) >= 2:
+            category_url, category_name = bc_items[-2][0].strip(), html_lib.unescape(bc_items[-2][1].strip())
+        elif len(bc_items) == 1:
+            category_url, category_name = bc_items[0][0].strip(), html_lib.unescape(bc_items[0][1].strip())
+
         h1_pos = html.find("<h1")
         detail_zone = html[h1_pos:h1_pos + 45000] if h1_pos != -1 else html
         for row in re.findall(r'<tr[^>]*>(.*?)</tr>', detail_zone, re.DOTALL):
@@ -896,7 +913,6 @@ def get_universal_product_details(url: str) -> Dict[str, Any]:
             m_t = re.search(r"<title>([^<]+)</title>", html)
             title = html_lib.unescape(m_t.group(1).replace("Satın Al", "").strip()) if m_t else ""
 
-        # KDV Dahil nihai sepet fiyatını al (product-price-not-vat hariç)
         m_price = re.search(r'class=[\"\'][^\"\']*\bproduct-price\b(?!\-not\-vat)[^\"\']*[\"\'][^>]*>\s*([0-9.,]+)', html)
         if not m_price:
             m_price = re.search(r'class=[\"\'][^\"\']*(?:price-current|current-price|price-sell)[^\"\']*[\"\'][^>]*>\s*([0-9.,]+)', html)
@@ -910,7 +926,10 @@ def get_universal_product_details(url: str) -> Dict[str, Any]:
         in_stock = (not is_out) and has_cart_btn
         stock_status = "Stokta Var" if in_stock else "Tükendi"
 
-        # 1. Tablo Satırları (Robotistan teknik parametreleri ve boyutları <table> içinde saklar)
+        bc_rob = re.findall(r'<a[^>]+href=[\"\'](https://www\.robotistan\.com/[^\"\']+)[\"\'][^>]*class=[\"\'][^\"\']*breadcrumb-item[^\"\']*[\"\'][^>]*>([^<]+)</a>', html)
+        if len(bc_rob) >= 2:
+            category_url, category_name = bc_rob[-2][0].strip(), html_lib.unescape(bc_rob[-2][1].strip())
+
         for row in re.findall(r'<tr[^>]*>(.*?)</tr>', html, re.DOTALL):
             cols = re.findall(r'<td[^>]*>(.*?)</td>', row, re.DOTALL)
             if len(cols) >= 2:
@@ -921,7 +940,6 @@ def get_universal_product_details(url: str) -> Dict[str, Any]:
                     if clean_kv not in specs:
                         specs.append(clean_kv)
 
-        # 2. Liste Satırları (product-fullbody içindeki <li> maddeleri, iç <span> etiketlerini temizleyerek)
         body_m = re.search(r'id=[\"\']product-fullbody[\"\'][^>]*>(.*?)</div>\s*</div>', html, re.DOTALL)
         if not body_m:
             body_m = re.search(r'id=[\"\']product-features[\"\'][^>]*>(.*?)</div>\s*</div>', html, re.DOTALL)
@@ -939,6 +957,94 @@ def get_universal_product_details(url: str) -> Dict[str, Any]:
         "price_value": price_val,
         "in_stock": in_stock,
         "stock_status": stock_status,
+        "category_name": category_name,
+        "category_url": category_url,
         "specs": specs[:12],
         "url": url
     }
+
+
+def discover_category_alternatives(product_url: str, exclude_title: str = "", limit: int = 8) -> Dict[str, Any]:
+    """
+    Bir ürünün mağaza sayfasındaki kategori ağacını (breadcrumb) takip ederek,
+    aynı mağaza kategorisinde yer alan stoktaki diğer alternatif/muadil ürünleri canlı çeker.
+    """
+    details = get_universal_product_details(product_url)
+    cat_url = details.get("category_url", "")
+    cat_name = details.get("category_name", "")
+    if not cat_url or not cat_url.startswith("http"):
+        return {"category_name": cat_name, "category_url": cat_url, "peers": [], "source_details": details}
+
+    try:
+        cat_html = fetch_url(cat_url, timeout=8)
+    except Exception:
+        return {"category_name": cat_name, "category_url": cat_url, "peers": [], "source_details": details}
+
+    peers: List[Dict[str, Any]] = []
+    u_low = cat_url.lower()
+    excl_low = (exclude_title or details.get("title", "")).lower().strip()
+
+    if "robotistan.com" in u_low:
+        for r in robotistan_scraper._parse_html(cat_html):
+            if r.get("in_stock") and r.get("title", "").lower() != excl_low and r.get("url") != product_url:
+                peers.append({
+                    "vendor": "Robotistan",
+                    "title": r["title"],
+                    "price": r["price"],
+                    "price_value": r.get("price_value") or 0.0,
+                    "url": r["url"]
+                })
+    elif "direnc.net" in u_low or "motorobit.com" in u_low:
+        v_name = "Direnç.net" if "direnc.net" in u_low else "Motorobit"
+        domain = "https://www.direnc.net" if "direnc.net" in u_low else "https://www.motorobit.com"
+        for block in _split_tsoft_v5_cards(cat_html)[1:]:
+            if "Tükendi" in block or "tükendi" in block:
+                continue
+            u_m = re.search(r'data-toggle=[\"\']product-url[\"\'][^>]*href=[\"\']([^\"\']+)[\"\']|href=[\"\']([^\"\']+)[\"\'][^>]*data-toggle=[\"\']product-url[\"\']', block)
+            t_m = re.search(r'data-toggle=[\"\']product-title[\"\'][^>]*>([^<]+)</span>|title=[\"\']([^\"\']+)[\"\']', block)
+            p_vat_m = re.search(r'data-toggle=[\"\']price-sell-vat[\"\'][^>]*>([^<]+)</span>', block)
+            p_m = re.search(r'data-qa=[\"\']product-price[\"\'][^>]*>(.*?)</div>|data-toggle=[\"\']price-sell[\"\'][^>]*>([^<]+)</span>', block, re.DOTALL)
+            href = (u_m.group(1) or u_m.group(2)) if u_m else ""
+            t_str = html_lib.unescape(((t_m.group(1) or t_m.group(2)) if t_m else "").strip())
+            if not href or not t_str or t_str.lower() == excl_low or f"{domain}{href}" == product_url:
+                continue
+            pval = parse_turkish_price(p_vat_m.group(1)) if p_vat_m else (parse_turkish_price(p_m.group(1) or p_m.group(2)) if p_m else 0.0)
+            if v_name == "Motorobit" and not p_vat_m and pval > 0 and re.search(r'\+\s*kdv', block, re.I):
+                pval = round(pval * 1.20, 2)
+            peers.append({
+                "vendor": v_name,
+                "title": t_str,
+                "price": f"{pval:.2f} TL" if pval > 0 else "Fiyat Belirtilmedi",
+                "price_value": pval,
+                "url": f"{domain}{href}"
+            })
+    elif "robotronik.com.tr" in u_low:
+        parts = re.split(r'<div[^>]*class=[\"\'][^\"\']*urun urun-mobile[^\"\']*[\"\'][^>]*>', cat_html)
+        for block in parts[1:]:
+            if "urun-tukendi" in block:
+                continue
+            title_m = re.search(r'<a[^>]+href=[\"\'](?:\.\./\.\./)?([^\"\']+)[\"\'][^>]*class=[\"\'][^\"\']*urun-title[^\"\']*[\"\'][^>]*>([^<]+)</a>', block)
+            img_m = re.search(r'<img[^>]+(?:title|alt)=[\"\']([^\"\']+)[\"\'][^>]*class=[\"\'][^\"\']*urun-img[^\"\']*[\"\']|<img[^>]+class=[\"\'][^\"\']*urun-img[^\"\']*[\"\'][^>]+(?:title|alt)=[\"\']([^\"\']+)[\"\']', block)
+            price_m = re.search(r'<div[^>]*class=[\"\'][^\"\']*urun-fiyat[^\"\']*[\"\'][^>]*>(.*?)</div>', block, re.DOTALL)
+            if title_m:
+                t_str = html_lib.unescape(((img_m.group(1) or img_m.group(2)) if img_m else title_m.group(2)).strip())
+                href = title_m.group(1).lstrip("/")
+                full_u = f"https://www.robotronik.com.tr/{href}"
+                if t_str.lower() == excl_low or full_u == product_url:
+                    continue
+                pval = parse_turkish_price(price_m.group(1)) if price_m else 0.0
+                peers.append({
+                    "vendor": "Robotronik",
+                    "title": t_str,
+                    "price": f"{pval:.2f} TL" if pval > 0 else "Fiyat Belirtilmedi",
+                    "price_value": pval,
+                    "url": full_u
+                })
+
+    return {
+        "category_name": cat_name,
+        "category_url": cat_url,
+        "peers": peers[:limit],
+        "source_details": details
+    }
+
