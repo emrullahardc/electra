@@ -485,7 +485,9 @@ TOOLS = [
     {
         "name": "electro_compare_part_prices",
         "description": (
-            "Bir parça için Robotistan, Robotronik, Direnç.net ve Motorobit mağazalarındaki canlı fiyatları tek bir tabloda kıyaslar, en ucuz seçeneği (Best Deal) önerir."
+            "Bir parça için Robotistan, Robotronik, Direnç.net ve Motorobit mağazalarındaki canlı fiyatları tek bir tabloda kıyaslar. "
+            "Kullanıcının Robotistan'dan aynı gün kargo alması ve diğer mağazaların harici kargo ücreti (~40-75 TL) eklemesi kuralını işletir. "
+            "Fiyat farkı 100 TL veya altındaysa doğrudan Robotistan'ı önerir; fark 100 TL'den fazlaysa kullanıcıya sorulacak net karşılaştırma sorusunu ('prompt_question') üretir."
         ),
         "inputSchema": {
             "type": "object",
@@ -499,7 +501,8 @@ TOOLS = [
         "name": "electro_find_best_bom_deal",
         "description": (
             "Verilen bir proje malzeme listesindeki (BOM) tüm parçaları Türkiye mağazalarında (Robotronik, Robotistan, Direnç.net, Motorobit) tarar. "
-            "Hangi parçanın hangi siteden alınması durumunda en düşük toplam maliyetin çıkacağını ('Buradan şunlar, şuradan şunlar') hesaplar ve optimal sipariş planı çıkarır."
+            "Robotistan'ı aynı gün teslimatlı birincil mağaza kabul ederek ve harici mağazaların tahmini kargo ücretlerini (~50 TL) hesaba katarak "
+            "Akıllı Sipariş Dağılımı (Smart Landed Cost Plan) çıkarır. 100 TL altı farklarda gereksiz kargo ve bekleme süresini önler."
         ),
         "inputSchema": {
             "type": "object",
@@ -569,7 +572,20 @@ class MCPServer:
                     "serverInfo": {
                         "name": "electro-stock-mcp",
                         "version": "1.0.0"
-                    }
+                    },
+                    "instructions": (
+                        "ElectroStock / Electra Karar ve Davranış İlkeleri:\n"
+                        "1. ROBOTİSTAN ÖNCELİĞİ VE KARGO KURALI: Kullanıcı Robotistan'dan aynı gün teslimat almaktadır. "
+                        "Diğer sitelerden (Direnç.net, Robotronik, Motorobit) sipariş vermek minimum ~40-75 TL ek kargo ücreti "
+                        "ve bekleme süresi oluşturur.\n"
+                        "2. FİYAT FARKI ≤ 100 TL İSE: Bir parça Robotistan'da varsa ve en ucuz alternatif mağazayla arasındaki "
+                        "fiyat farkı 100 TL veya altındaysa, ek kargo ödememek ve aynı gün teslim almak için doğrudan Robotistan'ı tercih et.\n"
+                        "3. FİYAT FARKI > 100 TL İSE: Başka mağazadaki parça Robotistan'dan 100 TL'den fazla daha ucuzsa, "
+                        "doğrudan o mağazayı eklemek yerine KULLANICIYA SOR: 'Bu parça Robotistan'da X TL (Aynı gün kargo), "
+                        "fakat [Mağaza]'da Y TL (Z TL daha ucuz). Kargo süresini bekleyip [Mağaza] üzerinden mi alalım, "
+                        "yoksa aynı gün gelmesi için Robotistan'ı mı seçelim?'.\n"
+                        "4. ROBOTİSTAN'DA STOK YOKSA: En uygun alternatif mağazayı açıkça belirterek taslağa ekle."
+                    )
                 }
             }
 
@@ -1187,11 +1203,23 @@ class MCPServer:
                 part_name = str(args.get("part_name", "")).strip()
                 comp_res = market_scraper.search_market(part_name, only_in_stock=True, limit_per_vendor=2, sort_by_price=True)
                 results = comp_res.get("results", [])
+                decision = comp_res.get("decision_advice", {})
 
                 md = [f"# ⚖️ Parça Fiyat Karşılaştırması: '{part_name}'\n"]
                 cheapest = comp_res.get("cheapest")
                 if cheapest:
                     md.append(f"🏆 **En Uygun Fiyat:** **{cheapest['price']}** ({cheapest['vendor']}) — [{cheapest['title']}]({cheapest['url']})\n")
+
+                if decision:
+                    md.append("### 🎯 Akıllı Satın Alma & Kargo Tavsiyesi:")
+                    if decision.get("action") == "prefer_robotistan":
+                        md.append(f"- ✅ **Tavsiye:** **Robotistan (Aynı Gün Teslimat)**")
+                        md.append(f"- ℹ️ **Gerekçe:** {decision.get('summary')}\n")
+                    elif decision.get("action") == "ask_user":
+                        md.append(f"- ⚠️ **Fiyat Farkı > 100 TL:** {decision.get('summary')}")
+                        md.append(f"- ❓ **Kullanıcıya Sorulacak Soru:** *\"{decision.get('prompt_question')}\"*\n")
+                    elif decision.get("action") == "external_vendor":
+                        md.append(f"- 📦 **Robotistan Stoğu Yok:** {decision.get('summary')}\n")
 
                 md.append("| Mağaza | Ürün Adı | Fiyat | Stok | Link |")
                 md.append("|---|---|---|---|---|")
@@ -1205,7 +1233,8 @@ class MCPServer:
                     "id": msg_id,
                     "result": {
                         "content": [{"type": "text", "text": "\n".join(md)}],
-                        "data": comp_res
+                        "data": comp_res,
+                        "decision_advice": decision
                     }
                 }
 
@@ -1214,19 +1243,34 @@ class MCPServer:
                 auto_split = bool(args.get("auto_create_split_drafts", False))
                 bom_res = market_scraper.compare_bom_prices(parts=components, only_in_stock=True)
 
-                md = ["# 🎯 Çoklu Mağaza Optimal BOM & Satın Alma Planı\n"]
+                md = ["# 🎯 Akıllı Çoklu Mağaza BOM & Satın Alma Planı\n"]
                 md.append(f"**Talep Edilen Parça Sayısı:** {bom_res.get('total_items_requested', 0)}")
-                md.append(f"**Optimal Karma Sipariş Tutarı:** **~{bom_res.get('total_optimal_price', 0.0):.2f} TL**\n")
+                md.append(f"**Parça Maliyeti:** ~{bom_res.get('total_smart_parts_cost', 0.0):.2f} TL")
+                if bom_res.get("estimated_shipping_total", 0.0) > 0:
+                    md.append(f"**Tahmini Harici Kargo Ücreti ({bom_res.get('external_vendor_count')} Harici Mağaza):** ~{bom_res.get('estimated_shipping_total', 0.0):.2f} TL")
+                    md.append(f"**Toplam Landed Maliyet (Kargo Dahil):** **~{bom_res.get('total_landed_cost', 0.0):.2f} TL**\n")
+                else:
+                    md.append(f"**Tüm Parçalar Robotistan'dan (0 TL Harici Kargo & Aynı Gün Teslimat):** **~{bom_res.get('total_landed_cost', 0.0):.2f} TL**\n")
 
-                optimal_plan = bom_res.get("optimal_plan", {})
+                smart_plan = bom_res.get("smart_plan", {})
+                prompt_qs = bom_res.get("prompt_questions", [])
+
+                if prompt_qs:
+                    md.append("### ❓ Kullanıcı Onayı Gereken Kalemler (Fark > 100 TL veya Özel Durum):")
+                    for pq in prompt_qs:
+                        md.append(f"- **{pq['part']}**: {pq['question']}")
+                    md.append("")
+
                 created_drafts = []
 
-                for v_key, items in optimal_plan.items():
+                for v_key, items in smart_plan.items():
                     v_name = market_scraper.VENDORS.get(v_key, {}).get("name", v_key.upper())
                     v_total = sum(it.get("price_value", 0.0) for it in items)
-                    md.append(f"### 🏪 {v_name} ({len(items)} Kalem • ~{v_total:.2f} TL):")
+                    shipping_badge = " (Aynı Gün • 0 TL Ek Kargo)" if v_key == "robotistan" else " (~50 TL Kargo)"
+                    md.append(f"### 🏪 {v_name}{shipping_badge} — {len(items)} Kalem • ~{v_total:.2f} TL:")
                     for it in items:
-                        md.append(f"- **{it['title']}** — **{it['price']}** ([İncele]({it['url']}))")
+                        reason = f" *(Nedeni: {it.get('assigned_reason')})*" if it.get("assigned_reason") else ""
+                        md.append(f"- **{it['title']}** — **{it['price']}** ([İncele]({it['url']})){reason}")
                     md.append("")
 
                     if auto_split:
@@ -1239,7 +1283,7 @@ class MCPServer:
                             "quantity": 1,
                             "source": v_key,
                             "in_stock": True,
-                            "notes": f"{v_name} en uygun fiyatlı seçenek"
+                            "notes": it.get("assigned_reason", f"{v_name} seçeneği")
                         } for it in items]
                         did = electro_db.create_draft_order(
                             title=draft_title,
@@ -1259,7 +1303,8 @@ class MCPServer:
                     "result": {
                         "content": [{"type": "text", "text": "\n".join(md)}],
                         "bom_data": bom_res,
-                        "created_drafts": created_drafts
+                        "created_drafts": created_drafts,
+                        "prompt_questions": prompt_qs
                     }
                 }
 

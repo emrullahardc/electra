@@ -759,7 +759,9 @@ async function searchRobotistanDirect() {
       throw new Error(errMsg);
     }
     const data = await res.json();
+    window.lastMarketSearch = data;
     const results = data.results || [];
+    const decision = data.decision_advice || null;
 
     if (results.length === 0) {
       container.innerHTML = `
@@ -779,7 +781,56 @@ async function searchRobotistanDirect() {
       motorobit: { badge: "bg-rose-500/20 text-rose-300 border-rose-500/30", name: "Motorobit" }
     };
 
-    container.innerHTML = results.map(item => {
+    // 🎯 Akıllı Satın Alma ve Kargo Karar Kartı (Robotistan Önceliği)
+    let adviceHtml = "";
+    if (decision && decision.action) {
+      if (decision.action === "prefer_robotistan") {
+        adviceHtml = `
+          <div class="col-span-full bg-blue-950/30 border border-blue-500/40 rounded-xl p-3.5 mb-2 flex items-start gap-3 shadow-md animate-fade-in">
+            <div class="w-8 h-8 rounded-lg bg-blue-500/20 text-blue-400 flex items-center justify-center flex-shrink-0 text-base">
+              <i class="fa-solid fa-truck-fast"></i>
+            </div>
+            <div class="space-y-1 text-xs">
+              <div class="flex items-center gap-2 flex-wrap">
+                <span class="font-bold text-blue-200 text-sm">⚡ Robotistan Tavsiyesi (Aynı Gün Teslimat)</span>
+                ${decision.price_diff > 0 ? `<span class="px-2 py-0.5 rounded bg-blue-500/20 text-blue-300 font-mono font-medium">Fark: Sadece ${decision.price_diff.toFixed(2)} TL (≤100 TL)</span>` : '<span class="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-mono font-medium">En Ucuz & Aynı Gün</span>'}
+              </div>
+              <p class="text-slate-300 leading-relaxed">${escapeHtml(decision.summary)}</p>
+            </div>
+          </div>
+        `;
+      } else if (decision.action === "ask_user") {
+        adviceHtml = `
+          <div class="col-span-full bg-amber-950/30 border border-amber-500/40 rounded-xl p-3.5 mb-2 flex items-start gap-3 shadow-md animate-fade-in">
+            <div class="w-8 h-8 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center flex-shrink-0 text-base">
+              <i class="fa-solid fa-scale-balanced"></i>
+            </div>
+            <div class="space-y-1 text-xs">
+              <div class="flex items-center gap-2 flex-wrap">
+                <span class="font-bold text-amber-200 text-sm">💡 Belirgin Fiyat Farkı Uyarısı (>100 TL Tasarruf)</span>
+                <span class="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 font-mono font-medium">${escapeHtml(decision.cheapest_vendor)} ${decision.price_diff.toFixed(2)} TL Daha Ucuz</span>
+              </div>
+              <p class="text-slate-300 leading-relaxed">${escapeHtml(decision.summary)}</p>
+              ${decision.prompt_question ? `<p class="text-amber-200/90 font-medium italic mt-1">❓ "${escapeHtml(decision.prompt_question)}"` : ''}
+            </div>
+          </div>
+        `;
+      } else if (decision.action === "external_vendor") {
+        adviceHtml = `
+          <div class="col-span-full bg-purple-950/30 border border-purple-500/30 rounded-xl p-3.5 mb-2 flex items-start gap-3 shadow-md animate-fade-in">
+            <div class="w-8 h-8 rounded-lg bg-purple-500/20 text-purple-400 flex items-center justify-center flex-shrink-0 text-base">
+              <i class="fa-solid fa-store-slash"></i>
+            </div>
+            <div class="space-y-1 text-xs">
+              <span class="font-bold text-purple-200 text-sm">ℹ️ Robotistan Stoklarında Yok</span>
+              <p class="text-slate-300 leading-relaxed">${escapeHtml(decision.summary)}</p>
+            </div>
+          </div>
+        `;
+      }
+    }
+
+    const cardsHtml = results.map(item => {
       const vKey = item.vendor_key || "other";
       const vStyle = vendorStyles[vKey] || { badge: "bg-slate-700/40 text-slate-300 border-slate-600/30", name: item.vendor || vKey };
       const isCheap = Boolean(item.is_cheapest);
@@ -833,6 +884,8 @@ async function searchRobotistanDirect() {
       `;
     }).join("");
 
+    container.innerHTML = adviceHtml + cardsHtml;
+
   } catch (err) {
     console.error("Piyasa arama hatası:", err);
     container.innerHTML = `<div class="col-span-full py-8 text-center text-rose-400">Arama sırasında bir hata oluştu: ${err.message}</div>`;
@@ -844,6 +897,32 @@ async function searchRobotistanDirect() {
 
 async function quickAddMarketItemToDraft(title, url, priceVal, vendorKey) {
   try {
+    // ⚡ Robotistan Önceliği ve Kargo Maliyeti Kontrolü
+    if (vendorKey !== 'robotistan' && window.lastMarketSearch && window.lastMarketSearch.decision_advice) {
+      const adv = window.lastMarketSearch.decision_advice;
+      if (adv.action === 'prefer_robotistan' && adv.robotistan_price) {
+        const confirmChoice = confirm(
+          `⚡ Kargo ve Hız Avantajı Hatırlatması:\n\n` +
+          `Bu parça Robotistan'da aynı gün kargo avantajıyla ${formatPrice(adv.robotistan_price)} tutarındadır.\n` +
+          `Seçilen ${vendorKey.toUpperCase()} ile aradaki fark sadece ${adv.price_diff.toFixed(2)} TL'dir (≤100 TL).\n\n` +
+          `Diğer mağazalarda minimum 40-75 TL kargo ücreti ekleneceğinden toplamda Robotistan daha avantajlıdır.\n\n` +
+          `Yine de ${vendorKey.toUpperCase()} mağazasını taslağa eklemek istiyor musunuz?\n` +
+          `(İptal ederseniz Robotistan seçeneğini eklemeyi önereceğiz)`
+        );
+        if (!confirmChoice) {
+          const robItem = window.lastMarketSearch.robotistan_option;
+          if (robItem && confirm(`Bunun yerine Robotistan seçeneğini (${formatPrice(robItem.price_value)}) taslağa eklemek ister misiniz?`)) {
+            title = robItem.title;
+            url = robItem.url;
+            priceVal = robItem.price_value;
+            vendorKey = "robotistan";
+          } else {
+            return;
+          }
+        }
+      }
+    }
+
     const res = await fetch("/api/draft-orders");
     const drafts = await res.json();
     if (!drafts || drafts.length === 0) {
