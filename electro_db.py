@@ -1290,5 +1290,228 @@ def get_component_knowledge_groups(db_path: str = DB_PATH) -> List[Dict[str, Any
         return []
 
 
+# ==========================================
+# STANDART ELEKTRONİK KOMPONENT KATALOĞU (LIVESEARCH & AUTOCOMPLETE)
+# ==========================================
+
+CATEGORY_LABELS: Dict[str, str] = {
+    "resistor": "Direnç",
+    "capacitor": "Kondansatör",
+    "diode_led": "Diyot & LED",
+    "transistor": "Transistör & MOSFET",
+    "ic_mcu": "Entegre & MCU",
+    "sensor": "Sensör",
+    "module": "Modül & Kart",
+    "connector": "Konnektör & Kablo",
+    "power": "Güç & Batarya",
+    "passive_other": "Pasif & Diğer",
+    "broken_scrap": "Arızalı / Çıkma Parça"
+}
+
+STANDARD_ELECTRONIC_CATALOG: List[Dict[str, Any]] = [
+    # Transistörler & MOSFET'ler
+    {"name": "2N2222A NPN Bipolar Transistör - TO-92", "category": "transistor", "package": "TO-92", "value": "NPN 40V 800mA", "aliases": ["2n2222a", "2n2222", "pn2222", "2n 2222"], "description": "Genel amaçlı NPN bipolar anahtarlama transistörü"},
+    {"name": "2N3904 NPN Bipolar Transistör - TO-92", "category": "transistor", "package": "TO-92", "value": "NPN 40V 200mA", "aliases": ["2n3904", "2n 3904"], "description": "Düşük güçlü genel amaçlı NPN transistör"},
+    {"name": "2N3906 PNP Bipolar Transistör - TO-92", "category": "transistor", "package": "TO-92", "value": "PNP 40V 200mA", "aliases": ["2n3906", "2n 3906"], "description": "Düşük güçlü genel amaçlı PNP transistör"},
+    {"name": "2N7000 N-Kanal MOSFET - TO-92", "category": "transistor", "package": "TO-92", "value": "N-Ch 60V 200mA", "aliases": ["2n7000", "2n 7000"], "description": "Küçük sinyal N-kanal anahtarlama MOSFET'i"},
+    {"name": "BC547 NPN Bipolar Transistör - TO-92", "category": "transistor", "package": "TO-92", "value": "NPN 45V 100mA", "aliases": ["bc547", "bc 547"], "description": "Genel amaçlı NPN ses ve anahtarlama transistörü"},
+    {"name": "BC548 NPN Bipolar Transistör - TO-92", "category": "transistor", "package": "TO-92", "value": "NPN 30V 100mA", "aliases": ["bc548", "bc 548"], "description": "Genel amaçlı NPN transistör"},
+    {"name": "BC557 PNP Bipolar Transistör - TO-92", "category": "transistor", "package": "TO-92", "value": "PNP 45V 100mA", "aliases": ["bc557", "bc 557"], "description": "Genel amaçlı PNP tamamlayıcı transistör"},
+    {"name": "BD139 NPN Güç Transistörü - TO-126", "category": "transistor", "package": "TO-126", "value": "NPN 80V 1.5A", "aliases": ["bd139", "bd 139"], "description": "Orta güçte NPN ses ve sürücü transistörü"},
+    {"name": "BD140 PNP Güç Transistörü - TO-126", "category": "transistor", "package": "TO-126", "value": "PNP 80V 1.5A", "aliases": ["bd140", "bd 140"], "description": "Orta güçte PNP ses ve sürücü transistörü"},
+    {"name": "TIP120 NPN Darlington Güç Transistörü - TO-220", "category": "transistor", "package": "TO-220", "value": "NPN Darlington 60V 5A", "aliases": ["tip120", "tip 120"], "description": "Yüksek kazançlı Darlington motor/solenoid sürücü"},
+    {"name": "IRFZ44N N-Kanal Güç MOSFET - TO-220", "category": "transistor", "package": "TO-220", "value": "N-Ch 55V 49A 17.5mΩ", "aliases": ["irfz44n", "irfz44", "irf z44n"], "description": "Yüksek akımlı düşük RDS(on) N-kanal güç MOSFET'i"},
+    {"name": "IRF540N N-Kanal Güç MOSFET - TO-220", "category": "transistor", "package": "TO-220", "value": "N-Ch 100V 33A", "aliases": ["irf540n", "irf540"], "description": "100V N-kanal güç MOSFET'i"},
+    {"name": "IRF9540N P-Kanal Güç MOSFET - TO-220", "category": "transistor", "package": "TO-220", "value": "P-Ch 100V 23A", "aliases": ["irf9540n", "irf9540"], "description": "Yüksek voltajlı P-kanal güç MOSFET'i"},
+    {"name": "AO3400A N-Kanal SMD MOSFET - SOT-23", "category": "transistor", "package": "SOT-23", "value": "N-Ch 30V 5.7A", "aliases": ["ao3400", "ao3400a"], "description": "Kompakt SMD yüksek akımlı N-kanal MOSFET"},
+    {"name": "AO3401A P-Kanal SMD MOSFET - SOT-23", "category": "transistor", "package": "SOT-23", "value": "P-Ch 30V 4A", "aliases": ["ao3401", "ao3401a"], "description": "Ters polarite koruması için ideal P-kanal SMD MOSFET"},
+    {"name": "SI2302 N-Kanal SMD MOSFET - SOT-23", "category": "transistor", "package": "SOT-23", "value": "N-Ch 20V 2.8A", "aliases": ["si2302", "a2shb"], "description": "Mantık seviyesi SMD N-kanal MOSFET"},
+
+    # Mikrodenetleyiciler & Geliştirme Kartları
+    {"name": "ESP32-C3 Super Mini Geliştirme Kartı", "category": "ic_mcu", "package": "Modül", "value": "RISC-V 160MHz Wi-Fi+BLE 5.0", "aliases": ["esp32-c3", "esp32 c3", "c3 super mini", "super mini", "esp32c3"], "description": "Ultra kompakt Wi-Fi & Bluetooth 5 IoT mikrodenetleyici kartı"},
+    {"name": "ESP32 DevKit V1 (ESP-WROOM-32)", "category": "ic_mcu", "package": "DIP-30 / Modül", "value": "Çift Çekirdek 240MHz Wi-Fi+BT", "aliases": ["esp32", "esp-wroom-32", "esp32 devkit", "devkit v1"], "description": "Çift çekirdekli standart IoT geliştirme kartı"},
+    {"name": "NodeMCU V3 ESP8266 Wi-Fi Geliştirme Kartı", "category": "ic_mcu", "package": "DIP-30", "value": "80MHz Wi-Fi (ESP-12E)", "aliases": ["esp8266", "nodemcu", "esp12e"], "description": "Klasik Wi-Fi geliştirme kartı"},
+    {"name": "Arduino Nano V3.0 (ATmega328P CH340)", "category": "ic_mcu", "package": "DIP-30", "value": "16MHz 5V AVR", "aliases": ["arduino nano", "nano v3", "nano"], "description": "Kompakt breadboard uyumlu mikrodenetleyici kartı"},
+    {"name": "Arduino Pro Mini 3.3V 8MHz (ATmega328P)", "category": "ic_mcu", "package": "DIP-24", "value": "3.3V 8MHz Düşük Güç", "aliases": ["arduino pro mini", "pro mini"], "description": "Ultra düşük uyku akımı pilli projeler için Pro Mini"},
+    {"name": "Arduino Uno R3 (ATmega328P DIP)", "category": "ic_mcu", "package": "Geliştirme Kartı", "value": "16MHz 5V AVR", "aliases": ["arduino uno", "uno r3", "uno"], "description": "Standart prototipleme ve eğitim kartı"},
+    {"name": "STM32F103C8T6 ARM Cortex-M3 (Blue Pill)", "category": "ic_mcu", "package": "DIP-40", "value": "ARM M3 72MHz 64KB Flash", "aliases": ["stm32", "stm32f103c8t6", "bluepill", "blue pill"], "description": "32-bit ARM Cortex-M3 mikrodenetleyici kartı"},
+    {"name": "Raspberry Pi Pico (RP2040 Dual ARM M0+)", "category": "ic_mcu", "package": "DIP-40", "value": "Dual M0+ 133MHz 2MB Flash", "aliases": ["pico", "rp2040", "raspberry pi pico"], "description": "Çift çekirdekli esnek I/O mikrodenetleyici kartı"},
+    {"name": "ATmega328P-PU 8-Bit Mikrodenetleyici - DIP-28", "category": "ic_mcu", "package": "DIP-28", "value": "20MHz 32KB Flash", "aliases": ["atmega328p", "atmega328", "atmega 328p"], "description": "Arduino çekirdeği standalone entegresi"},
+    {"name": "ATTiny85-20PU 8-Bit Mikrodenetleyici - DIP-8", "category": "ic_mcu", "package": "DIP-8", "value": "20MHz 8KB Flash", "aliases": ["attiny85", "attiny 85", "attiny"], "description": "Küçük 8 pinli AVR mikrodenetleyici"},
+
+    # Entegre Devreler (IC)
+    {"name": "NE555P Zamanlayıcı / Timer Entegresi - DIP-8", "category": "ic_mcu", "package": "DIP-8", "value": "Zamanlayıcı / PWM", "aliases": ["ne555", "555 timer", "ne555p", "555"], "description": "Hassas osilatör, PWM ve zamanlama entegresi"},
+    {"name": "LM358P Çift Op-Amp Entegresi - DIP-8", "category": "ic_mcu", "package": "DIP-8", "value": "Dual Op-Amp 3V-32V", "aliases": ["lm358", "lm358p", "lm 358"], "description": "Tek kaynaklı düşük güçlü çift operasyonel yükselteç"},
+    {"name": "LM324N Dörtlü Op-Amp Entegresi - DIP-14", "category": "ic_mcu", "package": "DIP-14", "value": "Quad Op-Amp", "aliases": ["lm324", "lm324n", "lm 324"], "description": "Dörtlü genel amaçlı op-amp"},
+    {"name": "LM393P Çift Voltaj Komparatör - DIP-8", "category": "ic_mcu", "package": "DIP-8", "value": "Dual Comparator", "aliases": ["lm393", "lm393p", "lm 393"], "description": "Çift kanallı açık kolektör voltaj karşılaştırıcı"},
+    {"name": "LM386N-1 Düşük Voltaj Ses Amplifikatörü - DIP-8", "category": "ic_mcu", "package": "DIP-8", "value": "0.3W - 1W Ses Amfisi", "aliases": ["lm386", "lm386n", "lm 386"], "description": "Pille çalışan düşük voltaj ses amplifikatörü"},
+    {"name": "74HC595 8-Bit Seri Giriş Paralel Çıkış Kaydırma Yazmacı - DIP-16", "category": "ic_mcu", "package": "DIP-16", "value": "Shift Register", "aliases": ["74hc595", "595"], "description": "Pin çoğullama için 8-bit seri shift register"},
+    {"name": "CD4017BE Ondalık Sayıcı / Johnson Counter - DIP-16", "category": "ic_mcu", "package": "DIP-16", "value": "Decade Counter", "aliases": ["cd4017", "4017"], "description": "10 çıkışlı Johnson yürüyen ışık / sayaç entegresi"},
+    {"name": "PC817 Optokuplör / Optoizolatör - DIP-4", "category": "ic_mcu", "package": "DIP-4", "value": "Optocoupler 5kV", "aliases": ["pc817", "el817", "optokuplor"], "description": "Giriş-çıkış elektriksel izolasyonu için optokuplör"},
+    {"name": "CH340G USB - TTL Seri Dönüştürücü Entegre - SOP-16", "category": "ic_mcu", "package": "SOP-16", "value": "USB-UART Köprüsü", "aliases": ["ch340g", "ch340"], "description": "USB seri iletişim köprü çipi"},
+    {"name": "CP2102 USB - TTL Seri UART Modülü", "category": "module", "package": "Modül", "value": "USB 2.0 to UART", "aliases": ["cp2102"], "description": "Kararlı USB seri programlayıcı modülü"},
+    {"name": "L298N Çift Motor Sürücü Modülü", "category": "module", "package": "Modül", "value": "Çift H-Köprüsü 2A", "aliases": ["l298n", "l298"], "description": "Çift DC motor veya step motor sürücü kartı"},
+    {"name": "ULN2003A 7-Kanal Darlington Transistör Dizisi - DIP-16", "category": "ic_mcu", "package": "DIP-16", "value": "500mA 50V Darlington", "aliases": ["uln2003", "uln2003a"], "description": "Röle ve step motor sürücü entegresi"},
+
+    # Sensörler & Konumlandırma
+    {"name": "DHT11 Sıcaklık ve Nem Sensörü Modülü", "category": "sensor", "package": "4 Pin / Modül", "value": "0-50°C %20-90 RH", "aliases": ["dht11", "dht 11"], "description": "Temel ortam sıcaklık ve bağıl nem sensörü"},
+    {"name": "DHT22 / AM2302 Hassas Sıcaklık ve Nem Sensörü", "category": "sensor", "package": "4 Pin", "value": "-40-80°C %0-100 RH", "aliases": ["dht22", "am2302", "dht 22"], "description": "Yüksek hassasiyetli dijital nem ve sıcaklık sensörü"},
+    {"name": "DS18B20 1-Wire Dijital Sıcaklık Sensörü - TO-92", "category": "sensor", "package": "TO-92", "value": "-55°C ile +125°C", "aliases": ["ds18b20", "18b20", "ds 18b20"], "description": "Tek hatlı (1-Wire) hassas dijital sıcaklık sensörü"},
+    {"name": "BME280 Sıcaklık, Nem ve Barometrik Basınç Sensörü (I2C)", "category": "sensor", "package": "Modül", "value": "I2C/SPI 3.3V", "aliases": ["bme280", "bme 280"], "description": "Bosch yüksek hassasiyetli çevre sensörü"},
+    {"name": "BMP280 Barometrik Basınç ve Yükseklik Sensörü (I2C)", "category": "sensor", "package": "Modül", "value": "I2C 3.3V", "aliases": ["bmp280", "bmp 280"], "description": "Hassas atmosferik basınç ve altimetre sensörü"},
+    {"name": "GY-521 MPU-6050 6 Eksen İvme ve Jiroskop Sensörü", "category": "sensor", "package": "Modül", "value": "6 DOF I2C", "aliases": ["mpu6050", "mpu-6050", "gy-521", "gy521"], "description": "3 eksen ivmeölçer + 3 eksen jiroskop hareket sensörü"},
+    {"name": "ST LIS3DH 3 Eksen Düşük Güçlü İvmeölçer Modülü", "category": "sensor", "package": "Modül", "value": "Wake-on-motion 2µA", "aliases": ["lis3dh", "lis 3dh"], "description": "Pilli projeler için ultra düşük akımlı hareket uyandırma sensörü"},
+    {"name": "HC-SR04 Ultrasonik Mesafe Sensörü", "category": "sensor", "package": "Modül", "value": "2cm - 400cm 5V", "aliases": ["hc-sr04", "hcsr04", "mesafe sensoru"], "description": "Ses dalgasıyla temassız mesafe ölçüm sensörü"},
+    {"name": "HC-SR501 PIR Hareket Sensörü Modülü", "category": "sensor", "package": "Modül", "value": "PIR Kızılötesi 5V-20V", "aliases": ["hc-sr501", "hcsr501", "pir sensor"], "description": "Pasif kızılötesi vücut hareket sensörü"},
+    {"name": "GY-NEO6MV2 GPS Modülü (u-blox NEO-6M Antenli)", "category": "sensor", "package": "Modül + Anten", "value": "UART 9600bps 3.3V-5V", "aliases": ["neo-6m", "neo6m", "gy-neo6mv2", "gyneo6mv2", "gps modulu"], "description": "u-blox NEO-6M tabanlı seramik antenli GPS modülü"},
+    {"name": "ATGM336H GPS+BDS Çift Modlu Düşük Güçlü GNSS Modülü", "category": "sensor", "package": "Modül + Anten", "value": "25mA NEO-6M Muadili", "aliases": ["atgm336h", "atgm336"], "description": "Hızlı fix alan ve yarı yarıya az akım tüketen GPS modülü"},
+    {"name": "MAX30102 Kalp Atış Hızı ve Nabız Oksimetresi Sensörü", "category": "sensor", "package": "Modül", "value": "I2C Nabız / SpO2", "aliases": ["max30102", "nabiz sensoru"], "description": "Optik kalp atışı ve kanda oksijen (SpO2) sensörü"},
+    {"name": "BH1750FVI Dijital Işık Şiddeti (Lüks) Sensörü", "category": "sensor", "package": "Modül", "value": "I2C 1-65535 lx", "aliases": ["bh1750", "isik sensoru"], "description": "16-bit hassas ortam ışığı (lux) ölçüm sensörü"},
+    {"name": "TowerPro SG90 9g Mini Servo Motor", "category": "module", "package": "Micro Servo", "value": "1.8 kg/cm 4.8V-6V", "aliases": ["sg90", "servo motor", "9g servo"], "description": "Robotik projeler için standart mini servo motor"},
+    {"name": "MG996R Metal Dişli Yüksek Torklu Standart Servo Motor", "category": "module", "package": "Standart Servo", "value": "11 kg/cm Metal Dişli", "aliases": ["mg996r", "mg996"], "description": "Yüksek dayanımlı metal dişli güç servosu"},
+
+    # Güç, Batarya & Şarj Modülleri
+    {"name": "TP4056 1S 3.7V Type-C Lityum Batarya Şarj Modülü (Korumalı)", "category": "module", "package": "Modül", "value": "1A Type-C BMS Korumalı", "aliases": ["tp4056", "lipo sarj", "1s sarj"], "description": "DW01A + 8205A korumalı 1A Type-C Li-ion şarj devresi"},
+    {"name": "LM2596 DC-DC Ayarlanabilir Step-Down Voltaj Düşürücü Modül", "category": "module", "package": "Modül", "value": "4V-40V Giriş, 3A Çıkış", "aliases": ["lm2596", "step down", "buck converter"], "description": "Yüksek verimli regüle voltaj düşürücü modül"},
+    {"name": "MT3608 2A DC-DC Ayarlanabilir Step-Up Voltaj Yükseltici Modül", "category": "module", "package": "Modül", "value": "2V-24V Giriş, 2A Çıkış", "aliases": ["mt3608", "step up", "boost converter"], "description": "Küçük boyutlu voltaj yükseltici devre"},
+    {"name": "AMS1117-3.3V SMD LDO Voltaj Regülatörü - SOT-223", "category": "power", "package": "SOT-223", "value": "3.3V 1A LDO", "aliases": ["ams1117-3.3", "ams1117 3.3v", "ams1117"], "description": "Yaygın 3.3V lineer voltaj regülatörü"},
+    {"name": "AMS1117-5.0V SMD LDO Voltaj Regülatörü - SOT-223", "category": "power", "package": "SOT-223", "value": "5.0V 1A LDO", "aliases": ["ams1117-5.0", "ams1117 5v"], "description": "5.0V lineer voltaj regülatörü"},
+    {"name": "L7805CV 5V 1.5A Pozitif Lineer Voltaj Regülatörü - TO-220", "category": "power", "package": "TO-220", "value": "5V 1.5A", "aliases": ["7805", "l7805", "7805 regülatör"], "description": "Klasik 5V lineer voltaj regülatörü"},
+    {"name": "L7812CV 12V 1.5A Pozitif Lineer Voltaj Regülatörü - TO-220", "category": "power", "package": "TO-220", "value": "12V 1.5A", "aliases": ["7812", "l7812"], "description": "12V lineer voltaj regülatörü"},
+    {"name": "LM317T Ayarlanabilir Lineer Voltaj Regülatörü - TO-220", "category": "power", "package": "TO-220", "value": "1.25V-37V 1.5A", "aliases": ["lm317", "lm317t"], "description": "Dirençle ayarlanabilir 1.5A voltaj regülatörü"},
+    {"name": "18650 3.7V Li-ion Şarj Edilebilir Pil Hücresi", "category": "power", "package": "18650 Silindirik", "value": "3.7V 2600mAh", "aliases": ["18650", "18650 pil", "li-ion pil"], "description": "Standart yüksek kapasiteli lityum iyon silindirik pil"},
+    {"name": "3.7V 1S 1000mAh Lityum Polimer (LiPo) Batarya", "category": "power", "package": "LiPo Paket", "value": "3.7V 1S 1000mAh", "aliases": ["1s lipo", "1000mah lipo", "lipo batarya", "1s batarya"], "description": "Kompakt boyutlu 3.7V 1S lityum polimer batarya"},
+
+    # Diyotlar & LED'ler
+    {"name": "1N4001 Doğrultucu Diyot 50V 1A - DO-41", "category": "diode_led", "package": "DO-41", "value": "50V 1A", "aliases": ["1n4001", "1n 4001"], "description": "Standart silisyum doğrultucu diyot"},
+    {"name": "1N4007 Doğrultucu Diyot 1000V 1A - DO-41", "category": "diode_led", "package": "DO-41", "value": "1000V 1A", "aliases": ["1n4007", "1n 4007"], "description": "Yüksek voltaj doğrultucu diyot"},
+    {"name": "1N4148 Hızlı Anahtarlama Diyotu - DO-35", "category": "diode_led", "package": "DO-35", "value": "100V 200mA 4ns", "aliases": ["1n4148", "1n 4148"], "description": "Küçük sinyal yüksek hızlı anahtarlama diyotu"},
+    {"name": "1N5819 Schottky Doğrultucu Diyot 40V 1A - DO-41", "category": "diode_led", "package": "DO-41", "value": "Schottky 40V 1A", "aliases": ["1n5819", "1n 5819"], "description": "Düşük ileri voltaj düşümlü Schottky diyot"},
+    {"name": "SS14 SMD Schottky Diyot 40V 1A - SMA", "category": "diode_led", "package": "SMA / DO-214AC", "value": "Schottky 40V 1A", "aliases": ["ss14", "1n5819 smd"], "description": "Yüzey montaj Schottky doğrultucu"},
+    {"name": "SS34 SMD Schottky Diyot 40V 3A - SMC", "category": "diode_led", "package": "SMC / DO-214AB", "value": "Schottky 40V 3A", "aliases": ["ss34", "1n5822 smd"], "description": "3A yüksek akımlı SMD Schottky diyot"},
+    {"name": "5mm Kırmızı Difüz LED", "category": "diode_led", "package": "5mm DIP", "value": "2.0V 20mA", "aliases": ["kirmizi led", "red led", "5mm led"], "description": "Standart gösterge ve sinyal ledi"},
+    {"name": "5mm Yeşil Difüz LED", "category": "diode_led", "package": "5mm DIP", "value": "2.2V 20mA", "aliases": ["yesil led", "green led", "5mm led"], "description": "Standart yeşil durum ledi"},
+    {"name": "WS2812B Adreslenebilir RGB LED (Neopixel)", "category": "diode_led", "package": "SMD 5050 / Modül", "value": "5V RGB Adresli", "aliases": ["ws2812b", "neopixel", "ws2812"], "description": "Dahili sürücülü dijital tek hattan kontrol edilen RGB LED"},
+
+    # Konnektör & Prototipleme
+    {"name": "1x8 Pin 2.54mm Tek Sıra Dişi Header Konnektör", "category": "connector", "package": "1x8 2.54mm", "value": "2.54mm Pitch", "aliases": ["1x8 disi header", "1x8 dişi header", "8 pin disi header", "disi header", "dişi header"], "description": "Arduino ve modül soketleri için dişi pin başlığı"},
+    {"name": "1x40 Pin 2.54mm Tek Sıra Kırılabilir Erkek Header", "category": "connector", "package": "1x40 2.54mm", "value": "2.54mm Pitch", "aliases": ["1x40 erkek header", "erkek header", "header", "pin header"], "description": "Standart 40 pin kırılabilir erkek pin başlığı"},
+    {"name": "JST-PH 2.0mm 2-Pin Erkek Konnektör & Kablolu Soket", "category": "connector", "package": "2-Pin 2.0mm", "value": "2.0mm Adım", "aliases": ["jst-ph 2 pin", "jst 2 pin", "jst-ph", "jst"], "description": "LiPo bataryalar için standart kutuplu 2 pin konnektör"},
+    {"name": "5x7 cm Tek Taraflı Bakırlı Delikli Pertinaks Plaket", "category": "passive_other", "package": "5x7 cm Plaket", "value": "2.54mm Prototip PCB", "aliases": ["pertinaks", "delikli pertinaks", "delikli plaket", "plaket", "prototip pcb"], "description": "Devre lehimleme ve prototipleme plaketi"},
+
+    # Temel Dirençler & Kondansatörler
+    {"name": "10kΩ 1/4W %1 Metal Film Direnç", "category": "resistor", "package": "Axial / THT", "value": "10kΩ 0.25W", "aliases": ["10k", "10k direnc", "10k ohm", "10kohm"], "description": "Pull-up ve pull-down hatları için standart direnç"},
+    {"name": "1kΩ 1/4W %1 Metal Film Direnç", "category": "resistor", "package": "Axial / THT", "value": "1kΩ 0.25W", "aliases": ["1k", "1k direnc", "1k ohm", "1kohm"], "description": "Transistör tetikleme ve sinyal direnci"},
+    {"name": "220Ω 1/4W %1 Metal Film Direnç", "category": "resistor", "package": "Axial / THT", "value": "220Ω 0.25W", "aliases": ["220r", "220 ohm", "220 direnc"], "description": "LED akım sınırlama için 5V direnci"},
+    {"name": "330Ω 1/4W %1 Metal Film Direnç", "category": "resistor", "package": "Axial / THT", "value": "330Ω 0.25W", "aliases": ["330r", "330 ohm", "330 direnc"], "description": "LED ve sinyal akım sınırlama direnci"},
+    {"name": "4.7kΩ 1/4W %1 Metal Film Direnç", "category": "resistor", "package": "Axial / THT", "value": "4.7kΩ 0.25W", "aliases": ["4.7k", "4k7", "4.7k direnc"], "description": "I2C ve 1-Wire veri hattı pull-up direnci"},
+    {"name": "100kΩ 1/4W %1 Metal Film Direnç", "category": "resistor", "package": "Axial / THT", "value": "100kΩ 0.25W", "aliases": ["100k", "100k direnc", "100k ohm"], "description": "Yüksek empedanslı pull-down ve gerilim bölücü direnç"},
+    {"name": "100nF (0.1µF) 50V Çok Katmanlı Seramik Kondansatör", "category": "capacitor", "package": "Radial / DIP", "value": "100nF 50V (104)", "aliases": ["100nf", "0.1uf", "100nf kondansator", "104"], "description": "IC besleme gürültü filtreleme dekuplaj kondansatörü"},
+    {"name": "10µF 50V Alüminyum Elektrolitik Kondansatör", "category": "capacitor", "package": "Radial DIP", "value": "10µF 50V", "aliases": ["10uf", "10uf kondansator"], "description": "Besleme regülatörü giriş/çıkış filtre kondansatörü"},
+    {"name": "100µF 25V Alüminyum Elektrolitik Kondansatör", "category": "capacitor", "package": "Radial DIP", "value": "100µF 25V", "aliases": ["100uf", "100uf kondansator"], "description": "Güç hattı bulk filtre kondansatörü"},
+    {"name": "22pF 50V Seramik Disk Kondansatör", "category": "capacitor", "package": "Radial DIP", "value": "22pF 50V (22)", "aliases": ["22pf", "22pf kondansator"], "description": "Kristal osilatör yük kondansatörü"}
+]
+
+
+def get_component_suggestions(query: str, db_path: str = DB_PATH) -> Dict[str, Any]:
+    """
+    Parça adı giriş kutusuna yazılırken (LiveSearch) hem yerel envanterdeki
+    eşleşmeleri (mükerrer kayıt önleme) hem de standart katalog önerilerini
+    (otomatik form doldurma) döndürür.
+    """
+    clean_q = (query or "").strip()
+    if len(clean_q) < 2:
+        return {"query": clean_q, "inventory_matches": [], "catalog_suggestions": []}
+
+    from component_matcher import normalize_tr, normalize_compact
+
+    q_tr = normalize_tr(clean_q)
+    q_compact = normalize_compact(clean_q)
+    q_tokens = [t for t in re.split(r'[\s\-_/(),;]+', q_tr) if t]
+
+    # 1. YEREL ENVANTERDEKİ MEVCUT PARÇALARI ARA
+    inventory_matches = []
+    try:
+        with get_connection(db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT id, name, category, value, package, quantity, min_quantity, status, location, notes FROM components ORDER BY name ASC")
+            all_comps = [dict(r) for r in cursor.fetchall()]
+
+            for c in all_comps:
+                c_name = c["name"] or ""
+                c_tr = normalize_tr(c_name)
+                c_compact = normalize_compact(c_name)
+                c_val = normalize_tr(c.get("value") or "")
+                c_pkg = normalize_tr(c.get("package") or "")
+
+                is_match = False
+                match_score = 0.0
+
+                if q_compact and (q_compact in c_compact or c_compact in q_compact):
+                    is_match = True
+                    match_score = 1.0
+                elif q_tokens and all(tok in c_tr or tok in c_val or tok in c_pkg for tok in q_tokens):
+                    is_match = True
+                    match_score = 0.9
+                elif any(tok in c_tr for tok in q_tokens if len(tok) >= 3):
+                    is_match = True
+                    match_score = 0.6
+
+                if is_match:
+                    cat_key = c.get("category", "")
+                    c["category_label"] = CATEGORY_LABELS.get(cat_key, cat_key.capitalize())
+                    c["match_score"] = match_score
+                    c["is_inventory"] = True
+                    inventory_matches.append(c)
+
+            inventory_matches.sort(key=lambda x: (-x["match_score"], x["name"]))
+    except Exception:
+        inventory_matches = []
+
+    # 2. STANDART ELEKTRONİK KATALOĞUNDAN ÖNERİLER ÇEK
+    catalog_suggestions = []
+    for item in STANDARD_ELECTRONIC_CATALOG:
+        item_name = item["name"]
+        item_tr = normalize_tr(item_name)
+        item_compact = normalize_compact(item_name)
+        aliases = [normalize_compact(a) for a in item.get("aliases", [])]
+
+        is_cat_match = False
+        cat_score = 0.0
+
+        if q_compact in item_compact or any(q_compact in a or a in q_compact for a in aliases if len(a) >= 2):
+            is_cat_match = True
+            cat_score = 1.0
+        elif q_tokens and all(tok in item_tr or any(tok in a for a in aliases) for tok in q_tokens):
+            is_cat_match = True
+            cat_score = 0.95
+        elif any(tok in item_tr or any(tok in a for a in aliases) for tok in q_tokens if len(tok) >= 3):
+            is_cat_match = True
+            cat_score = 0.7
+
+        if is_cat_match:
+            cat_key = item.get("category", "")
+            catalog_suggestions.append({
+                "name": item["name"],
+                "category": cat_key,
+                "category_label": CATEGORY_LABELS.get(cat_key, cat_key.capitalize()),
+                "package": item.get("package", ""),
+                "value": item.get("value", ""),
+                "description": item.get("description", ""),
+                "score": cat_score,
+                "source": "catalog",
+                "is_inventory": False
+            })
+
+    catalog_suggestions.sort(key=lambda x: (-x["score"], x["name"]))
+
+    return {
+        "query": clean_q,
+        "inventory_matches": inventory_matches[:8],
+        "catalog_suggestions": catalog_suggestions[:10]
+    }
+
+
+
 
 

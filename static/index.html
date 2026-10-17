@@ -794,9 +794,31 @@
         <input type="hidden" id="form-comp-id" value="">
 
         <div>
-          <label class="block text-[11px] font-medium text-[#8e8e93] mb-1">Parça Adı *</label>
-          <input type="text" id="form-name" required placeholder="Örn: 10k Ohm Metal Film Direnç, ESP32 DevKit"
-                 class="apple-input w-full px-3 py-2">
+          <div class="flex items-center justify-between mb-1">
+            <label class="block text-[11px] font-medium text-[#8e8e93]">Parça Adı *</label>
+            <span class="text-[10px] text-blue-400 font-medium flex items-center gap-1">
+              <i class="fa-solid fa-wand-magic-sparkles text-[9px]"></i> Canlı Arama & Otomatik Doldurma
+            </span>
+          </div>
+          <div class="relative">
+            <input type="text" id="form-name" required placeholder="Örn: 2N2222A, ESP32, 10k, TP4056, BC547..."
+                   autocomplete="off" oninput="handleFormNameInput(event)" onkeydown="handleFormNameKeydown(event)"
+                   class="apple-input w-full px-3 py-2 pr-8">
+            <div id="form-name-spinner" class="absolute right-3 top-2.5 text-[#8e8e93] hidden">
+              <i class="fa-solid fa-spinner fa-spin text-xs"></i>
+            </div>
+            <!-- LiveSearch Suggestions Dropdown -->
+            <div id="form-name-suggestions" 
+                 class="absolute left-0 right-0 top-full mt-1.5 bg-[#18181b]/95 border border-[#38383c] rounded-xl shadow-2xl overflow-hidden z-50 hidden max-h-72 overflow-y-auto divide-y divide-[#26262a] backdrop-blur-xl">
+            </div>
+          </div>
+          <!-- Envanterde Mevcut Parça Uyarı / Bilgilendirme Kutusu -->
+          <div id="form-name-warning" class="hidden mt-2 p-2.5 bg-amber-500/10 border border-amber-500/25 rounded-xl text-amber-300 text-xs">
+            <div class="flex items-start gap-2">
+              <i class="fa-solid fa-triangle-exclamation text-amber-400 mt-0.5 text-xs flex-shrink-0"></i>
+              <div class="flex-1 min-w-0" id="form-name-warning-text"></div>
+            </div>
+          </div>
         </div>
 
         <div class="grid grid-cols-2 gap-3">

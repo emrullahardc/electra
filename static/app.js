@@ -980,14 +980,280 @@ function addRobotistanItemToInventory(title) {
   document.getElementById("form-name").value = title;
 }
 
-// Modal Yönetimi
+// Modal Yönetimi & LiveSearch Otomatik Doldurma
+let liveSearchDebounceTimer = null;
+let liveSearchSelectedIndex = -1;
+let currentSuggestions = [];
+
+function closeFormNameSuggestions() {
+  const container = document.getElementById("form-name-suggestions");
+  if (container) {
+    container.classList.add("hidden");
+    container.innerHTML = "";
+  }
+  const spinner = document.getElementById("form-name-spinner");
+  if (spinner) spinner.classList.add("hidden");
+  liveSearchSelectedIndex = -1;
+  currentSuggestions = [];
+}
+
+function dismissFormNameWarning() {
+  const w = document.getElementById("form-name-warning");
+  if (w) w.classList.add("hidden");
+}
+
+function selectLiveSearchItem(item) {
+  if (!item) return;
+
+  const isEditMode = !!document.getElementById("form-comp-id").value;
+
+  // Parça adı, kategori, kılıf ve değer alanlarını otomatik doldur
+  document.getElementById("form-name").value = item.name;
+  if (item.category) {
+    const catSelect = document.getElementById("form-category");
+    if (catSelect) catSelect.value = item.category;
+  }
+  if (item.package) {
+    const pkgInput = document.getElementById("form-package");
+    if (pkgInput) pkgInput.value = item.package;
+  }
+  if (item.value) {
+    const valInput = document.getElementById("form-value");
+    if (valInput) valInput.value = item.value;
+  }
+
+  // Eğer bu parça yerel envanterdeki mevcut bir parçaysa ve yeni ekleme modundaysak kullanıcıyı uyar
+  const warnEl = document.getElementById("form-name-warning");
+  const warnTextEl = document.getElementById("form-name-warning-text");
+
+  if (item.is_inventory && !isEditMode) {
+    const locStr = item.location ? `• Saklama Yeri: <b>${escapeHtml(item.location)}</b>` : "";
+    warnTextEl.innerHTML = `
+      <div>
+        <p class="font-medium text-amber-200">Bu parça zaten envanterinizde mevcut!</p>
+        <p class="text-[11px] text-amber-300/90 mt-0.5">
+          <b>#${item.id} — ${escapeHtml(item.name)}</b> (Stok: <b>${item.quantity} Adet</b> ${locStr})
+        </p>
+        <div class="flex items-center gap-2 mt-2">
+          <button type="button" onclick="editComponent(${item.id})" class="px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 border border-amber-500/40 text-[11px] font-semibold transition flex items-center gap-1">
+            <i class="fa-solid fa-pen-to-square"></i> <span>Mevcut Parçayı Düzenle / Adet Artır</span>
+          </button>
+          <button type="button" onclick="dismissFormNameWarning()" class="text-[#8e8e93] hover:text-white text-[11px] px-2 py-1 transition">
+            Ayrı Kayıt Olarak Ekle
+          </button>
+        </div>
+      </div>
+    `;
+    warnEl.classList.remove("hidden");
+  } else {
+    dismissFormNameWarning();
+    const qtyInput = document.getElementById("form-quantity");
+    if (qtyInput) {
+      qtyInput.focus();
+      qtyInput.select();
+    }
+  }
+
+  closeFormNameSuggestions();
+}
+
+function handleFormNameKeydown(e) {
+  const container = document.getElementById("form-name-suggestions");
+  if (!container || container.classList.contains("hidden") || currentSuggestions.length === 0) {
+    if (e.key === "Escape") closeFormNameSuggestions();
+    return;
+  }
+
+  const items = container.querySelectorAll(".livesearch-item");
+  if (!items.length) return;
+
+  if (e.key === "ArrowDown") {
+    e.preventDefault();
+    liveSearchSelectedIndex = (liveSearchSelectedIndex + 1) % items.length;
+    updateLiveSearchActiveItem(items);
+  } else if (e.key === "ArrowUp") {
+    e.preventDefault();
+    liveSearchSelectedIndex = (liveSearchSelectedIndex - 1 + items.length) % items.length;
+    updateLiveSearchActiveItem(items);
+  } else if (e.key === "Enter") {
+    if (liveSearchSelectedIndex >= 0 && liveSearchSelectedIndex < currentSuggestions.length) {
+      e.preventDefault();
+      selectLiveSearchItem(currentSuggestions[liveSearchSelectedIndex]);
+    }
+  } else if (e.key === "Escape") {
+    closeFormNameSuggestions();
+  }
+}
+
+function updateLiveSearchActiveItem(domItems) {
+  domItems.forEach((el, idx) => {
+    if (idx === liveSearchSelectedIndex) {
+      el.classList.add("bg-white/10", "border-l-2", "border-blue-400");
+      el.scrollIntoView({ block: "nearest" });
+    } else {
+      el.classList.remove("bg-white/10", "border-l-2", "border-blue-400");
+    }
+  });
+}
+
+function renderLiveSearchDropdown(inventoryMatches, catalogSuggestions, query) {
+  const container = document.getElementById("form-name-suggestions");
+  if (!container) return;
+
+  currentSuggestions = [];
+  liveSearchSelectedIndex = -1;
+
+  if (inventoryMatches.length === 0 && catalogSuggestions.length === 0) {
+    container.innerHTML = `
+      <div class="p-3 text-center text-[#8e8e93] text-[11px]">
+        <i class="fa-solid fa-circle-info mr-1"></i> "${escapeHtml(query)}" için standart şablon bulunamadı. Kendi belirlediğiniz isimle ekleyebilirsiniz.
+      </div>
+    `;
+    container.classList.remove("hidden");
+    return;
+  }
+
+  let html = "";
+
+  // 1. Envanterde Mevcut Parçalar (Mükerrer önleme)
+  if (inventoryMatches.length > 0) {
+    html += `
+      <div class="px-3 py-1.5 bg-[#121214] text-[10px] font-semibold text-emerald-400 uppercase tracking-wider flex items-center justify-between">
+        <span><i class="fa-solid fa-box mr-1"></i> Envanterinizde Zaten Kayıtlı (${inventoryMatches.length})</span>
+        <span class="text-[#71717a] font-normal lowercase">tıklayarak bilgileri eşleştirin</span>
+      </div>
+    `;
+    inventoryMatches.forEach((inv) => {
+      const idx = currentSuggestions.length;
+      currentSuggestions.push(inv);
+      const locStr = inv.location ? `• Yer: ${escapeHtml(inv.location)}` : "";
+      html += `
+        <div class="livesearch-item p-2.5 hover:bg-white/5 cursor-pointer flex items-center justify-between gap-2 transition"
+             onclick="selectLiveSearchItem(currentSuggestions[${idx}])">
+          <div class="min-w-0 flex-1">
+            <div class="flex items-center gap-1.5 flex-wrap">
+              <span class="px-1.5 py-0.2 rounded text-[9px] font-mono font-medium bg-emerald-500/15 text-emerald-400 border border-emerald-500/20">
+                #${inv.id} • ${inv.quantity} Adet
+              </span>
+              <p class="font-medium text-white truncate text-xs">${escapeHtml(inv.name)}</p>
+            </div>
+            <div class="text-[11px] text-[#8e8e93] mt-0.5 flex items-center gap-1.5 flex-wrap">
+              <span class="text-white/70">${escapeHtml(inv.category_label || inv.category)}</span>
+              ${inv.package ? `<span class="text-[#8e8e93]">• ${escapeHtml(inv.package)}</span>` : ''}
+              ${inv.value ? `<span class="text-[#8e8e93]">• ${escapeHtml(inv.value)}</span>` : ''}
+              ${locStr ? `<span class="text-emerald-400/80">${locStr}</span>` : ''}
+            </div>
+          </div>
+          <span class="text-[10px] text-emerald-400 bg-white/5 px-2 py-1 rounded border border-white/5 font-medium flex-shrink-0">
+            Eşleştir & Doldur ↵
+          </span>
+        </div>
+      `;
+    });
+  }
+
+  // 2. Standart Bileşen Kataloğu & Otomatik Doldurma
+  if (catalogSuggestions.length > 0) {
+    html += `
+      <div class="px-3 py-1.5 bg-[#121214] text-[10px] font-semibold text-blue-400 uppercase tracking-wider flex items-center justify-between">
+        <span><i class="fa-solid fa-microchip mr-1"></i> Standart Bileşen Şablonları (${catalogSuggestions.length})</span>
+        <span class="text-[#71717a] font-normal lowercase">kategori, kılıf ve değer otomatik dolar</span>
+      </div>
+    `;
+    catalogSuggestions.forEach((cat) => {
+      const idx = currentSuggestions.length;
+      currentSuggestions.push(cat);
+      html += `
+        <div class="livesearch-item p-2.5 hover:bg-white/5 cursor-pointer flex items-center justify-between gap-2 transition"
+             onclick="selectLiveSearchItem(currentSuggestions[${idx}])">
+          <div class="min-w-0 flex-1">
+            <div class="flex items-center gap-1.5 flex-wrap">
+              <span class="px-1.5 py-0.2 rounded text-[9px] font-mono font-medium bg-blue-500/15 text-blue-400 border border-blue-500/20">
+                ${escapeHtml(cat.category_label || cat.category)}
+              </span>
+              <p class="font-medium text-white truncate text-xs">${escapeHtml(cat.name)}</p>
+            </div>
+            <div class="text-[11px] text-[#8e8e93] mt-0.5 flex items-center gap-1.5 flex-wrap">
+              ${cat.package ? `<span class="text-white/80 font-mono">Kılıf: ${escapeHtml(cat.package)}</span>` : ''}
+              ${cat.value ? `<span class="text-white/80">• ${escapeHtml(cat.value)}</span>` : ''}
+              ${cat.description ? `<span class="text-[#71717a] italic truncate max-w-[220px]">• ${escapeHtml(cat.description)}</span>` : ''}
+            </div>
+          </div>
+          <span class="text-[10px] text-blue-400 bg-white/5 px-2 py-1 rounded border border-white/5 font-medium flex-shrink-0">
+            Seç & Doldur ↵
+          </span>
+        </div>
+      `;
+    });
+  }
+
+  container.innerHTML = html;
+  container.classList.remove("hidden");
+}
+
+function handleFormNameInput(e) {
+  const query = (e.target.value || "").trim();
+  const spinner = document.getElementById("form-name-spinner");
+
+  if (liveSearchDebounceTimer) {
+    clearTimeout(liveSearchDebounceTimer);
+  }
+
+  if (query.length < 2) {
+    closeFormNameSuggestions();
+    dismissFormNameWarning();
+    return;
+  }
+
+  if (spinner) spinner.classList.remove("hidden");
+
+  // 1. Hızlı Yerel Envanter Ön Taraması (0 ms)
+  const normQ = query.toLowerCase().replace(/[\s\-_]/g, "");
+  const localMatches = (allComponentsCache || []).filter(c => {
+    const cNorm = (c.name || "").toLowerCase().replace(/[\s\-_]/g, "");
+    const vNorm = (c.value || "").toLowerCase().replace(/[\s\-_]/g, "");
+    return (normQ.length >= 2 && cNorm.includes(normQ)) || (vNorm && vNorm.includes(normQ));
+  }).map(c => ({
+    ...c,
+    is_inventory: true,
+    category_label: c.category
+  }));
+
+  if (localMatches.length > 0) {
+    renderLiveSearchDropdown(localMatches.slice(0, 5), [], query);
+  }
+
+  // 2. Debounced Backend Katalog & Detaylı Eşleştirme Sorgusu (150ms)
+  liveSearchDebounceTimer = setTimeout(async () => {
+    try {
+      const res = await fetch(`/api/components/suggest?q=${encodeURIComponent(query)}`);
+      if (res.ok) {
+        const data = await res.json();
+        const inv = data.inventory_matches || [];
+        const cat = data.catalog_suggestions || [];
+        renderLiveSearchDropdown(inv, cat, query);
+      }
+    } catch (err) {
+      console.error("LiveSearch hatası:", err);
+    } finally {
+      if (spinner) spinner.classList.add("hidden");
+    }
+  }, 150);
+}
+
 function openAddModal() {
   document.getElementById("modal-title").innerText = "Yeni Elektronik Parça Ekle";
   document.getElementById("form-comp-id").value = "";
   document.getElementById("component-form").reset();
   document.getElementById("form-quantity").value = 1;
   document.getElementById("form-min-quantity").value = 2;
+  closeFormNameSuggestions();
+  dismissFormNameWarning();
   document.getElementById("component-modal").classList.remove("hidden");
+  setTimeout(() => {
+    const nameInput = document.getElementById("form-name");
+    if (nameInput) nameInput.focus();
+  }, 50);
 }
 
 function editComponent(compId) {
@@ -1006,12 +1272,23 @@ function editComponent(compId) {
   document.getElementById("form-location").value = comp.location || "";
   document.getElementById("form-notes").value = comp.notes || "";
 
+  closeFormNameSuggestions();
+  dismissFormNameWarning();
   document.getElementById("component-modal").classList.remove("hidden");
 }
 
 function closeModal() {
+  closeFormNameSuggestions();
+  dismissFormNameWarning();
   document.getElementById("component-modal").classList.add("hidden");
 }
+
+// Dropdown dışına tıklandığında önerileri kapat
+document.addEventListener("click", (e) => {
+  if (!e.target.closest("#form-name") && !e.target.closest("#form-name-suggestions")) {
+    closeFormNameSuggestions();
+  }
+});
 
 document.addEventListener("keydown", (e) => {
   if (e.key === "Escape") {

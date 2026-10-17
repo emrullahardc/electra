@@ -233,6 +233,13 @@ class ElectroRequestHandler(http.server.SimpleHTTPRequestHandler):
             self.send_json(results)
             return
 
+        # 2.5 API: Parça Adı Canlı Arama ve Otomatik Doldurma Önerileri (LiveSearch)
+        elif path == "/api/components/suggest":
+            q = params.get("q", [""])[0].strip()
+            res = electro_db.get_component_suggestions(q)
+            self.send_json(res)
+            return
+
         # 3. API: Arızalı ve Çıkma Parçalar
         elif path == "/api/defective":
             items = electro_db.get_defective_components()
