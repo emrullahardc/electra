@@ -948,9 +948,27 @@
         </div>
 
         <div>
-          <label class="block text-[11px] font-medium text-[#8e8e93] mb-1">Saklama Yeri (Kutu / Çekmece)</label>
-          <input type="text" id="form-location" placeholder="Örn: Çekmece A-2, Direnç Organizeri 1, Arızalı Kutusu"
-                 class="apple-input w-full px-3 py-2">
+          <div class="flex items-center justify-between mb-1">
+            <label class="block text-[11px] font-medium text-[#8e8e93]">Saklama Yeri (Kutu / Çekmece)</label>
+            <span class="text-[10px] text-blue-400 font-medium flex items-center gap-1 cursor-pointer" onclick="handleLocationFocus(true)">
+              <i class="fa-solid fa-folder-tree text-[9px]"></i> Mevcut Yerler
+            </span>
+          </div>
+          <div class="relative">
+            <input type="text" id="form-location" placeholder="Örn: Çekmece A-2, Direnç Organizeri 1, Arızalı Kutusu"
+                   autocomplete="off" onfocus="handleLocationFocus()" oninput="handleLocationInput(event)" onkeydown="handleLocationKeydown(event)"
+                   class="apple-input w-full px-3 py-2 pr-7">
+            <div class="absolute right-2.5 top-2.5 text-[#636366] pointer-events-none">
+              <i class="fa-solid fa-chevron-down text-[10px]"></i>
+            </div>
+            <!-- Location Suggestions Dropdown -->
+            <div id="form-location-suggestions"
+                 class="absolute left-0 right-0 top-full mt-1.5 bg-[#18181b]/95 border border-[#38383c] rounded-xl shadow-2xl overflow-hidden z-50 hidden max-h-56 overflow-y-auto divide-y divide-[#26262a] backdrop-blur-xl">
+            </div>
+          </div>
+          <!-- Quick Location Chips (En sık kullanılan kutular) -->
+          <div id="quick-location-chips" class="flex items-center gap-1.5 flex-wrap mt-1.5">
+          </div>
         </div>
 
         <div>

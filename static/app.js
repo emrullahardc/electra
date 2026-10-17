@@ -333,7 +333,10 @@ async function loadStats() {
     document.getElementById("badge-defective-count").innerText = data.defective_count || 0;
     document.getElementById("badge-lowstock-count").innerText = data.low_stock_count || 0;
 
-    // Lokasyon Filtrelerini Doldur
+    // Lokasyon Filtrelerini ve Cache'i Doldur
+    cachedLocationStats = data.location_stats || (data.locations || []).map(l => ({ name: l, count: 0 }));
+    renderQuickLocationChips();
+
     const locSelect = document.getElementById("filter-location");
     const currentLoc = locSelect.value;
     locSelect.innerHTML = '<option value="all">Tüm Saklama Yerleri</option>';
@@ -1403,6 +1406,172 @@ function handleFormNameInput(e) {
   }, 150);
 }
 
+// ==========================================
+// 📍 Saklama Yeri (Location) Autocomplete & Chips
+// ==========================================
+let cachedLocationStats = [];
+let locationSelectedIndex = -1;
+let currentLocationSuggestions = [];
+
+function renderQuickLocationChips() {
+  const container = document.getElementById("quick-location-chips");
+  if (!container) return;
+  if (!cachedLocationStats || cachedLocationStats.length === 0) {
+    container.innerHTML = "";
+    return;
+  }
+  // En çok parçaya sahip ilk 4 lokasyonu göster
+  const topLocs = cachedLocationStats.slice(0, 4);
+  container.innerHTML = topLocs.map(loc => `
+    <button type="button" onclick="selectLocationItem('${escapeHtml(loc.name)}')" 
+            class="px-2 py-0.5 rounded-lg bg-white/5 hover:bg-white/10 text-[#a1a1aa] hover:text-white border border-white/5 text-[10px] flex items-center gap-1 transition"
+            title="Tıklayarak saklama yerini '${escapeHtml(loc.name)}' yap">
+      <i class="fa-solid fa-folder-closed text-[9px] text-[#636366]"></i>
+      <span class="truncate max-w-[120px]">${escapeHtml(loc.name)}</span>
+      <span class="text-[9px] text-[#71717a] font-mono">(${loc.count})</span>
+    </button>
+  `).join("");
+}
+
+function closeLocationSuggestions() {
+  const container = document.getElementById("form-location-suggestions");
+  if (container) {
+    container.classList.add("hidden");
+    container.innerHTML = "";
+  }
+  locationSelectedIndex = -1;
+  currentLocationSuggestions = [];
+}
+
+function renderLocationDropdown(matches, query) {
+  const container = document.getElementById("form-location-suggestions");
+  if (!container) return;
+
+  currentLocationSuggestions = [];
+  locationSelectedIndex = -1;
+
+  let html = "";
+
+  if (matches.length > 0) {
+    html += `
+      <div class="px-3 py-1.5 bg-[#121214] text-[10px] font-semibold text-blue-400 uppercase tracking-wider flex items-center justify-between">
+        <span><i class="fa-solid fa-folder-tree mr-1"></i> Mevcut Saklama Yerleri (${matches.length})</span>
+        <span class="text-[#71717a] font-normal lowercase">seçmek için tıklayın</span>
+      </div>
+    `;
+
+    matches.forEach(item => {
+      currentLocationSuggestions.push(item.name);
+      html += `
+        <div class="location-item p-2 hover:bg-white/5 cursor-pointer flex items-center justify-between gap-2 transition"
+             onclick="selectLocationItem('${escapeHtml(item.name)}')">
+          <div class="flex items-center gap-2 min-w-0">
+            <i class="fa-solid fa-folder-closed text-xs text-blue-400/80"></i>
+            <span class="text-xs text-white truncate font-medium">${escapeHtml(item.name)}</span>
+          </div>
+          <span class="text-[10px] text-[#8e8e93] font-mono bg-white/5 px-1.5 py-0.5 rounded border border-white/5 flex-shrink-0">
+            ${item.count} parça
+          </span>
+        </div>
+      `;
+    });
+  }
+
+  // Eğer kullanıcı bir metin yazdıysa ve mevcut lokasyonlardan hiçbirine birebir uymuyorsa "Yeni Ekle" seçeneği sun
+  const cleanQ = (query || "").trim();
+  const exactMatch = matches.some(m => m.name.toLowerCase() === cleanQ.toLowerCase());
+  if (cleanQ && !exactMatch) {
+    currentLocationSuggestions.push(cleanQ);
+    html += `
+      <div class="location-item p-2 hover:bg-emerald-500/10 cursor-pointer flex items-center justify-between gap-2 transition border-t border-[#26262a]"
+           onclick="selectLocationItem('${escapeHtml(cleanQ)}')">
+        <div class="flex items-center gap-2 min-w-0">
+          <i class="fa-solid fa-plus text-xs text-emerald-400"></i>
+          <span class="text-xs text-emerald-300 truncate">Yeni Yer: <b>"${escapeHtml(cleanQ)}"</b></span>
+        </div>
+        <span class="text-[10px] text-emerald-400 bg-emerald-500/15 px-1.5 py-0.5 rounded font-medium flex-shrink-0">
+          Seç ↵
+        </span>
+      </div>
+    `;
+  }
+
+  if (matches.length === 0 && !cleanQ) {
+    html = `
+      <div class="p-3 text-center text-[#8e8e93] text-[11px]">
+        <i class="fa-solid fa-circle-info mr-1"></i> Henüz kayıtlı bir saklama yeri bulunmuyor. Yeni bir yer adı yazabilirsiniz.
+      </div>
+    `;
+  }
+
+  container.innerHTML = html;
+  container.classList.remove("hidden");
+}
+
+function handleLocationFocus(forceOpen = false) {
+  const input = document.getElementById("form-location");
+  if (!input) return;
+  const q = (input.value || "").trim().toLowerCase();
+
+  let matches = cachedLocationStats;
+  if (q && !forceOpen) {
+    matches = cachedLocationStats.filter(loc => loc.name.toLowerCase().includes(q));
+  }
+  renderLocationDropdown(matches, input.value);
+}
+
+function handleLocationInput(e) {
+  const query = (e.target.value || "").trim();
+  const qLower = query.toLowerCase();
+  const matches = cachedLocationStats.filter(loc => loc.name.toLowerCase().includes(qLower));
+  renderLocationDropdown(matches, query);
+}
+
+function selectLocationItem(name) {
+  const input = document.getElementById("form-location");
+  if (input) input.value = name;
+  closeLocationSuggestions();
+}
+
+function handleLocationKeydown(e) {
+  const container = document.getElementById("form-location-suggestions");
+  if (!container || container.classList.contains("hidden") || currentLocationSuggestions.length === 0) {
+    if (e.key === "Escape") closeLocationSuggestions();
+    return;
+  }
+
+  const items = container.querySelectorAll(".location-item");
+  if (!items.length) return;
+
+  if (e.key === "ArrowDown") {
+    e.preventDefault();
+    locationSelectedIndex = (locationSelectedIndex + 1) % items.length;
+    updateLocationActiveItem(items);
+  } else if (e.key === "ArrowUp") {
+    e.preventDefault();
+    locationSelectedIndex = (locationSelectedIndex - 1 + items.length) % items.length;
+    updateLocationActiveItem(items);
+  } else if (e.key === "Enter") {
+    if (locationSelectedIndex >= 0 && locationSelectedIndex < currentLocationSuggestions.length) {
+      e.preventDefault();
+      selectLocationItem(currentLocationSuggestions[locationSelectedIndex]);
+    }
+  } else if (e.key === "Escape") {
+    closeLocationSuggestions();
+  }
+}
+
+function updateLocationActiveItem(domItems) {
+  domItems.forEach((el, idx) => {
+    if (idx === locationSelectedIndex) {
+      el.classList.add("bg-white/10", "border-l-2", "border-blue-400");
+      el.scrollIntoView({ block: "nearest" });
+    } else {
+      el.classList.remove("bg-white/10", "border-l-2", "border-blue-400");
+    }
+  });
+}
+
 function openAddModal() {
   document.getElementById("modal-title").innerText = "Yeni Elektronik Parça Ekle";
   document.getElementById("form-comp-id").value = "";
@@ -1414,6 +1583,7 @@ function openAddModal() {
   document.getElementById("form-quantity").value = 1;
   document.getElementById("form-min-quantity").value = 2;
   closeFormNameSuggestions();
+  closeLocationSuggestions();
   dismissFormNameWarning();
   document.getElementById("component-modal").classList.remove("hidden");
   setTimeout(() => {
@@ -1443,12 +1613,14 @@ function editComponent(compId) {
   document.getElementById("form-notes").value = comp.notes || "";
 
   closeFormNameSuggestions();
+  closeLocationSuggestions();
   dismissFormNameWarning();
   document.getElementById("component-modal").classList.remove("hidden");
 }
 
 function closeModal() {
   closeFormNameSuggestions();
+  closeLocationSuggestions();
   dismissFormNameWarning();
   document.getElementById("modal-quick-stock").classList.add("hidden");
   document.getElementById("component-form").classList.remove("hidden");
@@ -1460,6 +1632,9 @@ function closeModal() {
 document.addEventListener("click", (e) => {
   if (!e.target.closest("#form-name") && !e.target.closest("#form-name-suggestions")) {
     closeFormNameSuggestions();
+  }
+  if (!e.target.closest("#form-location") && !e.target.closest("#form-location-suggestions") && !e.target.closest("[onclick*='handleLocationFocus']")) {
+    closeLocationSuggestions();
   }
 });
 

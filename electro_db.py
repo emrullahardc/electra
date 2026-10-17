@@ -528,9 +528,17 @@ def get_summary_stats(db_path: str = DB_PATH) -> Dict[str, Any]:
         cursor.execute("SELECT category, COUNT(*) as count, SUM(quantity) as qty FROM components GROUP BY category")
         category_counts = {r["category"]: {"count": r["count"], "qty": r["qty"] or 0} for r in cursor.fetchall()}
 
-        # Saklama lokasyonları listesi
-        cursor.execute("SELECT DISTINCT location FROM components WHERE location != '' ORDER BY location")
-        locations = [r["location"] for r in cursor.fetchall()]
+        # Saklama lokasyonları listesi & parça sayıları
+        cursor.execute("""
+            SELECT location, COUNT(*) as count 
+            FROM components 
+            WHERE location IS NOT NULL AND TRIM(location) != '' 
+            GROUP BY location 
+            ORDER BY count DESC, location ASC
+        """)
+        loc_rows = cursor.fetchall()
+        location_stats = [{"name": r["location"], "count": r["count"]} for r in loc_rows]
+        locations = [item["name"] for item in location_stats]
 
         return {
             "total_items": total_items,
@@ -542,7 +550,8 @@ def get_summary_stats(db_path: str = DB_PATH) -> Dict[str, Any]:
             "low_stock_count": low_stock_count,
             "status_breakdown": status_counts,
             "category_breakdown": category_counts,
-            "locations": locations
+            "locations": locations,
+            "location_stats": location_stats
         }
 
 
