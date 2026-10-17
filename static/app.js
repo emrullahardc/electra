@@ -427,9 +427,14 @@ function renderComponentsTable(components) {
         </td>
         <td class="py-3 px-3">
           <div class="flex items-center justify-center gap-1">
-            <button onclick="adjustQty(${c.id}, -1)" class="w-6 h-6 rounded-md bg-white/5 hover:bg-white/10 text-white flex items-center justify-center text-xs transition" title="1 Azalt">-</button>
-            <span class="w-8 text-center font-semibold ${isLowStock ? 'text-[#ff453a]' : 'text-white'}">${c.quantity}</span>
-            <button onclick="adjustQty(${c.id}, 1)" class="w-6 h-6 rounded-md bg-white/5 hover:bg-white/10 text-white flex items-center justify-center text-xs transition" title="1 Artır">+</button>
+            <button onclick="adjustQty(${c.id}, -1)" class="w-6 h-6 rounded-md bg-white/5 hover:bg-white/10 text-white flex items-center justify-center text-xs transition select-none flex-shrink-0" title="1 Azalt">-</button>
+            <input type="number" min="0" value="${c.quantity}" data-old-qty="${c.quantity}"
+                   onfocus="this.select()"
+                   onkeydown="if(event.key==='Enter'){this.blur();}"
+                   onchange="setDirectQty(${c.id}, this)"
+                   class="w-12 h-6 text-center text-xs font-semibold rounded bg-white/5 hover:bg-white/10 focus:bg-[#202024] focus:ring-1 focus:ring-blue-500 border border-transparent hover:border-white/15 focus:border-blue-500/50 ${isLowStock ? 'text-[#ff453a]' : 'text-white'} outline-none transition [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                   title="Doğrudan yeni stok adedini yazabilirsiniz">
+            <button onclick="adjustQty(${c.id}, 1)" class="w-6 h-6 rounded-md bg-white/5 hover:bg-white/10 text-white flex items-center justify-center text-xs transition select-none flex-shrink-0" title="1 Artır">+</button>
           </div>
         </td>
         <td class="py-3 px-4 text-right space-x-1">
@@ -445,7 +450,7 @@ function renderComponentsTable(components) {
   }).join("");
 }
 
-// Hızlı Stok Miktarı Değiştirme
+// Hızlı Stok Miktarı Değiştirme (+ / -)
 async function adjustQty(compId, delta) {
   try {
     const res = await fetch(`/api/components/${compId}/adjust`, {
@@ -460,6 +465,39 @@ async function adjustQty(compId, delta) {
     }
   } catch (err) {
     console.error("Miktar güncellenirken hata:", err);
+  }
+}
+
+// Doğrudan Sayı Girerek Stok Güncelleme
+async function setDirectQty(compId, inputEl) {
+  const newQty = parseInt(inputEl.value, 10);
+  const oldQty = parseInt(inputEl.getAttribute("data-old-qty"), 10);
+
+  if (isNaN(newQty) || newQty < 0) {
+    inputEl.value = isNaN(oldQty) ? 0 : oldQty;
+    return;
+  }
+  if (newQty === oldQty) return;
+
+  try {
+    const res = await fetch(`/api/components/${compId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ quantity: newQty })
+    });
+    if (res.ok) {
+      inputEl.setAttribute("data-old-qty", newQty);
+      loadStats();
+      loadComponents();
+      showToast(`Stok güncellendi: ${newQty} adet`);
+    } else {
+      inputEl.value = oldQty;
+      showToast("Stok güncellenemedi", "error");
+    }
+  } catch (err) {
+    console.error("Stok güncellenirken hata:", err);
+    inputEl.value = oldQty;
+    showToast("Bağlantı hatası", "error");
   }
 }
 
@@ -984,6 +1022,8 @@ function addRobotistanItemToInventory(title) {
 let liveSearchDebounceTimer = null;
 let liveSearchSelectedIndex = -1;
 let currentSuggestions = [];
+let lastLiveSearchTypedQuery = "";
+let selectedQuickStockItem = null;
 
 function closeFormNameSuggestions() {
   const container = document.getElementById("form-name-suggestions");
@@ -1002,12 +1042,158 @@ function dismissFormNameWarning() {
   if (w) w.classList.add("hidden");
 }
 
+function showQuickStockView(item) {
+  if (!item) return;
+  selectedQuickStockItem = item;
+
+  document.getElementById("quick-stock-id").innerText = item.id;
+  document.getElementById("quick-stock-name").innerText = item.name;
+
+  const catLabel = item.category_label || CATEGORY_NAMES[item.category] || item.category || "";
+  const detailsParts = [];
+  if (catLabel) detailsParts.push(catLabel);
+  if (item.package) detailsParts.push(`Kılıf: ${item.package}`);
+  if (item.value) detailsParts.push(`Değer: ${item.value}`);
+  document.getElementById("quick-stock-details").innerText = detailsParts.join(" • ");
+
+  const locEl = document.getElementById("quick-stock-location");
+  if (item.location) {
+    locEl.innerHTML = `<i class="fa-solid fa-folder-closed text-xs"></i> <span>Saklama Yeri: <b class="text-white">${escapeHtml(item.location)}</b></span>`;
+    locEl.classList.remove("hidden");
+  } else {
+    locEl.innerHTML = `<span class="text-[#71717a]">Saklama yeri belirtilmemiş</span>`;
+    locEl.classList.remove("hidden");
+  }
+
+  const currentQty = parseInt(item.quantity, 10) || 0;
+  document.getElementById("quick-stock-current").innerText = currentQty;
+
+  const addQtyInput = document.getElementById("quick-stock-add-qty");
+  addQtyInput.value = 1;
+  updateQuickStockPreview();
+
+  // Modal başlığı ve form görünürlüğünü güncelle
+  document.getElementById("modal-title").innerHTML = `<i class="fa-solid fa-boxes-stacked text-emerald-400 mr-2"></i> Envanterdeki Parçaya Stok Ekle`;
+  document.getElementById("component-form").classList.add("hidden");
+  document.getElementById("modal-quick-stock").classList.remove("hidden");
+
+  closeFormNameSuggestions();
+
+  setTimeout(() => {
+    addQtyInput.focus();
+    addQtyInput.select();
+  }, 50);
+}
+
+function updateQuickStockPreview() {
+  if (!selectedQuickStockItem) return;
+  const current = parseInt(selectedQuickStockItem.quantity, 10) || 0;
+  const addVal = parseInt(document.getElementById("quick-stock-add-qty").value, 10) || 0;
+  const newTotal = Math.max(0, current + addVal);
+  const previewEl = document.getElementById("quick-stock-preview");
+  if (previewEl) {
+    previewEl.innerHTML = `Yeni toplam stok: <b class="text-white">${newTotal} adet</b> olacak (${current} mevcut + ${addVal} yeni).`;
+  }
+}
+
+async function submitQuickStockAdd() {
+  if (!selectedQuickStockItem) return;
+  const addVal = parseInt(document.getElementById("quick-stock-add-qty").value, 10);
+  if (isNaN(addVal) || addVal <= 0) {
+    alert("Lütfen eklenecek geçerli bir adet giriniz (en az 1).");
+    return;
+  }
+
+  const btn = document.getElementById("quick-stock-submit-btn");
+  if (btn) btn.disabled = true;
+
+  try {
+    const res = await fetch(`/api/components/${selectedQuickStockItem.id}/adjust`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        delta: addVal,
+        reason: "Envanter Hızlı Stok Ekleme (+)"
+      })
+    });
+    const data = await res.json();
+    if (res.ok && data.success) {
+      const newTotal = data.new_quantity !== undefined ? data.new_quantity : ((selectedQuickStockItem.quantity || 0) + addVal);
+      showToast(`✓ "${selectedQuickStockItem.name}" stoğuna +${addVal} adet eklendi! (Toplam: ${newTotal})`);
+      closeModal();
+      loadStats();
+      loadComponents();
+    } else {
+      alert("Hata: " + (data.error || "Stok güncellenemedi"));
+    }
+  } catch (err) {
+    console.error("Hızlı stok ekleme hatası:", err);
+    alert("Bağlantı hatası oluştu.");
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+function cancelQuickStockSelection() {
+  // Geri Dön / Yanlış Seçim butonuna basıldığında
+  document.getElementById("modal-quick-stock").classList.add("hidden");
+  document.getElementById("component-form").classList.remove("hidden");
+  document.getElementById("modal-title").innerText = "Yeni Elektronik Parça Ekle";
+
+  // Parça adı alanını kullanıcının son yazdığı metne geri al ve odaklan
+  const nameInput = document.getElementById("form-name");
+  if (nameInput) {
+    nameInput.value = lastLiveSearchTypedQuery || "";
+    nameInput.focus();
+  }
+  selectedQuickStockItem = null;
+  showToast("Önceki girişe geri dönüldü");
+}
+
+function continueAsNewComponent() {
+  // Kullanıcı bu parçayı ayrı bir kayıt olarak eklemek istiyor
+  if (!selectedQuickStockItem) return;
+  const item = selectedQuickStockItem;
+
+  document.getElementById("modal-quick-stock").classList.add("hidden");
+  document.getElementById("component-form").classList.remove("hidden");
+  document.getElementById("modal-title").innerText = "Yeni Elektronik Parça Ekle";
+
+  document.getElementById("form-name").value = item.name;
+  if (item.category) document.getElementById("form-category").value = item.category;
+  if (item.package) document.getElementById("form-package").value = item.package;
+  if (item.value) document.getElementById("form-value").value = item.value;
+
+  selectedQuickStockItem = null;
+  const qtyInput = document.getElementById("form-quantity");
+  if (qtyInput) {
+    qtyInput.focus();
+    qtyInput.select();
+  }
+}
+
+function editExistingComponentFromQuickStock() {
+  if (!selectedQuickStockItem) return;
+  const compId = selectedQuickStockItem.id;
+  document.getElementById("modal-quick-stock").classList.add("hidden");
+  document.getElementById("component-form").classList.remove("hidden");
+  selectedQuickStockItem = null;
+  editComponent(compId);
+}
+
 function selectLiveSearchItem(item) {
   if (!item) return;
 
   const isEditMode = !!document.getElementById("form-comp-id").value;
 
-  // Parça adı, kategori, kılıf ve değer alanlarını otomatik doldur
+  // Eğer bu parça yerel envanterdeki mevcut bir parçaysa ve yeni ekleme modundaysak:
+  // Kafa karıştırıcı form yerine doğrudan adet isteme ekranını göster
+  if (item.is_inventory && !isEditMode) {
+    showQuickStockView(item);
+    return;
+  }
+
+  // Standart şablon veya düzenleme modu: form alanlarını doldur
   document.getElementById("form-name").value = item.name;
   if (item.category) {
     const catSelect = document.getElementById("form-category");
@@ -1022,36 +1208,11 @@ function selectLiveSearchItem(item) {
     if (valInput) valInput.value = item.value;
   }
 
-  // Eğer bu parça yerel envanterdeki mevcut bir parçaysa ve yeni ekleme modundaysak kullanıcıyı uyar
-  const warnEl = document.getElementById("form-name-warning");
-  const warnTextEl = document.getElementById("form-name-warning-text");
-
-  if (item.is_inventory && !isEditMode) {
-    const locStr = item.location ? `• Saklama Yeri: <b>${escapeHtml(item.location)}</b>` : "";
-    warnTextEl.innerHTML = `
-      <div>
-        <p class="font-medium text-amber-200">Bu parça zaten envanterinizde mevcut!</p>
-        <p class="text-[11px] text-amber-300/90 mt-0.5">
-          <b>#${item.id} — ${escapeHtml(item.name)}</b> (Stok: <b>${item.quantity} Adet</b> ${locStr})
-        </p>
-        <div class="flex items-center gap-2 mt-2">
-          <button type="button" onclick="editComponent(${item.id})" class="px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 border border-amber-500/40 text-[11px] font-semibold transition flex items-center gap-1">
-            <i class="fa-solid fa-pen-to-square"></i> <span>Mevcut Parçayı Düzenle / Adet Artır</span>
-          </button>
-          <button type="button" onclick="dismissFormNameWarning()" class="text-[#8e8e93] hover:text-white text-[11px] px-2 py-1 transition">
-            Ayrı Kayıt Olarak Ekle
-          </button>
-        </div>
-      </div>
-    `;
-    warnEl.classList.remove("hidden");
-  } else {
-    dismissFormNameWarning();
-    const qtyInput = document.getElementById("form-quantity");
-    if (qtyInput) {
-      qtyInput.focus();
-      qtyInput.select();
-    }
+  dismissFormNameWarning();
+  const qtyInput = document.getElementById("form-quantity");
+  if (qtyInput) {
+    qtyInput.focus();
+    qtyInput.select();
   }
 
   closeFormNameSuggestions();
@@ -1115,12 +1276,12 @@ function renderLiveSearchDropdown(inventoryMatches, catalogSuggestions, query) {
 
   let html = "";
 
-  // 1. Envanterde Mevcut Parçalar (Mükerrer önleme)
+  // 1. Envanterde Mevcut Parçalar (Mükerrer önleme & Hızlı Stok Ekleme)
   if (inventoryMatches.length > 0) {
     html += `
       <div class="px-3 py-1.5 bg-[#121214] text-[10px] font-semibold text-emerald-400 uppercase tracking-wider flex items-center justify-between">
         <span><i class="fa-solid fa-box mr-1"></i> Envanterinizde Zaten Kayıtlı (${inventoryMatches.length})</span>
-        <span class="text-[#71717a] font-normal lowercase">tıklayarak bilgileri eşleştirin</span>
+        <span class="text-[#71717a] font-normal lowercase">tıklayarak doğrudan adet ekleyin</span>
       </div>
     `;
     inventoryMatches.forEach((inv) => {
@@ -1144,8 +1305,8 @@ function renderLiveSearchDropdown(inventoryMatches, catalogSuggestions, query) {
               ${locStr ? `<span class="text-emerald-400/80">${locStr}</span>` : ''}
             </div>
           </div>
-          <span class="text-[10px] text-emerald-400 bg-white/5 px-2 py-1 rounded border border-white/5 font-medium flex-shrink-0">
-            Eşleştir & Doldur ↵
+          <span class="text-[10px] text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 px-2.5 py-1 rounded border border-emerald-500/30 font-medium flex items-center gap-1 flex-shrink-0 transition">
+            <i class="fa-solid fa-plus text-[9px]"></i> Stoğa Ekle ↵
           </span>
         </div>
       `;
@@ -1193,6 +1354,7 @@ function renderLiveSearchDropdown(inventoryMatches, catalogSuggestions, query) {
 
 function handleFormNameInput(e) {
   const query = (e.target.value || "").trim();
+  lastLiveSearchTypedQuery = e.target.value || "";
   const spinner = document.getElementById("form-name-spinner");
 
   if (liveSearchDebounceTimer) {
@@ -1245,6 +1407,10 @@ function openAddModal() {
   document.getElementById("modal-title").innerText = "Yeni Elektronik Parça Ekle";
   document.getElementById("form-comp-id").value = "";
   document.getElementById("component-form").reset();
+  document.getElementById("component-form").classList.remove("hidden");
+  document.getElementById("modal-quick-stock").classList.add("hidden");
+  selectedQuickStockItem = null;
+  lastLiveSearchTypedQuery = "";
   document.getElementById("form-quantity").value = 1;
   document.getElementById("form-min-quantity").value = 2;
   closeFormNameSuggestions();
@@ -1261,6 +1427,10 @@ function editComponent(compId) {
   if (!comp) return;
 
   document.getElementById("modal-title").innerText = "Elektronik Parçayı Düzenle";
+  document.getElementById("component-form").classList.remove("hidden");
+  document.getElementById("modal-quick-stock").classList.add("hidden");
+  selectedQuickStockItem = null;
+
   document.getElementById("form-comp-id").value = comp.id;
   document.getElementById("form-name").value = comp.name;
   document.getElementById("form-category").value = comp.category;
@@ -1280,6 +1450,9 @@ function editComponent(compId) {
 function closeModal() {
   closeFormNameSuggestions();
   dismissFormNameWarning();
+  document.getElementById("modal-quick-stock").classList.add("hidden");
+  document.getElementById("component-form").classList.remove("hidden");
+  selectedQuickStockItem = null;
   document.getElementById("component-modal").classList.add("hidden");
 }
 
@@ -1494,9 +1667,14 @@ async function loadCart() {
           <td class="py-3 px-3 font-mono text-[#86868b] text-xs">${formatPrice(item.price_value || item.price)}</td>
           <td class="py-3 px-3">
             <div class="flex items-center justify-center gap-1.5">
-              <button onclick="updateCartItemQty(${item.id}, ${item.quantity - 1})" class="w-6 h-6 rounded-md bg-[#2c2c2e] hover:bg-[#3a3a3c] text-[#f5f5f7] flex items-center justify-center text-xs transition">-</button>
-              <span class="w-8 text-center font-mono font-medium text-[#f5f5f7]">${item.quantity}</span>
-              <button onclick="updateCartItemQty(${item.id}, ${item.quantity + 1})" class="w-6 h-6 rounded-md bg-[#2c2c2e] hover:bg-[#3a3a3c] text-[#f5f5f7] flex items-center justify-center text-xs transition">+</button>
+              <button onclick="updateCartItemQty(${item.id}, ${item.quantity - 1})" class="w-6 h-6 rounded-md bg-[#2c2c2e] hover:bg-[#3a3a3c] text-[#f5f5f7] flex items-center justify-center text-xs transition select-none flex-shrink-0">-</button>
+              <input type="number" min="1" value="${item.quantity}" data-old-qty="${item.quantity}"
+                     onfocus="this.select()"
+                     onkeydown="if(event.key==='Enter'){this.blur();}"
+                     onchange="setCartItemDirectQty(${item.id}, this)"
+                     class="w-12 h-6 text-center text-xs font-mono font-medium rounded bg-[#2c2c2e] hover:bg-[#3a3a3c] focus:bg-[#202024] focus:ring-1 focus:ring-blue-500 border border-transparent hover:border-white/15 text-[#f5f5f7] outline-none transition [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                     title="Doğrudan adet yazabilirsiniz">
+              <button onclick="updateCartItemQty(${item.id}, ${item.quantity + 1})" class="w-6 h-6 rounded-md bg-[#2c2c2e] hover:bg-[#3a3a3c] text-[#f5f5f7] flex items-center justify-center text-xs transition select-none flex-shrink-0">+</button>
             </div>
           </td>
           <td class="py-3 px-3 font-mono text-[#f5f5f7] font-semibold">${formatPrice(itemTotal)}</td>
@@ -1512,6 +1690,17 @@ async function loadCart() {
   } catch (err) {
     console.error("Sepet yükleme hatası:", err);
   }
+}
+
+async function setCartItemDirectQty(cartId, inputEl) {
+  const newQty = parseInt(inputEl.value, 10);
+  const oldQty = parseInt(inputEl.getAttribute("data-old-qty"), 10);
+  if (isNaN(newQty) || newQty < 1) {
+    inputEl.value = isNaN(oldQty) ? 1 : oldQty;
+    return;
+  }
+  if (newQty === oldQty) return;
+  await updateCartItemQty(cartId, newQty);
 }
 
 async function addToCartFromProduct(title, url, price, priceValue, productId) {
@@ -1539,6 +1728,10 @@ async function addToCartFromProduct(title, url, price, priceValue, productId) {
 
 async function updateCartItemQty(cartId, qty) {
   try {
+    if (qty <= 0) {
+      deleteCartItem(cartId);
+      return;
+    }
     const res = await fetch(`/api/cart/${cartId}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
@@ -1746,7 +1939,12 @@ async function loadDraftOrders() {
                       ${it.url ? (it.in_stock ? '<span class="apple-badge apple-badge-green text-[10px]">Stokta</span>' : '<span class="apple-badge apple-badge-red text-[10px]">Tükendi</span>') : '<span class="apple-badge apple-badge-amber text-[10px]" title="Piyasada aranacak">⚪ Aranacak</span>'}
                       <span class="flex items-center gap-1 bg-white/5 px-1 py-0.5 rounded border border-white/5">
                         <button onclick="changeDraftItemQuantity(${it.id}, ${it.quantity - 1})" class="w-4 h-4 rounded hover:bg-white/10 text-[#8e8e93] hover:text-white flex items-center justify-center font-bold" title="1 Azalt">-</button>
-                        <span class="text-white font-medium px-1">${it.quantity}</span>
+                        <input type="number" min="1" value="${it.quantity}" data-old-qty="${it.quantity}"
+                               onfocus="this.select()"
+                               onkeydown="if(event.key==='Enter'){this.blur();}"
+                               onchange="setDraftItemDirectQty(${it.id}, this)"
+                               class="w-8 h-4 text-center text-[11px] font-mono font-medium text-white bg-transparent hover:bg-white/10 focus:bg-[#202024] rounded outline-none border border-transparent focus:border-blue-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                               title="Doğrudan adet yazabilirsiniz">
                         <button onclick="changeDraftItemQuantity(${it.id}, ${it.quantity + 1})" class="w-4 h-4 rounded hover:bg-white/10 text-[#8e8e93] hover:text-white flex items-center justify-center font-bold" title="1 Artır">+</button>
                       </span>
                       ${it.notes ? `<span class="text-[#71717a] italic truncate max-w-[160px]" title="${escapeHtml(it.notes)}">• ${escapeHtml(it.notes)}</span>` : ''}
@@ -1882,6 +2080,17 @@ async function changeDraftItemQuantity(itemId, newQty) {
   } catch (err) {
     console.error("Adet güncelleme hatası:", err);
   }
+}
+
+async function setDraftItemDirectQty(itemId, inputEl) {
+  const newQty = parseInt(inputEl.value, 10);
+  const oldQty = parseInt(inputEl.getAttribute("data-old-qty"), 10);
+  if (isNaN(newQty) || newQty < 1) {
+    inputEl.value = isNaN(oldQty) ? 1 : oldQty;
+    return;
+  }
+  if (newQty === oldQty) return;
+  await changeDraftItemQuantity(itemId, newQty);
 }
 
 async function markDraftItemPurchased(itemId, isPurchased) {
