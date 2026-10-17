@@ -1521,6 +1521,260 @@ def get_component_suggestions(query: str, db_path: str = DB_PATH) -> Dict[str, A
     }
 
 
+def move_component_to_defective(
+    component_id: int,
+    qty_to_move: int = 1,
+    target_status: str = "defective",
+    defect_notes: str = "",
+    new_location: str = "Arızalı Kutusu",
+    db_path: str = DB_PATH
+) -> Dict[str, Any]:
+    """
+    Sağlam bir parçadan belirli bir miktarı arızaya/çıkmaya/teste ayırır.
+    Eğer tüm stok ayrılıyorsa mevcut kaydın durumunu günceller.
+    Eğer kısmi stok ayrılıyorsa (örn: 5 taneden 1'i), sağlam stoğu 4'e düşürür ve
+    1 adetlik yeni bir arızalı parça kaydı açar.
+    """
+    with get_connection(db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM components WHERE id = ?", (component_id,))
+        comp = cursor.fetchone()
+        if not comp:
+            raise ValueError(f"ID #{component_id} olan parça bulunamadı.")
+
+        current_qty = comp["quantity"]
+        if qty_to_move <= 0:
+            raise ValueError("Ayrılacak miktar en az 1 olmalıdır.")
+        if qty_to_move > current_qty:
+            raise ValueError(f"Mevcut stok ({current_qty} adet) ayrılmak istenen miktardan ({qty_to_move} adet) az.")
+
+        now = datetime.now().isoformat()
+        defect_location = (new_location or "Arızalı Kutusu").strip()
+        final_notes = defect_notes.strip()
+
+        # Durum 1: Tüm stok arızaya taşınıyor (örn: 1 taneden 1'i veya 5 taneden 5'i)
+        if qty_to_move == current_qty:
+            old_status = comp["status"]
+            combined_notes = final_notes
+            if comp["notes"] and final_notes and comp["notes"] != final_notes:
+                combined_notes = f"{comp['notes']} • {final_notes}"
+            elif comp["notes"] and not final_notes:
+                combined_notes = comp["notes"]
+
+            cursor.execute("""
+                UPDATE components
+                SET status = ?, location = ?, notes = ?, updated_at = ?
+                WHERE id = ?
+            """, (target_status, defect_location or comp["location"], combined_notes, now, component_id))
+
+            cursor.execute("""
+                INSERT INTO stock_logs (component_id, change_amount, new_quantity, reason)
+                VALUES (?, ?, ?, ?)
+            """, (component_id, 0, current_qty, f"Durum '{old_status}' -> '{target_status}' olarak değiştirildi ({qty_to_move} adet)"))
+
+            conn.commit()
+            return {
+                "success": True,
+                "action": "status_updated",
+                "component_id": component_id,
+                "name": comp["name"],
+                "moved_qty": qty_to_move,
+                "remaining_working_qty": 0,
+                "defective_id": component_id,
+                "status": target_status,
+                "location": defect_location or comp["location"],
+                "message": f"'{comp['name']}' parçasının tüm stoku ({qty_to_move} adet) '{STATUSES.get(target_status, target_status)}' durumuna alındı."
+            }
+
+        # Durum 2: Kısmi stok arızaya ayrılıyor (örn: 5 taneden 1'i)
+        # 1. Sağlam stoku düşür
+        new_working_qty = current_qty - qty_to_move
+        cursor.execute("""
+            UPDATE components
+            SET quantity = ?, updated_at = ?
+            WHERE id = ?
+        """, (new_working_qty, now, component_id))
+
+        cursor.execute("""
+            INSERT INTO stock_logs (component_id, change_amount, new_quantity, reason)
+            VALUES (?, ?, ?, ?)
+        """, (component_id, -qty_to_move, new_working_qty, f"{qty_to_move} adet arızaya ayrıldı"))
+
+        # 2. Yeni arızalı parça kaydı oluştur
+        cursor.execute("""
+            INSERT INTO components (
+                name, category, value, package, quantity, min_quantity,
+                status, location, notes, tags, datasheet_url, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            comp["name"], comp["category"], comp["value"], comp["package"],
+            qty_to_move, comp["min_quantity"], target_status, defect_location,
+            final_notes, comp["tags"], comp["datasheet_url"], now, now
+        ))
+        new_defective_id = cursor.lastrowid
+
+        cursor.execute("""
+            INSERT INTO stock_logs (component_id, change_amount, new_quantity, reason)
+            VALUES (?, ?, ?, ?)
+        """, (new_defective_id, qty_to_move, qty_to_move, f"Sağlam stoktan (#{component_id}) arızaya ayrıldı"))
+
+        conn.commit()
+        return {
+            "success": True,
+            "action": "split",
+            "component_id": component_id,
+            "name": comp["name"],
+            "moved_qty": qty_to_move,
+            "remaining_working_qty": new_working_qty,
+            "defective_id": new_defective_id,
+            "status": target_status,
+            "location": defect_location,
+            "message": f"'{comp['name']}' parçasından {qty_to_move} adet arızaya ayrıldı (Kalan sağlam: {new_working_qty} adet)."
+        }
+
+
+def mark_component_repaired(
+    defective_id: int,
+    repaired_qty: Optional[int] = None,
+    target_location: str = "",
+    db_path: str = DB_PATH
+) -> Dict[str, Any]:
+    """
+    Arızalı/çıkma bir parçayı tamir edildiğinde sağlam stoğa geri alır.
+    Eğer aynı parçanın (isim, kategori) mevcut bir 'working' kaydı varsa,
+    tamir edilen adet doğrudan o sağlam kaydın stok adedine eklenir ve mükerrer
+    kayıt oluşması önlenir.
+    """
+    with get_connection(db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM components WHERE id = ?", (defective_id,))
+        comp = cursor.fetchone()
+        if not comp:
+            raise ValueError(f"ID #{defective_id} olan parça bulunamadı.")
+
+        current_qty = comp["quantity"]
+        qty = repaired_qty if repaired_qty is not None else current_qty
+        if qty <= 0:
+            raise ValueError("Tamir edilen miktar en az 1 olmalıdır.")
+        if qty > current_qty:
+            raise ValueError(f"Tamir edilen miktar ({qty}) mevcut arızalı miktardan ({current_qty}) fazla olamaz.")
+
+        now = datetime.now().isoformat()
+
+        # Mevcut sağlam (working) eşleşen parça var mı kontrol et (id != defective_id)
+        cursor.execute("""
+            SELECT * FROM components
+            WHERE LOWER(TRIM(name)) = LOWER(TRIM(?))
+              AND category = ?
+              AND status = 'working'
+              AND id != ?
+            ORDER BY id ASC
+            LIMIT 1
+        """, (comp["name"], comp["category"], defective_id))
+        working_comp = cursor.fetchone()
+
+        if working_comp:
+            # Durum 1: Mevcut sağlam stok var! Stoğu birleştir
+            w_id = working_comp["id"]
+            new_w_qty = working_comp["quantity"] + qty
+
+            cursor.execute("""
+                UPDATE components
+                SET quantity = ?, updated_at = ?
+                WHERE id = ?
+            """, (new_w_qty, now, w_id))
+
+            cursor.execute("""
+                INSERT INTO stock_logs (component_id, change_amount, new_quantity, reason)
+                VALUES (?, ?, ?, ?)
+            """, (w_id, qty, new_w_qty, f"Tamir edildi (#{defective_id} arızalı kaydından stoğa birleştirildi)"))
+
+            # Arızalı kaydı güncelle veya sil
+            if qty >= current_qty:
+                cursor.execute("DELETE FROM stock_logs WHERE component_id = ?", (defective_id,))
+                cursor.execute("DELETE FROM components WHERE id = ?", (defective_id,))
+            else:
+                rem_def = current_qty - qty
+                cursor.execute("""
+                    UPDATE components
+                    SET quantity = ?, updated_at = ?
+                    WHERE id = ?
+                """, (rem_def, now, defective_id))
+                cursor.execute("""
+                    INSERT INTO stock_logs (component_id, change_amount, new_quantity, reason)
+                    VALUES (?, ?, ?, ?)
+                """, (defective_id, -qty, rem_def, f"{qty} adet tamir edilip sağlam stoğa aktarıldı"))
+
+            conn.commit()
+            return {
+                "success": True,
+                "merged": True,
+                "working_id": w_id,
+                "name": comp["name"],
+                "repaired_qty": qty,
+                "new_working_quantity": new_w_qty,
+                "message": f"'{comp['name']}' tamir edildi ve mevcut sağlam stoğa ({new_w_qty} adet) birleştirildi!"
+            }
+        else:
+            # Durum 2: Mevcut başka bir sağlam kayıt yok. Bu kaydı sağlam yap
+            final_loc = (target_location or comp["location"] or "Çekmece").strip()
+            if qty >= current_qty:
+                cursor.execute("""
+                    UPDATE components
+                    SET status = 'working', location = ?, notes = 'Tamir edildi ve testten geçti.', updated_at = ?
+                    WHERE id = ?
+                """, (final_loc, now, defective_id))
+
+                cursor.execute("""
+                    INSERT INTO stock_logs (component_id, change_amount, new_quantity, reason)
+                    VALUES (?, ?, ?, ?)
+                """, (defective_id, 0, current_qty, "Tamir edildi -> Sağlam duruma geçirildi"))
+
+                conn.commit()
+                return {
+                    "success": True,
+                    "merged": False,
+                    "working_id": defective_id,
+                    "name": comp["name"],
+                    "repaired_qty": qty,
+                    "new_working_quantity": current_qty,
+                    "message": f"'{comp['name']}' tamir edildi olarak güncellendi ve sağlam stoğa alındı!"
+                }
+            else:
+                rem_def = current_qty - qty
+                cursor.execute("UPDATE components SET quantity = ?, updated_at = ? WHERE id = ?", (rem_def, now, defective_id))
+                cursor.execute("""
+                    INSERT INTO stock_logs (component_id, change_amount, new_quantity, reason)
+                    VALUES (?, ?, ?, ?)
+                """, (defective_id, -qty, rem_def, f"{qty} adet tamir edilip sağlam stoğa ayrıldı"))
+
+                cursor.execute("""
+                    INSERT INTO components (
+                        name, category, value, package, quantity, min_quantity,
+                        status, location, notes, tags, datasheet_url, created_at, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, 'working', ?, 'Tamir edildi ve testten geçti.', ?, ?, ?, ?)
+                """, (
+                    comp["name"], comp["category"], comp["value"], comp["package"],
+                    qty, comp["min_quantity"], final_loc, comp["tags"], comp["datasheet_url"], now, now
+                ))
+                new_w_id = cursor.lastrowid
+                cursor.execute("""
+                    INSERT INTO stock_logs (component_id, change_amount, new_quantity, reason)
+                    VALUES (?, ?, ?, ?)
+                """, (new_w_id, qty, qty, f"Arızalıdan (#{defective_id}) tamir edilip eklendi"))
+
+                conn.commit()
+                return {
+                    "success": True,
+                    "merged": False,
+                    "working_id": new_w_id,
+                    "name": comp["name"],
+                    "repaired_qty": qty,
+                    "new_working_quantity": qty,
+                    "message": f"'{comp['name']}' parçasından {qty} adet tamir edilip sağlam stoğa alındı!"
+                }
+
+
 
 
 

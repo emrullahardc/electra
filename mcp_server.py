@@ -186,6 +186,40 @@ TOOLS = [
         }
     },
     {
+        "name": "electro_move_to_defective",
+        "description": (
+            "Sağlam bir bileşenden belirli bir adedi (veya tümünü) arızaya/çıkmaya/şüpheliye ayırır. "
+            "Örneğin 5 adet sağlam ESP32'den 1'i bozulduğunda, sağlam stoğu 4'e düşürür ve arıza sebebiyle 1 adet arızalı kayıt oluşturur."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "component_id": {"type": "integer", "description": "Arızalanan bileşenin ID numarası"},
+                "quantity": {"type": "integer", "description": "Arızaya ayrılacak adet (varsayılan: 1)"},
+                "status": {"type": "string", "enum": ["defective", "untested", "salvage"], "description": "Yeni durum (varsayılan: 'defective')"},
+                "notes": {"type": "string", "description": "Arıza sebebi veya teşhis notu (örn: 'Regülatörü yanık, MCU sağlam')"},
+                "location": {"type": "string", "description": "Arızalı parçanın konulacağı saklama yeri (varsayılan: 'Arızalı Kutusu')"}
+            },
+            "required": ["component_id", "notes"]
+        }
+    },
+    {
+        "name": "electro_mark_repaired",
+        "description": (
+            "Arızalı/çıkma bir parçayı tamir edildiğinde sağlam stoğa geri alır. "
+            "Eğer aynı parçanın mevcut bir sağlam kaydı varsa, mükerrer oluşturmak yerine sağlam stoka adet olarak ekler."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "defective_id": {"type": "integer", "description": "Tamir edilen arızalı parçanın ID numarası"},
+                "quantity": {"type": "integer", "description": "Tamir edilen adet (boş bırakılırsa tümü)"},
+                "location": {"type": "string", "description": "Sağlam parçanın konulacağı saklama yeri"}
+            },
+            "required": ["defective_id"]
+        }
+    },
+    {
         "name": "electro_get_defective_parts",
         "description": (
             "Kullanıcının atölyesinde bulunan tüm arızalı, hurda veya test bekleyen parçaları ve arıza notlarını listeler. "
@@ -826,6 +860,48 @@ class MCPServer:
                     "id": msg_id,
                     "result": {
                         "content": [{"type": "text", "text": msg}]
+                    }
+                }
+
+            elif tool_name == "electro_move_to_defective":
+                comp_id = args.get("component_id")
+                qty = int(args.get("quantity", 1))
+                status_val = str(args.get("status", "defective"))
+                notes = str(args.get("notes", "")).strip()
+                loc = str(args.get("location", "Arızalı Kutusu")).strip()
+
+                res = electro_db.move_component_to_defective(
+                    component_id=comp_id,
+                    qty_to_move=qty,
+                    target_status=status_val,
+                    defect_notes=notes,
+                    new_location=loc
+                )
+                return {
+                    "jsonrpc": "2.0",
+                    "id": msg_id,
+                    "result": {
+                        "content": [{"type": "text", "text": f"⚠️ {res['message']}"}],
+                        "data": res
+                    }
+                }
+
+            elif tool_name == "electro_mark_repaired":
+                def_id = args.get("defective_id")
+                qty = args.get("quantity")
+                loc = str(args.get("location", "")).strip()
+
+                res = electro_db.mark_component_repaired(
+                    defective_id=def_id,
+                    repaired_qty=int(qty) if qty is not None else None,
+                    target_location=loc
+                )
+                return {
+                    "jsonrpc": "2.0",
+                    "id": msg_id,
+                    "result": {
+                        "content": [{"type": "text", "text": f"✅ {res['message']}"}],
+                        "data": res
                     }
                 }
 

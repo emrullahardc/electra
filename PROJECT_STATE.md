@@ -154,6 +154,11 @@
 - Once marked, they move to the "Satın Alınanlar" section with a **"Stoğa Aktar"** action.
 - "Stoğa Aktar" checks if the component already exists in `components` (incrementing stock) or creates a new component entry, setting `transferred_to_inventory = 1` and recording `inventory_component_id`.
 
+### F. Defect Splitting & Smart Repair Merging (Arızaya Ayırma & Akıllı Tamir)
+- **Partial/Total Stock Split to Defective:** Clicking the warning icon (`⚠️`) on any working stock item opens `#move-to-defective-modal`. Users choose quantity to split (e.g. 1 out of 5), defect reason, and storage location (default: "Arızalı Kutusu"). Working quantity decrements (5 -> 4) and a linked defective record is created with 1 piece, recording complete audit logs.
+- **Smart Repair Merging:** When "Tamir Edildi" is clicked in the Defective tab, the system checks for an existing `working` record of the same component and automatically merges the repaired quantity back (4 + 1 = 5), eliminating messy duplicate rows.
+- **MCP Tools:** Supported via `electro_move_to_defective` and `electro_mark_repaired`.
+
 ---
 
 ## 5. Production Deployment Notes (`ms`)

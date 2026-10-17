@@ -985,6 +985,82 @@
     </div>
   </div>
 
+  <!-- Parçayı Arızaya / Çıkmaya Taşıma Modalı (Apple Sheet) -->
+  <div id="move-to-defective-modal" onclick="if(event.target === this) closeMoveToDefectiveModal()" class="fixed inset-0 bg-black/70 backdrop-blur-md z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-[#18181b] border border-[#2c2c2e] rounded-2xl w-full max-w-md overflow-hidden shadow-2xl animate-fade-in">
+      <div class="px-5 py-3.5 border-b border-[#28282b] flex items-center justify-between">
+        <h3 class="font-semibold text-amber-400 text-sm flex items-center gap-2">
+          <i class="fa-solid fa-triangle-exclamation text-amber-400"></i>
+          <span>Parçayı Arızaya / Çıkmaya Taşı</span>
+        </h3>
+        <button onclick="closeMoveToDefectiveModal()" class="text-[#8e8e93] hover:text-white"><i class="fa-solid fa-xmark text-sm"></i></button>
+      </div>
+
+      <form id="move-to-defective-form" onsubmit="submitMoveToDefective(event)" class="p-5 space-y-3.5 text-xs">
+        <input type="hidden" id="move-def-comp-id" value="">
+
+        <!-- Parça Özeti Kartı -->
+        <div class="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 flex items-start justify-between gap-3">
+          <div class="min-w-0 flex-1">
+            <span class="text-[10px] text-amber-300 font-mono font-medium block">ID #<span id="move-def-comp-id-label"></span></span>
+            <h4 id="move-def-name" class="text-sm font-semibold text-white truncate mt-0.5"></h4>
+            <p id="move-def-details" class="text-[11px] text-[#a1a1aa] mt-0.5 truncate"></p>
+          </div>
+          <div class="text-right flex-shrink-0 bg-black/40 px-3 py-1.5 rounded-lg border border-white/5">
+            <span class="text-[10px] text-[#8e8e93] block">Sağlam Stok</span>
+            <span id="move-def-current-qty" class="text-base font-bold text-emerald-400 font-mono">0</span>
+            <span class="text-[10px] text-[#8e8e93]"> Adet</span>
+          </div>
+        </div>
+
+        <!-- Miktar & Durum -->
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-[11px] font-medium text-[#8e8e93] mb-1">Ayrılacak Adet *</label>
+            <input type="number" id="move-def-qty" min="1" value="1" required
+                   oninput="updateMoveDefectivePreview()"
+                   class="apple-input w-full px-3 py-2 font-mono font-semibold">
+          </div>
+          <div>
+            <label class="block text-[11px] font-medium text-[#8e8e93] mb-1">Yeni Durum *</label>
+            <select id="move-def-status" class="apple-input w-full px-3 py-2">
+              <option value="defective">Arızalı / Bozuk</option>
+              <option value="untested">Test Bekliyor / Şüpheli</option>
+              <option value="salvage">Çıkma / Hurda</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Önizleme Mesajı -->
+        <div id="move-def-preview" class="p-2 rounded-lg bg-white/5 border border-white/5 text-[11px] text-amber-300/90 font-mono">
+          Kalan sağlam: 0 adet • Arızaya ayrılacak: 1 adet
+        </div>
+
+        <!-- Arıza / Teşhis Sebebi -->
+        <div>
+          <label class="block text-[11px] font-medium text-[#8e8e93] mb-1">Arıza / Teşhis Notu *</label>
+          <textarea id="move-def-notes" rows="2" required placeholder="Örn: 3.3V yerine 12V verildi, regülatör ısınıyor ama MCU sağlam..."
+                    class="apple-input w-full px-3 py-2"></textarea>
+        </div>
+
+        <!-- Saklama Yeri -->
+        <div>
+          <label class="block text-[11px] font-medium text-[#8e8e93] mb-1">Arızalı Parçanın Saklama Yeri</label>
+          <input type="text" id="move-def-location" value="Arızalı Kutusu" placeholder="Örn: Arızalı Kutusu, Çıkma Sepeti"
+                 class="apple-input w-full px-3 py-2">
+        </div>
+
+        <div class="pt-2 flex justify-end gap-2 border-t border-[#28282b]">
+          <button type="button" onclick="closeMoveToDefectiveModal()" class="apple-btn-secondary">İptal</button>
+          <button type="submit" id="move-def-submit-btn" class="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-medium text-xs flex items-center gap-1.5 shadow-lg shadow-amber-950/40 transition">
+            <i class="fa-solid fa-triangle-exclamation text-xs"></i>
+            <span>Arızaya Taşı</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <!-- Güvenlik ve Giriş Ekranı (Apple Login Overlay) -->
   <div id="login-screen" class="fixed inset-0 z-50 bg-black/90 backdrop-blur-xl flex items-center justify-center p-4">
     <div class="bg-[#18181b] border border-[#2c2c2e] rounded-3xl w-full max-w-sm p-7 shadow-2xl relative animate-fade-in text-center">

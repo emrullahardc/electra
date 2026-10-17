@@ -477,6 +477,44 @@ class ElectroRequestHandler(http.server.SimpleHTTPRequestHandler):
             self.send_json({"success": True, "new_quantity": new_qty})
             return
 
+        # 2.6 API: Parçayı Arızaya / Çıkmaya Taşı (Kısmi veya Tam Stok)
+        elif path.startswith("/api/components/") and path.endswith("/move-to-defective"):
+            parts = path.split("/")
+            comp_id = int(parts[3])
+            qty = int(data.get("quantity", 1))
+            status_val = data.get("status", "defective")
+            notes = data.get("notes", "")
+            loc = data.get("location", "Arızalı Kutusu")
+            try:
+                res = electro_db.move_component_to_defective(
+                    component_id=comp_id,
+                    qty_to_move=qty,
+                    target_status=status_val,
+                    defect_notes=notes,
+                    new_location=loc
+                )
+                self.send_json(res)
+            except Exception as e:
+                self.send_json({"error": str(e)}, status=400)
+            return
+
+        # 2.7 API: Arızalı Parçayı Tamir Edildi Olarak Sağlam Stoğa Geri Al (veya Birleştir)
+        elif path.startswith("/api/components/") and path.endswith("/mark-repaired"):
+            parts = path.split("/")
+            comp_id = int(parts[3])
+            qty = int(data.get("quantity", 1)) if data.get("quantity") is not None else None
+            loc = data.get("location", "")
+            try:
+                res = electro_db.mark_component_repaired(
+                    defective_id=comp_id,
+                    repaired_qty=qty,
+                    target_location=loc
+                )
+                self.send_json(res)
+            except Exception as e:
+                self.send_json({"error": str(e)}, status=400)
+            return
+
         # 3. API: Proje Analizi & Robotistan Eşleştirme
         elif path == "/api/match-project":
             try:

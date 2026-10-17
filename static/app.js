@@ -441,6 +441,9 @@ function renderComponentsTable(components) {
           </div>
         </td>
         <td class="py-3 px-4 text-right space-x-1">
+          <button onclick="openMoveToDefectiveModal(${c.id})" class="p-1.5 rounded-lg text-[#8e8e93] hover:text-amber-400 hover:bg-amber-400/10 transition" title="Bu parçadan arızalı olanı ayır / arızaya taşı">
+            <i class="fa-solid fa-triangle-exclamation text-xs"></i>
+          </button>
           <button onclick="editComponent(${c.id})" class="p-1.5 rounded-lg text-[#8e8e93] hover:text-white hover:bg-white/10 transition" title="Düzenle">
             <i class="fa-solid fa-pen-to-square text-xs"></i>
           </button>
@@ -1641,22 +1644,145 @@ document.addEventListener("click", (e) => {
 document.addEventListener("keydown", (e) => {
   if (e.key === "Escape") {
     closeModal();
+    closeMoveToDefectiveModal();
     closeChangePasswordModal();
   }
 });
 
+// ==========================================
+// ⚠️ Parçayı Arızaya / Çıkmaya Taşıma Mantığı
+// ==========================================
+let currentMoveDefectiveComp = null;
+
+function openMoveToDefectiveModal(compId) {
+  const comp = allComponentsCache.find(c => c.id === compId);
+  if (!comp) return;
+
+  currentMoveDefectiveComp = comp;
+  document.getElementById("move-def-comp-id").value = comp.id;
+  document.getElementById("move-def-comp-id-label").innerText = comp.id;
+  document.getElementById("move-def-name").innerText = comp.name;
+
+  const catLabel = CATEGORY_NAMES[comp.category] || comp.category;
+  const details = [catLabel];
+  if (comp.package) details.push(`Kılıf: ${comp.package}`);
+  if (comp.value) details.push(`Değer: ${comp.value}`);
+  if (comp.location) details.push(`Yer: ${comp.location}`);
+  document.getElementById("move-def-details").innerText = details.join(" • ");
+
+  document.getElementById("move-def-current-qty").innerText = comp.quantity;
+
+  const qtyInput = document.getElementById("move-def-qty");
+  qtyInput.max = comp.quantity;
+  qtyInput.value = 1;
+
+  document.getElementById("move-def-status").value = "defective";
+  document.getElementById("move-def-notes").value = "";
+  document.getElementById("move-def-location").value = "Arızalı Kutusu";
+
+  updateMoveDefectivePreview();
+
+  document.getElementById("move-to-defective-modal").classList.remove("hidden");
+  setTimeout(() => {
+    const notesEl = document.getElementById("move-def-notes");
+    if (notesEl) notesEl.focus();
+  }, 50);
+}
+
+function updateMoveDefectivePreview() {
+  if (!currentMoveDefectiveComp) return;
+  const cur = parseInt(currentMoveDefectiveComp.quantity, 10) || 1;
+  const input = document.getElementById("move-def-qty");
+  let moveVal = parseInt(input.value, 10);
+  if (isNaN(moveVal) || moveVal < 1) moveVal = 1;
+  if (moveVal > cur) {
+    moveVal = cur;
+    input.value = cur;
+  }
+
+  const remaining = cur - moveVal;
+  const prevEl = document.getElementById("move-def-preview");
+  const btn = document.getElementById("move-def-submit-btn");
+
+  if (remaining === 0) {
+    prevEl.innerHTML = `<span class="text-amber-400 font-semibold"><i class="fa-solid fa-arrow-right"></i> Tüm stok (${moveVal} adet) arızalıya taşınacak.</span>`;
+    if (btn) btn.innerHTML = `<i class="fa-solid fa-triangle-exclamation text-xs"></i> <span>Tümünü Arızaya Taşı (${moveVal} Adet)</span>`;
+  } else {
+    prevEl.innerHTML = `Kalan sağlam: <b class="text-emerald-400 font-bold">${remaining} adet</b> • Arızaya ayrılacak: <b class="text-amber-400 font-bold">${moveVal} adet</b>`;
+    if (btn) btn.innerHTML = `<i class="fa-solid fa-triangle-exclamation text-xs"></i> <span>${moveVal} Adedi Arızaya Ayır</span>`;
+  }
+}
+
+async function submitMoveToDefective(e) {
+  e.preventDefault();
+  if (!currentMoveDefectiveComp) return;
+
+  const compId = currentMoveDefectiveComp.id;
+  const qty = parseInt(document.getElementById("move-def-qty").value, 10);
+  const statusVal = document.getElementById("move-def-status").value;
+  const notes = document.getElementById("move-def-notes").value.trim();
+  const location = document.getElementById("move-def-location").value.trim();
+
+  if (!notes) {
+    alert("Lütfen parçanın neden arızaya ayrıldığını (arıza / teşhis notunu) yazınız.");
+    document.getElementById("move-def-notes").focus();
+    return;
+  }
+
+  const btn = document.getElementById("move-def-submit-btn");
+  if (btn) btn.disabled = true;
+
+  try {
+    const res = await fetch(`/api/components/${compId}/move-to-defective`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        quantity: qty,
+        status: statusVal,
+        notes: notes,
+        location: location || "Arızalı Kutusu"
+      })
+    });
+    const data = await res.json();
+    if (res.ok && data.success) {
+      closeMoveToDefectiveModal();
+      loadStats();
+      loadComponents();
+      loadDefectiveComponents();
+      showToast(data.message || "Parça arızaya ayrıldı");
+    } else {
+      alert("Hata: " + (data.error || "İşlem gerçekleştirilemedi"));
+    }
+  } catch (err) {
+    console.error("Arızaya taşıma hatası:", err);
+    alert("Sunucuya bağlanırken bir hata oluştu.");
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+function closeMoveToDefectiveModal() {
+  const modal = document.getElementById("move-to-defective-modal");
+  if (modal) modal.classList.add("hidden");
+  currentMoveDefectiveComp = null;
+}
+
 async function markAsWorking(compId) {
   if (!confirm("Bu parçayı tamir edildi / sağlam durumuna geçirmek istediğinize emin misiniz?")) return;
   try {
-    const res = await fetch(`/api/components/${compId}`, {
-      method: "PUT",
+    const res = await fetch(`/api/components/${compId}/mark-repaired`, {
+      method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status: "working", notes: "Tamir edildi ve testten geçti." })
+      body: JSON.stringify({})
     });
-    if (res.ok) {
+    const data = await res.json();
+    if (res.ok && data.success) {
       loadStats();
       loadDefectiveComponents();
-      showToast("Parça durumu 'Sağlam' olarak güncellendi");
+      loadComponents();
+      showToast(data.message || "Parça durumu 'Sağlam' olarak güncellendi");
+    } else {
+      alert("Hata: " + (data.error || "İşlem başarısız"));
     }
   } catch (err) {
     console.error("Durum güncelleme hatası:", err);
