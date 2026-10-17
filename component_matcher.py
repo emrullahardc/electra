@@ -230,9 +230,18 @@ def _detect_functional_role(t_tr: str) -> str:
     if any(k in t_tr for k in ["bms", "koruma kart", "koruma devre", "koruma modul", "batarya koruyucu", "balans devre", "pcm"]):
         return "PROTECTION_BMS"
 
-    # 7. Şarj Devresi / Şarj Aleti
-    if any(k in t_tr for k in ["sarj devre", "sarj modul", "sarj kart", "sarj cihaz", "sarj alet", "lipo sarj", "charger"]):
+    # 7. Şarj Devresi / Şarj Aleti / Şarj Modülü / Şarj Entegresi
+    # "sarj edilebilir pil" veya "sarjli pil" değilse, adında "sarj" veya "charger" geçen her şey şarj aygıtıdır (pil hücresi değildir)
+    is_rechargeable_cell = any(k in t_tr for k in ["sarj edilebilir", "sarjli pil", "sarjli batarya", "rechargeable"])
+    if (("sarj" in t_tr or "charger" in t_tr or "charging" in t_tr) and not is_rechargeable_cell) or any(k in t_tr for k in [
+        "sarj devre", "sarj modul", "sarj kart", "sarj cihaz", "sarj alet", "sarj entegre", "sarj kontrol", "lipo sarj", "charger"
+    ]):
         return "CHARGER_MODULE"
+
+    # 7.2 Çıplak Entegre Devre / IC Çip (SOP, DIP, SMD IC)
+    if any(k in t_tr for k in ["entegre", "entegresi", "integrated circuit", "smd sop", "sop-8", "sop8", "dip-8", "dip8", "sot-23", "qfn"]):
+        if not any(m in t_tr for m in ["modul", "modulu", "kart", "board", "shield", "breakout"]):
+            return "IC_CHIP"
 
     # 7.5 Konnektör / Soket / Fiş / Terminal (JST, Dupont, Klemens, Header vb.)
     # "batarya konektörü" veya "lipo soket" pil hücresi DEĞİL, konnektördür!
@@ -470,6 +479,11 @@ def get_component_search_aliases(query: str) -> List[str]:
             if m.family == "neo":
                 _add(f"GY-{fam_u}{sub_u}V2")
                 _add(f"GY-{fam_u}{sub_u}")
+                _add(f"{fam_u}{sub_u}V2")
+                _add(f"{fam_u}{sub_u}")
+                _add("GY-NEO6MV2")
+                _add("NEO6MV2")
+                _add("NEO-6M")
             elif m.family in ("mpu", "hmc", "bmp", "bme", "mlx", "vl"):
                 _add(f"GY-{sub_u}")
                 _add(f"GY-{fam_u}{sub_u}")
@@ -477,6 +491,15 @@ def get_component_search_aliases(query: str) -> List[str]:
             _add(m.base_root.upper())
 
     # 4. Parametrik Çekirdek Sorgu Üretimi (Mağaza arama motorlarının çok kelimeli sorgularda 0 dönmesini önler)
+    # 4a. Prototipleme Plaketleri / Pertinaks / Delikli PCB
+    if any(k in q_raw.lower() for k in ["pertinaks", "plaket", "perfboard", "stripboard", "delikli pcb", "delikli plaket"]):
+        _add("Pertinaks")
+        _add("Delikli Plaket")
+        _add("Delikli Pertinaks")
+        _add("Plaket")
+        _add("Bakırlı Pertinaks")
+        _add("Delikli Plaket Pertinaks")
+
     if spec.role == "BATTERY_CELL":
         cell_str = f"{spec.cells_s[0]}S" if spec.cells_s else "1S"
         mah_val = int(spec.capacity_mah[0]) if spec.capacity_mah else None
@@ -510,13 +533,45 @@ def get_component_search_aliases(query: str) -> List[str]:
             _add("TP4056 Şarj Devresi")
             _add("TP4056 Type-C")
 
+    # 4b. Pin Header Konnektörler
+    elif "header" in q_raw.lower() or spec.connector_family == "header":
+        is_female = any(k in q_raw.lower() for k in ["disi", "dişi", "female"])
+        is_male = any(k in q_raw.lower() for k in ["erkek", "male"])
+        p_val = spec.pins[0] if spec.pins else None
+        if not p_val:
+            pins_m = re.search(r'(\d+)\s*[xX*]\s*(\d+)', q_raw) or re.search(r'(\d+)\s*pin', q_raw.lower())
+            if pins_m:
+                p_val = int(pins_m.group(2) if len(pins_m.groups()) == 2 else pins_m.group(1))
+
+        if is_female:
+            if p_val:
+                _add(f"{p_val} Pin Dişi Header")
+                _add(f"1x{p_val} Dişi Header")
+                _add(f"{p_val} Pin Header")
+            _add("Dişi Header")
+            _add("Female Header")
+            _add("Header")
+        elif is_male:
+            if p_val:
+                _add(f"{p_val} Pin Erkek Header")
+                _add(f"1x{p_val} Erkek Header")
+                _add(f"{p_val} Pin Header")
+            _add("Erkek Header")
+            _add("Male Header")
+            _add("Header")
+        else:
+            if p_val:
+                _add(f"{p_val} Pin Header")
+                _add(f"1x{p_val} Header")
+            _add("Header")
+
     elif spec.connector_family or spec.role == "CONNECTOR":
         p = spec.pins[0] if spec.pins else None
-        cf = spec.connector_family or "jst"
+        cf = spec.connector_family or ("jst" if "jst" in q_raw.lower() else "")
         cf_u = cf.upper()
         cf_sp = cf_u.replace('-', ' ')
 
-        if "jst" in cf:
+        if cf == "jst" or "jst" in q_raw.lower():
             if p:
                 _add(f"JST-PH {p}-Pin")
                 _add(f"JST-PH {p} Pin")
@@ -532,9 +587,7 @@ def get_component_search_aliases(query: str) -> List[str]:
                 _add("JST-PH")
                 _add("JST Konnektör")
                 _add("JST Konektör")
-            _add("JST Konnektör")
-            _add("JST Konektör")
-        else:
+        elif cf:
             if p:
                 _add(f"{cf_u} {p}-Pin")
                 _add(f"{cf_u} {p} Pin")
@@ -603,6 +656,9 @@ def _evaluate_single_spec_relevance(q_spec: ComponentSpec, t_spec: ComponentSpec
     if q_spec.role == "BATTERY_CELL" and t_spec.role != "BATTERY_CELL":
         return False, 0.0, f"Pil/Batarya hücresi istendi ancak ürün '{t_spec.role}'."
 
+    if q_spec.role != "BATTERY_CELL" and t_spec.role == "BATTERY_CELL":
+        return False, 0.0, f"Ürün pil/batarya hücresi ancak istenen '{q_spec.role}'."
+
     if q_spec.role == "PROTECTION_BMS" and t_spec.role != "PROTECTION_BMS":
         return False, 0.0, f"BMS/Koruma devresi istendi ancak ürün '{t_spec.role}'."
 
@@ -611,6 +667,10 @@ def _evaluate_single_spec_relevance(q_spec: ComponentSpec, t_spec: ComponentSpec
 
     if q_spec.role != "CONNECTOR" and t_spec.role == "CONNECTOR":
         return False, 0.0, f"Ürün konnektör/soket ancak istenen '{q_spec.role}'."
+
+    # Modül / Kart vs Çıplak Entegre Devre (IC) ayrımı
+    if ("modul" in q_spec.norm or "kart" in q_spec.norm or "board" in q_spec.norm or "shield" in q_spec.norm) and t_spec.role == "IC_CHIP":
+        return False, 0.0, "Kullanıma hazır modül/kart istendi ancak ürün çıplak entegre (IC çip)."
 
     # 2. FİZİKSEL VE ELEKTRİKSEL PARAMETRE DOĞRULAMASI
     # 2a. Pil Kimyası ve Hücre Sayısı
@@ -626,7 +686,9 @@ def _evaluate_single_spec_relevance(q_spec: ComponentSpec, t_spec: ComponentSpec
             if t_spec.cells_s and q_spec.cells_s[0] not in t_spec.cells_s:
                 return False, 0.0, f"Hücre sayısı uyuşmuyor: İstenen {q_spec.cells_s[0]}S, üründeki {t_spec.cells_s[0]}S."
 
-        if q_spec.capacity_mah and q_spec.role == "BATTERY_CELL" and t_spec.capacity_mah:
+        if q_spec.capacity_mah and q_spec.role == "BATTERY_CELL":
+            if not t_spec.capacity_mah:
+                return False, 0.0, f"Pil kapasitesi (mAh) belirtilmemiş: İstenen {int(q_spec.capacity_mah[0])}mAh."
             req_mah = q_spec.capacity_mah[0]
             closest_diff = min(abs(tm - req_mah) / max(req_mah, 1.0) for tm in t_spec.capacity_mah)
             if closest_diff > 0.35:

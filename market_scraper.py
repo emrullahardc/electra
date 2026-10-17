@@ -32,6 +32,7 @@ COMMON_HEADERS = {
     "User-Agent": USER_AGENT,
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
     "Accept-Language": "tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7",
+    "Cookie": "language=tr; currency=TL; target_currency=TL; default_currency=TL",
 }
 
 CACHE_TTL = 900  # 15 dakika önbellek
@@ -291,6 +292,7 @@ def search_motorobit(query: str, only_in_stock: bool = False, limit: int = 10) -
             else:
                 pval = 0.0
 
+            clean_href = re.sub(r'-en(?=[\?/#]|$)', '', href)
             items.append({
                 "vendor": "Motorobit",
                 "vendor_key": "motorobit",
@@ -299,7 +301,7 @@ def search_motorobit(query: str, only_in_stock: bool = False, limit: int = 10) -
                 "price": f"{pval:.2f} TL" if pval > 0 else "Fiyat Belirtilmedi",
                 "price_value": pval,
                 "in_stock": in_stock,
-                "url": f"https://www.motorobit.com{href}"
+                "url": f"https://www.motorobit.com{clean_href}"
             })
             if len(items) >= limit:
                 break
@@ -840,15 +842,16 @@ def get_universal_product_details(url: str) -> Dict[str, Any]:
     Belirtilen ürün linkinin (Robotistan, Robotronik, Direnç.net, Motorobit) detaylı
     teknik özelliklerini, KDV dahil gerçek fiyatını ve stok durumunu ayrıştırır.
     """
-    if not url or not url.startswith("http"):
-        return {"error": "Geçersiz ürün URL'si", "url": url}
+    clean_url = url
+    if "motorobit.com" in url.lower():
+        clean_url = re.sub(r'-en(?=[\?/#]|$)', '', url)
 
     try:
-        html = fetch_url(url, timeout=10)
+        html = fetch_url(clean_url, timeout=10)
     except Exception as e:
-        return {"error": f"Ürün sayfasına ulaşılamadı: {e}", "url": url}
+        return {"error": f"Ürün sayfasına ulaşılamadı: {e}", "url": clean_url}
 
-    url_lower = url.lower()
+    url_lower = clean_url.lower()
     title = ""
     price_val = 0.0
     in_stock = True
@@ -911,8 +914,12 @@ def get_universal_product_details(url: str) -> Dict[str, Any]:
             m_t = re.search(r"<title>([^<]+)</title>", html)
             title = html_lib.unescape(m_t.group(1).split("|")[0].split("-")[0].strip()) if m_t else ""
 
+        # T-Soft v5 JSON içerisinden gerçek TL satış fiyatını oku
+        m_tsp = re.search(r'\"total_sale_price\":\s*([0-9.]+)', html)
         vat_inp = re.search(r'<input[^>]+id=[\"\']product-price-vat-include[\"\'][^>]+value=[\"\']([^\"\']+)[\"\']', html)
-        if vat_inp:
+        if m_tsp and float(m_tsp.group(1)) > 0:
+            price_val = round(float(m_tsp.group(1)), 2)
+        elif vat_inp:
             price_val = parse_turkish_price(vat_inp.group(1))
         else:
             h1_pos = html.find("<h1")

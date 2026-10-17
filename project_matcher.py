@@ -250,6 +250,16 @@ def match_project_components(
             
             # Robotistan'dan stokta olan ürün önerisi
             recommended_products = rob_res.get("results", [])
+
+            # Robotistan'da bulunamadıysa piyasa aramasını (Robotronik, Direnç.net, Motorobit) dene
+            if not recommended_products:
+                try:
+                    import market_scraper
+                    mkt_res = market_scraper.search_market(query=search_query, only_in_stock=True, limit_per_vendor=3)
+                    if mkt_res.get("results"):
+                        recommended_products = mkt_res["results"][:3]
+                except Exception:
+                    pass
             
             # En uygun ilk ürünün fiyatını tahmini maliyete ekle
             if recommended_products and recommended_products[0].get("price_value"):
@@ -269,6 +279,7 @@ def match_project_components(
             prods = rec.get("found_products", [])
             if prods:
                 best = prods[0]
+                v_src = best.get("vendor_key") or best.get("vendor") or "robotistan"
                 draft_items.append({
                     "title": best.get("title", rec["missing_part_role"]),
                     "product_id": best.get("product_id"),
@@ -277,7 +288,7 @@ def match_project_components(
                     "price_value": best.get("price_value", 0.0),
                     "quantity": 1,
                     "in_stock": best.get("in_stock", True),
-                    "source": "robotistan",
+                    "source": str(v_src).lower(),
                     "notes": f"Gereksinim: {rec['missing_part_role']}"
                 })
             else:

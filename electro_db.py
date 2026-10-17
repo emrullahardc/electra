@@ -164,9 +164,25 @@ def init_db(db_path: str = DB_PATH) -> None:
                 source TEXT DEFAULT 'robotistan', -- 'robotistan', 'inventory', 'other'
                 matched_inventory_id INTEGER,
                 notes TEXT DEFAULT '',
+                is_purchased INTEGER DEFAULT 0,
+                purchased_at TIMESTAMP DEFAULT NULL,
+                transferred_to_inventory INTEGER DEFAULT 0,
+                inventory_component_id INTEGER DEFAULT NULL,
                 FOREIGN KEY (draft_order_id) REFERENCES draft_orders(id) ON DELETE CASCADE
             )
         """)
+
+        # Dinamik Kolon Migrasyonu (Mevcut draft_order_items tablosunda eksik alanlar varsa otomatik ekle)
+        cursor.execute("PRAGMA table_info(draft_order_items)")
+        doi_cols = {row["name"] for row in cursor.fetchall()}
+        if "is_purchased" not in doi_cols:
+            cursor.execute("ALTER TABLE draft_order_items ADD COLUMN is_purchased INTEGER DEFAULT 0")
+        if "purchased_at" not in doi_cols:
+            cursor.execute("ALTER TABLE draft_order_items ADD COLUMN purchased_at TIMESTAMP DEFAULT NULL")
+        if "transferred_to_inventory" not in doi_cols:
+            cursor.execute("ALTER TABLE draft_order_items ADD COLUMN transferred_to_inventory INTEGER DEFAULT 0")
+        if "inventory_component_id" not in doi_cols:
+            cursor.execute("ALTER TABLE draft_order_items ADD COLUMN inventory_component_id INTEGER DEFAULT NULL")
 
         # Kullanıcılar Tablosu (Güvenlik / Auth)
         cursor.execute("""
@@ -731,12 +747,23 @@ def get_draft_orders(status: str = "", limit: int = 50, db_path: str = DB_PATH) 
         
         orders = [dict(r) for r in cursor.fetchall()]
         
-        # Her siparişin kalem sayısını ekle
+        # Her siparişin kalem ve satın alma istatistiklerini ekle
         for o in orders:
-            cursor.execute("SELECT COUNT(*) as item_count, SUM(quantity) as total_qty FROM draft_order_items WHERE draft_order_id = ?", (o["id"],))
+            cursor.execute("""
+                SELECT 
+                    COUNT(*) as item_count, 
+                    SUM(quantity) as total_qty,
+                    SUM(CASE WHEN is_purchased = 1 THEN 1 ELSE 0 END) as purchased_count,
+                    SUM(CASE WHEN is_purchased = 0 OR is_purchased IS NULL THEN 1 ELSE 0 END) as pending_count,
+                    SUM(CASE WHEN is_purchased = 0 OR is_purchased IS NULL THEN price_value * quantity ELSE 0 END) as pending_price
+                FROM draft_order_items WHERE draft_order_id = ?
+            """, (o["id"],))
             agg = cursor.fetchone()
             o["item_count"] = agg["item_count"] or 0
             o["total_quantity"] = agg["total_qty"] or 0
+            o["purchased_count"] = agg["purchased_count"] or 0
+            o["pending_count"] = agg["pending_count"] or 0
+            o["pending_price"] = round(float(agg["pending_price"] or 0.0), 2)
             o["total_estimated_price"] = round(float(o.get("total_estimated_price") or 0.0), 2)
 
         return orders
@@ -757,9 +784,21 @@ def get_draft_order_by_id(draft_id: int, db_path: str = DB_PATH) -> Optional[Dic
         items = [dict(r) for r in cursor.fetchall()]
         for it in items:
             it["price_value"] = round(float(it.get("price_value") or 0.0), 2)
+            it["is_purchased"] = bool(it.get("is_purchased", 0))
+            it["transferred_to_inventory"] = bool(it.get("transferred_to_inventory", 0))
+
+        pending_items = [it for it in items if not it["is_purchased"]]
+        purchased_items = [it for it in items if it["is_purchased"]]
+
         order["items"] = items
         order["item_count"] = len(items)
         order["total_quantity"] = sum(it["quantity"] for it in items)
+        order["pending_item_count"] = len(pending_items)
+        order["pending_quantity"] = sum(it["quantity"] for it in pending_items)
+        order["pending_estimated_price"] = round(sum(it["price_value"] * it["quantity"] for it in pending_items), 2)
+        order["purchased_item_count"] = len(purchased_items)
+        order["purchased_quantity"] = sum(it["quantity"] for it in purchased_items)
+        order["purchased_total_price"] = round(sum(it["price_value"] * it["quantity"] for it in purchased_items), 2)
         return order
 
 
@@ -920,6 +959,129 @@ def apply_draft_order_to_cart(draft_id: int, db_path: str = DB_PATH) -> Dict[str
         "added_items_count": added_count,
         "message": f"'{order['title']}' taslağındaki {added_count} ürün Robotistan sepetine aktarıldı!"
     }
+
+
+def mark_draft_order_item_purchased(item_id: int, is_purchased: bool = True, db_path: str = DB_PATH) -> bool:
+    """Taslak siparişteki bir kalemi satın alındı veya satın alınmadı (bekliyor) olarak işaretler."""
+    with get_connection(db_path) as conn:
+        cursor = conn.cursor()
+        now = datetime.now().isoformat()
+        if is_purchased:
+            cursor.execute("""
+                UPDATE draft_order_items 
+                SET is_purchased = 1, purchased_at = ? 
+                WHERE id = ?
+            """, (now, item_id))
+        else:
+            cursor.execute("""
+                UPDATE draft_order_items 
+                SET is_purchased = 0, purchased_at = NULL, transferred_to_inventory = 0 
+                WHERE id = ?
+            """, (item_id,))
+        conn.commit()
+        return cursor.rowcount > 0
+
+
+def infer_component_category(name: str) -> str:
+    """Parça adına göre uygun envanter kategorisini tahmin eder."""
+    n_lower = name.lower()
+    if any(k in n_lower for k in ["direnc", "resistor", "ohm", "kohm"]):
+        return "resistor"
+    elif any(k in n_lower for k in ["kondansator", "kapasitor", "capacitor", "uf", "nf", "pf"]):
+        return "capacitor"
+    elif any(k in n_lower for k in ["diyot", "diode", "led", "1n4001", "1n4148"]):
+        return "diode_led"
+    elif any(k in n_lower for k in ["transistor", "transistör", "mosfet", "bc547", "bc557", "2n2222", "irfz"]):
+        return "transistor"
+    elif any(k in n_lower for k in ["esp32", "esp8266", "stm32", "atmega", "arduino", "mcu", "mikrodenetleyici", "ch340", "cp2102"]):
+        return "ic_mcu"
+    elif any(k in n_lower for k in ["sensor", "sensör", "gps", "gyro", "ivme", "bmp280", "bme280", "dht", "hc-sr04"]):
+        return "sensor"
+    elif any(k in n_lower for k in ["modul", "modülü", "kart", "devre", "tp4056", "bms", "step-down", "step-up", "buck", "boost", "shield"]):
+        return "module"
+    elif any(k in n_lower for k in ["jst", "header", "klemens", "kablo", "soket", "konektor", "konnektor", "terminal", "dupont"]):
+        return "connector"
+    elif any(k in n_lower for k in ["pil", "batarya", "battery", "lipo", "li-po", "18650"]):
+        return "power"
+    elif any(k in n_lower for k in ["pertinaks", "plaket", "pcb", "breadboard"]):
+        return "passive_other"
+    return "module"
+
+
+def transfer_draft_item_to_inventory(
+    item_id: int,
+    category: str = "",
+    location: str = "",
+    notes: str = "",
+    db_path: str = DB_PATH
+) -> Dict[str, Any]:
+    """
+    Satın alınmış bir taslak kalemini doğrudan envanter stoğuna aktarır.
+    Eğer envanterde eşleşen çalışan bir parça varsa adedini artırır;
+    yoksa yeni bir bileşen kaydı açar.
+    """
+    with get_connection(db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM draft_order_items WHERE id = ?", (item_id,))
+        item_row = cursor.fetchone()
+        if not item_row:
+            return {"success": False, "error": f"Kalem #{item_id} bulunamadı"}
+        
+        item = dict(item_row)
+        draft_id = item["draft_order_id"]
+        qty = max(1, int(item.get("quantity", 1)))
+        title = item["title"].strip()
+        url = item.get("url", "").strip()
+
+        # Envanterde aynı isimli veya yakın çalışan parça var mı kontrol et
+        cursor.execute("SELECT * FROM components WHERE status = 'working' AND LOWER(name) = ? LIMIT 1", (title.lower(),))
+        existing = cursor.fetchone()
+
+        now = datetime.now().isoformat()
+        if existing:
+            comp_id = existing["id"]
+            new_qty = existing["quantity"] + qty
+            cursor.execute("UPDATE components SET quantity = ?, updated_at = ? WHERE id = ?", (new_qty, now, comp_id))
+            cursor.execute("""
+                INSERT INTO stock_logs (component_id, change_amount, new_quantity, reason, timestamp)
+                VALUES (?, ?, ?, ?, ?)
+            """, (comp_id, qty, new_qty, f"Taslak sipariş #{draft_id} satın alındı ve stoğa eklendi", now))
+            action = "updated"
+            comp_name = existing["name"]
+        else:
+            cat = category if (category and category in CATEGORIES) else infer_component_category(title)
+            comp_notes = notes or f"Taslak sipariş #{draft_id} üzerinden satın alındı"
+            cursor.execute("""
+                INSERT INTO components (
+                    name, category, value, package, quantity, min_quantity,
+                    status, location, notes, tags, datasheet_url, created_at, updated_at
+                ) VALUES (?, ?, '', '', ?, 2, 'working', ?, ?, '', ?, ?, ?)
+            """, (title, cat, qty, location.strip(), comp_notes, url, now, now))
+            comp_id = cursor.lastrowid
+            cursor.execute("""
+                INSERT INTO stock_logs (component_id, change_amount, new_quantity, reason, timestamp)
+                VALUES (?, ?, ?, 'Taslak siparişten ilk stok girişi', ?)
+            """, (comp_id, qty, qty, now))
+            action = "created"
+            comp_name = title
+
+        # Taslak kalemini güncel tut: satın alındı ve stoğa aktarıldı
+        cursor.execute("""
+            UPDATE draft_order_items 
+            SET is_purchased = 1, purchased_at = COALESCE(purchased_at, ?), 
+                transferred_to_inventory = 1, inventory_component_id = ?
+            WHERE id = ?
+        """, (now, comp_id, item_id))
+        conn.commit()
+
+        return {
+            "success": True,
+            "action": action,
+            "component_id": comp_id,
+            "component_name": comp_name,
+            "quantity_transferred": qty,
+            "message": f"{qty} adet '{comp_name}' stoğa başarıyla eklendi (#{comp_id})"
+        }
 
 
 # ==========================================

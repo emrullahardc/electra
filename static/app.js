@@ -1405,6 +1405,8 @@ async function loadDraftOrders() {
       const detailRes = await fetch(`/api/draft-orders/${o.id}`);
       const detail = await detailRes.json();
       const items = detail.items || [];
+      const pendingItems = items.filter(it => !it.is_purchased);
+      const purchasedItems = items.filter(it => it.is_purchased);
 
       const statusMap = {
         draft: { text: "Taslak", class: "apple-badge apple-badge-default" },
@@ -1413,6 +1415,9 @@ async function loadDraftOrders() {
         archived: { text: "Arşiv", class: "apple-badge apple-badge-default" }
       };
       const st = statusMap[o.status] || statusMap.draft;
+
+      const pendingCost = detail.pending_estimated_price != null ? detail.pending_estimated_price : o.total_estimated_price;
+      const purchasedCost = detail.purchased_total_price || 0.0;
 
       return `
         <div class="apple-card p-5 space-y-4">
@@ -1424,18 +1429,35 @@ async function loadDraftOrders() {
               </div>
               <p class="text-xs text-[#8e8e93] mt-0.5">${escapeHtml(o.description || 'Açıklama yok')} • ${o.updated_at.slice(0, 16).replace('T', ' ')}</p>
             </div>
-            <div class="text-right">
-              <span class="text-lg font-semibold text-white font-mono">~${formatPrice(o.total_estimated_price)}</span>
-              <span class="text-[11px] text-[#8e8e93] block">${o.item_count} Kalem (${o.total_quantity} Adet)</span>
+            <div class="text-right flex sm:flex-col items-center sm:items-end justify-between gap-1">
+              <div>
+                <span class="text-xs text-[#8e8e93] mr-1">Alınacak:</span>
+                <span class="text-base font-semibold text-white font-mono">~${formatPrice(pendingCost)}</span>
+              </div>
+              ${purchasedItems.length > 0 ? `
+                <div class="text-[11px] text-emerald-400 font-mono">
+                  <span>✓ Satın Alınan: ${formatPrice(purchasedCost)}</span>
+                </div>
+              ` : ''}
+              <span class="text-[11px] text-[#8e8e93] block">${pendingItems.length} Alınacak / ${purchasedItems.length} Alındı (${o.total_quantity} Adet)</span>
             </div>
           </div>
 
-          <!-- Ürün Kalemleri Listesi -->
+          <!-- 1. BÖLÜM: SATIN ALINACAK KALEMLER -->
           <div class="space-y-2">
-            <h4 class="text-[11px] font-medium text-[#8e8e93] uppercase tracking-wider">Sipariş Edilecek Kalemler:</h4>
+            <div class="flex items-center justify-between">
+              <h4 class="text-[11px] font-semibold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+                <i class="fa-solid fa-cart-shopping"></i> Satın Alınacaklar (${pendingItems.length})
+              </h4>
+              <span class="text-[11px] text-[#8e8e93] font-mono">Tahmini: ~${formatPrice(pendingCost)}</span>
+            </div>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
-              ${items.length === 0 ? '<p class="text-[#8e8e93] italic col-span-full py-2">Bu taslakta hiç ürün kalmadı.</p>' : items.map(it => `
-                <div class="bg-[#0e0e10] p-2.5 rounded-xl border border-[#222225] flex items-center justify-between gap-2">
+              ${pendingItems.length === 0 ? `
+                <div class="col-span-full py-3 px-4 bg-emerald-950/20 border border-emerald-900/30 rounded-xl text-center text-emerald-400 text-xs">
+                  🎉 Bu taslaktaki tüm kalemler satın alındı! Aşağıdaki listeden stoğa aktarabilirsiniz.
+                </div>
+              ` : pendingItems.map(it => `
+                <div class="bg-[#0e0e10] p-2.5 rounded-xl border border-[#222225] flex items-center justify-between gap-2 hover:border-[#333336] transition">
                   <div class="min-w-0 flex-1">
                     <div class="flex items-center gap-1.5 flex-wrap">
                       <span class="text-[10px] px-1.5 py-0.2 rounded bg-white/5 border border-white/5 text-[#8e8e93] font-mono font-medium" title="Kalem ID">#${it.id}</span>
@@ -1444,16 +1466,19 @@ async function loadDraftOrders() {
                     </div>
                     <div class="flex items-center gap-2 text-[11px] text-[#8e8e93] mt-1 flex-wrap">
                       <span class="text-white/90 font-mono font-medium">${it.price_value > 0 ? formatPrice(it.price_value) : (it.price ? formatPrice(it.price) : 'Fiyat Belirtilmedi')}</span>
-                      ${it.url ? (it.in_stock ? '<span class="apple-badge apple-badge-green text-[10px]">Stokta Var</span>' : '<span class="apple-badge apple-badge-red text-[10px]">Tükendi</span>') : '<span class="apple-badge apple-badge-amber text-[10px]" title="Piyasada aranacak">⚪ Piyasada Aranacak</span>'}
+                      ${it.url ? (it.in_stock ? '<span class="apple-badge apple-badge-green text-[10px]">Stokta</span>' : '<span class="apple-badge apple-badge-red text-[10px]">Tükendi</span>') : '<span class="apple-badge apple-badge-amber text-[10px]" title="Piyasada aranacak">⚪ Aranacak</span>'}
                       <span class="flex items-center gap-1 bg-white/5 px-1 py-0.5 rounded border border-white/5">
                         <button onclick="changeDraftItemQuantity(${it.id}, ${it.quantity - 1})" class="w-4 h-4 rounded hover:bg-white/10 text-[#8e8e93] hover:text-white flex items-center justify-center font-bold" title="1 Azalt">-</button>
                         <span class="text-white font-medium px-1">${it.quantity}</span>
                         <button onclick="changeDraftItemQuantity(${it.id}, ${it.quantity + 1})" class="w-4 h-4 rounded hover:bg-white/10 text-[#8e8e93] hover:text-white flex items-center justify-center font-bold" title="1 Artır">+</button>
                       </span>
-                      ${it.notes ? `<span class="text-[#71717a] italic truncate max-w-[200px]" title="${escapeHtml(it.notes)}">• ${escapeHtml(it.notes)}</span>` : ''}
+                      ${it.notes ? `<span class="text-[#71717a] italic truncate max-w-[160px]" title="${escapeHtml(it.notes)}">• ${escapeHtml(it.notes)}</span>` : ''}
                     </div>
                   </div>
-                  <div class="flex items-center gap-1 flex-shrink-0">
+                  <div class="flex items-center gap-1.5 flex-shrink-0">
+                    <button onclick="markDraftItemPurchased(${it.id}, true)" class="px-2.5 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20 text-[11px] font-medium flex items-center gap-1 transition" title="Bu ürünü satın aldım olarak işaretle">
+                      <i class="fa-solid fa-check text-[10px]"></i> <span>Satın Aldım</span>
+                    </button>
                     ${it.url ? `
                       <a href="${it.url}" target="_blank" class="p-1.5 rounded-lg text-[#8e8e93] hover:text-white hover:bg-white/5 transition" title="Ürün Sayfasına Git">
                         <i class="fa-solid fa-arrow-up-right-from-square text-[10px]"></i>
@@ -1467,6 +1492,59 @@ async function loadDraftOrders() {
               `).join("")}
             </div>
           </div>
+
+          <!-- 2. BÖLÜM: SATIN ALINAN KALEMLER (Ayrı Liste & Stoğa Aktarım) -->
+          ${purchasedItems.length > 0 ? `
+            <div class="space-y-2 pt-2 border-t border-emerald-950/40">
+              <div class="flex items-center justify-between">
+                <h4 class="text-[11px] font-semibold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <i class="fa-solid fa-circle-check"></i> Satın Alınanlar (${purchasedItems.length})
+                </h4>
+                <span class="text-[11px] text-emerald-400/80 font-mono">Tutar: ${formatPrice(purchasedCost)}</span>
+              </div>
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
+                ${purchasedItems.map(it => `
+                  <div class="bg-emerald-950/15 p-2.5 rounded-xl border border-emerald-900/30 flex items-center justify-between gap-2">
+                    <div class="min-w-0 flex-1">
+                      <div class="flex items-center gap-1.5 flex-wrap">
+                        <span class="text-[10px] px-1.5 py-0.2 rounded bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-mono font-medium">#${it.id}</span>
+                        <p class="font-medium text-white/90 line-through truncate flex-1 min-w-[120px]" title="${escapeHtml(it.title)}">${escapeHtml(it.title)}</p>
+                        ${it.source && it.source !== 'robotistan' ? `<span class="apple-badge apple-badge-default text-[9px] uppercase font-mono">${escapeHtml(it.source)}</span>` : ''}
+                      </div>
+                      <div class="flex items-center gap-2 text-[11px] text-[#8e8e93] mt-1 flex-wrap">
+                        <span class="text-emerald-300 font-mono font-medium">${it.price_value > 0 ? formatPrice(it.price_value) : (it.price ? formatPrice(it.price) : '')}</span>
+                        <span class="text-white/80 font-mono">${it.quantity} Adet</span>
+                        ${it.transferred_to_inventory ? `
+                          <span class="apple-badge apple-badge-green text-[10px] flex items-center gap-1">
+                            <i class="fa-solid fa-boxes-stacked text-[9px]"></i> Stoğa Eklendi ${it.inventory_component_id ? `(#${it.inventory_component_id})` : ''}
+                          </span>
+                        ` : ''}
+                        ${it.purchased_at ? `<span class="text-[10px] text-[#71717a] font-mono">${it.purchased_at.slice(0, 16).replace('T', ' ')}</span>` : ''}
+                      </div>
+                    </div>
+                    <div class="flex items-center gap-1.5 flex-shrink-0">
+                      ${!it.transferred_to_inventory ? `
+                        <button onclick="transferDraftItemToInventory(${it.id}, '${escapeHtml(it.title).replace(/'/g, "\\'")}')" class="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-medium flex items-center gap-1 shadow-sm transition" title="Bu parçayı envanter stoğunuza aktarır">
+                          <i class="fa-solid fa-box-archive text-[10px]"></i> <span>Stoğa Aktar</span>
+                        </button>
+                      ` : ''}
+                      <button onclick="markDraftItemPurchased(${it.id}, false)" class="p-1.5 rounded-lg text-[#8e8e93] hover:text-amber-300 hover:bg-white/5 transition" title="Satın alınacaklara geri al">
+                        <i class="fa-solid fa-arrow-rotate-left text-xs"></i>
+                      </button>
+                      ${it.url ? `
+                        <a href="${it.url}" target="_blank" class="p-1.5 rounded-lg text-[#8e8e93] hover:text-white hover:bg-white/5 transition" title="Ürün Sayfasına Git">
+                          <i class="fa-solid fa-arrow-up-right-from-square text-[10px]"></i>
+                        </a>
+                      ` : ''}
+                      <button onclick="removeDraftOrderItem(${it.id}, '${escapeHtml(it.title)}')" class="p-1.5 rounded-lg text-[#8e8e93] hover:text-[#ff453a] hover:bg-white/5 transition" title="Kalemi Çıkar">
+                        <i class="fa-solid fa-trash-can text-xs"></i>
+                      </button>
+                    </div>
+                  </div>
+                `).join("")}
+              </div>
+            </div>
+          ` : ''}
 
           <!-- Aksiyonlar -->
           <div class="pt-3 border-t border-[#242426] flex flex-wrap items-center justify-between gap-2">
@@ -1528,6 +1606,47 @@ async function changeDraftItemQuantity(itemId, newQty) {
     console.error("Adet güncelleme hatası:", err);
   }
 }
+
+async function markDraftItemPurchased(itemId, isPurchased) {
+  try {
+    const res = await fetch(`/api/draft-orders/items/${itemId}/purchase`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ is_purchased: isPurchased })
+    });
+    if (res.ok) {
+      showToast(isPurchased ? "Kalem satın alındı olarak işaretlendi! ✅" : "Kalem satın alınacaklara geri alındı ↩");
+      loadDraftOrders();
+    } else {
+      const err = await res.json();
+      alert("Hata: " + (err.error || "İşlem başarısız"));
+    }
+  } catch (err) {
+    console.error("Satın alma durumu güncelleme hatası:", err);
+  }
+}
+
+async function transferDraftItemToInventory(itemId, itemTitle) {
+  if (!confirm(`"${itemTitle}" bileşenini doğrudan çalışan envanter stoğunuza aktarmak istiyor musunuz?\n\n(Aynı isimde parça varsa adedi artırılır, yoksa yeni bileşen olarak eklenir)`)) return;
+  try {
+    const res = await fetch(`/api/draft-orders/items/${itemId}/transfer-to-inventory`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({})
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast(data.message || "Stoğa başarıyla aktarıldı! 📦");
+      loadDraftOrders();
+      if (typeof loadInventory === "function") loadInventory();
+    } else {
+      alert("Hata: " + (data.error || "Stoğa aktarılamadı"));
+    }
+  } catch (err) {
+    console.error("Stoğa aktarma hatası:", err);
+  }
+}
+
 
 async function applyDraftOrderToCart(draftId) {
   try {

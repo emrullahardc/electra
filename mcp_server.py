@@ -384,6 +384,45 @@ TOOLS = [
         }
     },
     {
+        "name": "electro_mark_draft_item_purchased",
+        "description": (
+            "Taslak (draft) sipariş listesindeki bir ürünü/kalemi 'satın alındı' veya 'alınmadı/bekliyor' olarak işaretler. "
+            "Kullanıcının satın aldığı parçaları henüz almadıklarından net bir şekilde ayırt etmesini sağlar."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "item_id": {"type": "integer", "description": "Durumu değiştirilecek taslak kaleminin ID numarası"},
+                "is_purchased": {
+                    "type": "boolean",
+                    "description": "True: Satın alındı olarak işaretle, False: Satın alınacaklara geri al (varsayılan: true)",
+                    "default": True
+                }
+            },
+            "required": ["item_id"]
+        }
+    },
+    {
+        "name": "electro_transfer_draft_item_to_inventory",
+        "description": (
+            "Taslak siparişte satın alınmış olarak işaretlenen bir parçayı doğrudan kullanıcının yerel çalışan envanter stoğuna aktarır. "
+            "Envanterde aynı parçadan varsa adedini artırır, yoksa yeni bileşen kaydı açar."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "item_id": {"type": "integer", "description": "Stoğa aktarılacak taslak kaleminin ID numarası"},
+                "category": {
+                    "type": "string",
+                    "description": "Bileşen kategorisi (boş bırakılırsa parça adından otomatik tahmin edilir): resistor, capacitor, diode_led, transistor, ic_mcu, sensor, module, connector, power, passive_other"
+                },
+                "location": {"type": "string", "description": "Atölyedeki saklama gözü/kutusu (örn: 'A1', 'Kutu-3', 'Çekmece 2')"},
+                "notes": {"type": "string", "description": "Ek açıklama veya notlar"}
+            },
+            "required": ["item_id"]
+        }
+    },
+    {
         "name": "electro_get_product_details",
         "description": (
             "Robotistan veya diğer elektronik mağaza ürün sayfasının detaylı teknik özelliklerini (boyut, konnektör tipi, koruma devresi, voltaj, kapasite, ağırlık, parametre tablosu) çeker ve karşılaştırma için özetler."
@@ -953,16 +992,25 @@ class MCPServer:
                         "error": {"code": -32602, "message": f"Draft order #{did} bulunamadı."}
                     }
 
+                items = order.get("items", [])
+                pending_items = [it for it in items if not it.get("is_purchased")]
+                purchased_items = [it for it in items if it.get("is_purchased")]
+
                 md = [f"# 📋 Taslak Sipariş Detayı: #{order['id']} - {order['title']}\n"]
                 md.append(f"- **Durum:** {order['status']}")
                 md.append(f"- **Açıklama:** {order.get('description', '-')}")
                 md.append(f"- **Toplam Kalem:** {order['item_count']} ({order['total_quantity']} adet)")
-                md.append(f"- **Tahmini Toplam Tutar:** ~{float(order.get('total_estimated_price') or 0):.2f} TL\n")
-                md.append("### Kalemler:")
-                for it in order.get("items", []):
-                    # Stok ve kaynak doğrulaması
+                md.append(f"- **Satın Alınacak Tutar:** ~{float(order.get('pending_estimated_price') or 0):.2f} TL ({len(pending_items)} Kalem)")
+                if purchased_items:
+                    md.append(f"- **Satın Alınan Tutar:** ~{float(order.get('purchased_total_price') or 0):.2f} TL ({len(purchased_items)} Kalem)")
+                md.append("")
+
+                md.append(f"### 🛒 Satın Alınacaklar ({len(pending_items)} Kalem):")
+                if not pending_items:
+                    md.append("*Tüm kalemler satın alındı! 🎉*")
+                for it in pending_items:
                     if not it.get("url"):
-                        stok_badge = "⚪ Fiyat/Stok Belirsiz (Piyasada Aranacak)"
+                        stok_badge = "⚪ Piyasada Aranacak"
                     elif it.get("in_stock"):
                         stok_badge = "🟢 Stokta Var"
                     else:
@@ -977,12 +1025,74 @@ class MCPServer:
                     if it.get("notes"):
                         md.append(f"  *Not:* {it['notes']}")
 
+                if purchased_items:
+                    md.append(f"\n### ✅ Satın Alınanlar ({len(purchased_items)} Kalem):")
+                    for it in purchased_items:
+                        stk_info = f" [📦 Stoğa Eklendi - #{it.get('inventory_component_id')}]" if it.get("transferred_to_inventory") else " [⏳ Henüz Stoğa Aktarılmadı]"
+                        price_str = f"{it['price_value']} TL" if it.get('price_value') else ""
+                        purchased_date = f" ({it['purchased_at'][:10]})" if it.get("purchased_at") else ""
+                        md.append(f"- **[Kalem ID: #{it['id']}] ~~{it['title']}~~** — {it['quantity']} Adet x {price_str}{stk_info}{purchased_date}")
+
                 return {
                     "jsonrpc": "2.0",
                     "id": msg_id,
                     "result": {
                         "content": [{"type": "text", "text": "\n".join(md)}],
                         "draft_order": order
+                    }
+                }
+
+            elif tool_name == "electro_mark_draft_item_purchased":
+                item_id = int(args.get("item_id", 0))
+                is_purchased = bool(args.get("is_purchased", True))
+                if not item_id:
+                    return {
+                        "jsonrpc": "2.0",
+                        "id": msg_id,
+                        "error": {"code": -32602, "message": "Lütfen 'item_id' belirtin."}
+                    }
+                success = electro_db.mark_draft_order_item_purchased(item_id, is_purchased)
+                if not success:
+                    return {
+                        "jsonrpc": "2.0",
+                        "id": msg_id,
+                        "error": {"code": -32602, "message": f"Kalem #{item_id} bulunamadı veya güncellenemedi."}
+                    }
+                action_text = "Satın alındı olarak işaretlendi! ✅" if is_purchased else "Satın alınacaklara geri alındı ↩"
+                return {
+                    "jsonrpc": "2.0",
+                    "id": msg_id,
+                    "result": {
+                        "content": [{"type": "text", "text": f"Kalem #{item_id}: {action_text}"}],
+                        "item_id": item_id,
+                        "is_purchased": is_purchased
+                    }
+                }
+
+            elif tool_name == "electro_transfer_draft_item_to_inventory":
+                item_id = int(args.get("item_id", 0))
+                cat = args.get("category", "")
+                loc = args.get("location", "")
+                notes = args.get("notes", "")
+                if not item_id:
+                    return {
+                        "jsonrpc": "2.0",
+                        "id": msg_id,
+                        "error": {"code": -32602, "message": "Lütfen 'item_id' belirtin."}
+                    }
+                res = electro_db.transfer_draft_item_to_inventory(item_id, category=cat, location=loc, notes=notes)
+                if not res.get("success"):
+                    return {
+                        "jsonrpc": "2.0",
+                        "id": msg_id,
+                        "error": {"code": -32602, "message": res.get("error", "Stoğa aktarılamadı")}
+                    }
+                return {
+                    "jsonrpc": "2.0",
+                    "id": msg_id,
+                    "result": {
+                        "content": [{"type": "text", "text": f"📦 {res['message']}"}],
+                        "transfer_result": res
                     }
                 }
 

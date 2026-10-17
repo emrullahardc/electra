@@ -536,7 +536,27 @@ class ElectroRequestHandler(http.server.SimpleHTTPRequestHandler):
             self.send_json(result)
             return
 
-        # 9. API: Çoklu Tedarikçi BOM Fiyat Karşılaştırması
+        # 9. API: Draft Sipariş Kalemini Satın Alındı Olarak İşaretle / Geri Al
+        elif path.startswith("/api/draft-orders/items/") and path.endswith("/purchase"):
+            parts = path.split("/")
+            item_id = int(parts[4])
+            is_purchased = bool(data.get("is_purchased", True))
+            success = electro_db.mark_draft_order_item_purchased(item_id, is_purchased)
+            self.send_json({"success": success, "is_purchased": is_purchased})
+            return
+
+        # 10. API: Satın Alınan Taslak Kalemini Stoğa Aktar
+        elif path.startswith("/api/draft-orders/items/") and path.endswith("/transfer-to-inventory"):
+            parts = path.split("/")
+            item_id = int(parts[4])
+            cat = data.get("category", "")
+            loc = data.get("location", "")
+            notes = data.get("notes", "")
+            res = electro_db.transfer_draft_item_to_inventory(item_id, category=cat, location=loc, notes=notes)
+            self.send_json(res)
+            return
+
+        # 11. API: Çoklu Tedarikçi BOM Fiyat Karşılaştırması
         elif path == "/api/market/compare-bom":
             items = data.get("items", [])
             only_stock = bool(data.get("only_in_stock", True))
