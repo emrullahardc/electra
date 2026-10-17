@@ -630,6 +630,15 @@ class ElectroRequestHandler(http.server.SimpleHTTPRequestHandler):
             self.send_json({"success": success, "is_purchased": is_purchased})
             return
 
+        # 9.1 API: Taslak Kalemini Atölye Stoğundan Karşıla (Satın Almaya Gerek Yok)
+        elif path.startswith("/api/draft-orders/items/") and path.endswith("/fulfill-from-inventory"):
+            parts = path.split("/")
+            item_id = int(parts[4])
+            comp_id = data.get("component_id")
+            res = electro_db.fulfill_draft_item_from_inventory(item_id, comp_id=comp_id)
+            self.send_json(res)
+            return
+
         # 10. API: Satın Alınan Taslak Kalemini Stoğa Aktar
         elif path.startswith("/api/draft-orders/items/") and path.endswith("/transfer-to-inventory"):
             parts = path.split("/")

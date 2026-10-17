@@ -2556,19 +2556,34 @@ async function loadDraftOrders(options = {}) {
                 </div>
               ` : displayItems.map(it => {
                 const isPurchased = !!it.is_purchased;
+                const isFromInventory = it.source === 'inventory';
+                const hasInInventory = !!(it.in_inventory || isFromInventory);
                 return `
-                <div id="draft-item-${it.id}" class="${isPurchased ? 'bg-emerald-950/20 border-emerald-800/40' : 'bg-[#0e0e10] border-[#222225]'} p-2.5 rounded-xl border flex items-center justify-between gap-2 hover:border-[#3a3a40] transition duration-200">
+                <div id="draft-item-${it.id}" class="${isPurchased ? 'bg-emerald-950/20 border-emerald-800/40' : (hasInInventory ? 'bg-emerald-950/10 border-emerald-500/20' : 'bg-[#0e0e10] border-[#222225]')} p-2.5 rounded-xl border flex items-center justify-between gap-2 hover:border-[#3a3a40] transition duration-200">
                   <div class="min-w-0 flex-1">
                     <div class="flex items-center gap-1.5 flex-wrap">
                       <span class="text-[10px] px-1.5 py-0.2 rounded ${isPurchased ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-400' : 'bg-white/5 border border-white/5 text-[#8e8e93]'} font-mono font-medium">#${it.id}</span>
                       <p class="font-medium ${isPurchased ? 'text-white/85 line-through' : 'text-white'} truncate flex-1 min-w-[120px]" title="${escapeHtml(it.title)}">${escapeHtml(it.title)}</p>
-                      ${it.source && it.source !== 'robotistan' ? `<span class="apple-badge apple-badge-default text-[9px] uppercase font-mono">${escapeHtml(it.source)}</span>` : ''}
-                      ${isPurchased ? '<span class="apple-badge apple-badge-green text-[9px] flex items-center gap-0.5"><i class="fa-solid fa-check text-[8px]"></i> Alındı</span>' : ''}
+                      ${it.source && it.source !== 'robotistan' && it.source !== 'inventory' ? `<span class="apple-badge apple-badge-default text-[9px] uppercase font-mono">${escapeHtml(it.source)}</span>` : ''}
+                      ${isFromInventory ? `<span class="apple-badge apple-badge-green text-[9px] flex items-center gap-1 font-mono"><i class="fa-solid fa-boxes-stacked text-[8px]"></i> Atölye</span>` : ''}
+                      ${isPurchased ? (isFromInventory ? '<span class="apple-badge apple-badge-green text-[9px] flex items-center gap-0.5"><i class="fa-solid fa-box-archive text-[8px]"></i> Atölyeden Karşılandı</span>' : '<span class="apple-badge apple-badge-green text-[9px] flex items-center gap-0.5"><i class="fa-solid fa-check text-[8px]"></i> Alındı</span>') : ''}
                     </div>
                     <div class="flex items-center gap-2 text-[11px] text-[#8e8e93] mt-1 flex-wrap">
-                      <span class="${isPurchased ? 'text-emerald-300' : 'text-white/90'} font-mono font-medium">${it.price_value > 0 ? formatPrice(it.price_value) : (it.price ? formatPrice(it.price) : 'Fiyat Belirtilmedi')}</span>
+                      ${isFromInventory ? `
+                        <span class="text-emerald-400 font-mono font-medium flex items-center gap-1">
+                          <i class="fa-solid fa-box text-[10px]"></i> Atölyeden (0 TL)
+                        </span>
+                        ${it.price_value > 0 ? `<span class="line-through text-[#71717a] text-[10px] font-mono">${formatPrice(it.price_value)}</span>` : ''}
+                      ` : `
+                        <span class="${isPurchased ? 'text-emerald-300' : 'text-white/90'} font-mono font-medium">${it.price_value > 0 ? formatPrice(it.price_value) : (it.price ? formatPrice(it.price) : 'Fiyat Belirtilmedi')}</span>
+                      `}
+                      ${hasInInventory && !isFromInventory ? `
+                        <span class="apple-badge apple-badge-green text-[10px] flex items-center gap-1" title="Bu parça atölyenizde var!">
+                          <i class="fa-solid fa-boxes-stacked text-[9px]"></i> Atölyede Mevcut (${it.inventory_stock} Adet${it.matched_inventory && it.matched_inventory.location ? ' • ' + escapeHtml(it.matched_inventory.location) : ''})
+                        </span>
+                      ` : ''}
                       ${!isPurchased ? `
-                        ${it.url ? (it.in_stock ? '<span class="apple-badge apple-badge-green text-[10px]">Stokta</span>' : '<span class="apple-badge apple-badge-red text-[10px]">Tükendi</span>') : '<span class="apple-badge apple-badge-amber text-[10px]" title="Piyasada aranacak">⚪ Aranacak</span>'}
+                        ${!hasInInventory ? (it.url ? (it.in_stock ? '<span class="apple-badge apple-badge-green text-[10px]">Stokta</span>' : '<span class="apple-badge apple-badge-red text-[10px]">Tükendi</span>') : '<span class="apple-badge apple-badge-amber text-[10px]" title="Piyasada aranacak">⚪ Aranacak</span>') : ''}
                         <span class="flex items-center gap-1 bg-white/5 px-1 py-0.5 rounded border border-white/5">
                           <button onclick="changeDraftItemQuantity(${it.id}, ${it.quantity - 1})" class="w-4 h-4 rounded hover:bg-white/10 text-[#8e8e93] hover:text-white flex items-center justify-center font-bold" title="1 Azalt">-</button>
                           <input type="number" min="1" value="${it.quantity}" data-old-qty="${it.quantity}"
@@ -2581,7 +2596,7 @@ async function loadDraftOrders(options = {}) {
                         </span>
                       ` : `
                         <span class="text-white/80 font-mono">${it.quantity} Adet</span>
-                        ${it.transferred_to_inventory ? `
+                        ${it.transferred_to_inventory && !isFromInventory ? `
                           <span class="apple-badge apple-badge-green text-[10px] flex items-center gap-1">
                             <i class="fa-solid fa-boxes-stacked text-[9px]"></i> Stoğa Eklendi ${it.inventory_component_id ? `(#${it.inventory_component_id})` : ''}
                           </span>
@@ -2592,16 +2607,25 @@ async function loadDraftOrders(options = {}) {
                   </div>
                   <div class="flex items-center gap-1.5 flex-shrink-0">
                     ${!isPurchased ? `
-                      <button onclick="markDraftItemPurchased(${it.id}, true)" class="px-2.5 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20 text-[11px] font-medium flex items-center gap-1 transition" title="Bu ürünü satın aldım olarak işaretle">
-                        <i class="fa-solid fa-check text-[10px]"></i> <span>Satın Aldım</span>
-                      </button>
+                      ${hasInInventory ? `
+                        <button onclick="fulfillDraftItemFromInventory(${it.id}, ${it.matched_inventory_id || 'null'})" class="px-2.5 py-1 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/25 text-[11px] font-medium flex items-center gap-1.5 transition shadow-sm" title="Bu parçayı satın almak yerine eldeki atölye stoğundan karşıla">
+                          <i class="fa-solid fa-boxes-stacked text-[10px]"></i> <span>Atölyeden Karşıla</span>
+                        </button>
+                        <button onclick="markDraftItemPurchased(${it.id}, true)" class="p-1.5 rounded-lg text-[#8e8e93] hover:text-emerald-400 hover:bg-white/5 transition" title="Yine de dışarıdan satın aldım olarak işaretle">
+                          <i class="fa-solid fa-cart-shopping text-[10px]"></i>
+                        </button>
+                      ` : `
+                        <button onclick="markDraftItemPurchased(${it.id}, true)" class="px-2.5 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20 text-[11px] font-medium flex items-center gap-1 transition" title="Bu ürünü satın aldım olarak işaretle">
+                          <i class="fa-solid fa-check text-[10px]"></i> <span>Satın Aldım</span>
+                        </button>
+                      `}
                     ` : `
-                      ${!it.transferred_to_inventory ? `
+                      ${!it.transferred_to_inventory && !isFromInventory ? `
                         <button onclick="transferDraftItemToInventory(${it.id}, '${escapeHtml(it.title).replace(/'/g, "\\'")}')" class="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-medium flex items-center gap-1 shadow-sm transition" title="Bu parçayı envanter stoğunuza aktarır">
                           <i class="fa-solid fa-box-archive text-[10px]"></i> <span>Stoğa Aktar</span>
                         </button>
                       ` : ''}
-                      <button onclick="markDraftItemPurchased(${it.id}, false)" class="p-1.5 rounded-lg text-[#8e8e93] hover:text-amber-300 hover:bg-white/5 transition" title="Satın alınacaklara geri al">
+                      <button onclick="markDraftItemPurchased(${it.id}, false)" class="p-1.5 rounded-lg text-[#8e8e93] hover:text-amber-300 hover:bg-white/5 transition" title="Satın alınacaklara / karşılanacaklara geri al">
                         <i class="fa-solid fa-arrow-rotate-left text-xs"></i>
                       </button>
                     `}
@@ -2735,6 +2759,25 @@ async function transferDraftItemToInventory(itemId, itemTitle) {
     }
   } catch (err) {
     console.error("Stoğa aktarma hatası:", err);
+  }
+}
+
+async function fulfillDraftItemFromInventory(itemId, compId) {
+  try {
+    const res = await fetch(`/api/draft-orders/items/${itemId}/fulfill-from-inventory`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ component_id: compId || null })
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast("Parça atölye stoğundan karşılandı! 📦");
+      loadDraftOrders({ silent: true });
+    } else {
+      alert("Hata: " + (data.error || "İşlem başarısız"));
+    }
+  } catch (err) {
+    console.error("Atölyeden karşılama hatası:", err);
   }
 }
 

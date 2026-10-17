@@ -809,7 +809,7 @@ def get_draft_orders(status: str = "", limit: int = 50, db_path: str = DB_PATH) 
                     SUM(quantity) as total_qty,
                     SUM(CASE WHEN is_purchased = 1 THEN 1 ELSE 0 END) as purchased_count,
                     SUM(CASE WHEN is_purchased = 0 OR is_purchased IS NULL THEN 1 ELSE 0 END) as pending_count,
-                    SUM(CASE WHEN is_purchased = 0 OR is_purchased IS NULL THEN price_value * quantity ELSE 0 END) as pending_price
+                    SUM(CASE WHEN (is_purchased = 0 OR is_purchased IS NULL) AND (source != 'inventory' OR source IS NULL) THEN price_value * quantity ELSE 0 END) as pending_price
                 FROM draft_order_items WHERE draft_order_id = ?
             """, (o["id"],))
             agg = cursor.fetchone()
@@ -836,10 +836,47 @@ def get_draft_order_by_id(draft_id: int, db_path: str = DB_PATH) -> Optional[Dic
         order["total_estimated_price"] = round(float(order.get("total_estimated_price") or 0.0), 2)
         cursor.execute("SELECT * FROM draft_order_items WHERE draft_order_id = ? ORDER BY id ASC", (draft_id,))
         items = [dict(r) for r in cursor.fetchall()]
+
+        # Envanterdeki mevcut çalışan komponentleri al (eşleştirme için)
+        cursor.execute("SELECT id, name, category, quantity, location FROM components WHERE status = 'working' AND quantity > 0")
+        inv_components = [dict(c) for c in cursor.fetchall()]
+        inv_by_id = {c["id"]: c for c in inv_components}
+
+        from component_matcher import normalize_compact
+        inv_by_compact = {}
+        for c in inv_components:
+            compact_name = normalize_compact(c["name"])
+            if compact_name and compact_name not in inv_by_compact:
+                inv_by_compact[compact_name] = c
+
         for it in items:
             it["price_value"] = round(float(it.get("price_value") or 0.0), 2)
             it["is_purchased"] = bool(it.get("is_purchased", 0))
             it["transferred_to_inventory"] = bool(it.get("transferred_to_inventory", 0))
+
+            matched_comp = None
+            m_id = it.get("matched_inventory_id")
+            if m_id and m_id in inv_by_id:
+                matched_comp = inv_by_id[m_id]
+            else:
+                title_compact = normalize_compact(it.get("title", ""))
+                if title_compact and title_compact in inv_by_compact:
+                    matched_comp = inv_by_compact[title_compact]
+
+            if matched_comp:
+                it["in_inventory"] = True
+                it["inventory_stock"] = matched_comp["quantity"]
+                it["matched_inventory"] = {
+                    "id": matched_comp["id"],
+                    "name": matched_comp["name"],
+                    "quantity": matched_comp["quantity"],
+                    "location": matched_comp.get("location") or ""
+                }
+                it["matched_inventory_id"] = matched_comp["id"]
+            else:
+                it["in_inventory"] = False
+                it["inventory_stock"] = 0
+                it["matched_inventory"] = None
 
         pending_items = [it for it in items if not it["is_purchased"]]
         purchased_items = [it for it in items if it["is_purchased"]]
@@ -849,10 +886,16 @@ def get_draft_order_by_id(draft_id: int, db_path: str = DB_PATH) -> Optional[Dic
         order["total_quantity"] = sum(it["quantity"] for it in items)
         order["pending_item_count"] = len(pending_items)
         order["pending_quantity"] = sum(it["quantity"] for it in pending_items)
-        order["pending_estimated_price"] = round(sum(it["price_value"] * it["quantity"] for it in pending_items), 2)
+        order["pending_estimated_price"] = round(sum(
+            (0.0 if it.get("source") == "inventory" else (it["price_value"] * it["quantity"]))
+            for it in pending_items
+        ), 2)
         order["purchased_item_count"] = len(purchased_items)
         order["purchased_quantity"] = sum(it["quantity"] for it in purchased_items)
-        order["purchased_total_price"] = round(sum(it["price_value"] * it["quantity"] for it in purchased_items), 2)
+        order["purchased_total_price"] = round(sum(
+            (0.0 if it.get("source") == "inventory" else (it["price_value"] * it["quantity"]))
+            for it in purchased_items
+        ), 2)
         return order
 
 
@@ -984,14 +1027,14 @@ def update_draft_order_status(draft_id: int, status: str, notes: str = "", db_pa
 
 
 def apply_draft_order_to_cart(draft_id: int, db_path: str = DB_PATH) -> Dict[str, Any]:
-    """Taslak siparişteki tüm Robotistan ürünlerini doğrudan sepete aktarır."""
+    """Taslak siparişteki tüm Robotistan ürünlerini doğrudan sepete aktarır (satın alınmış veya atölyeden karşılananlar hariç)."""
     order = get_draft_order_by_id(draft_id, db_path=db_path)
     if not order:
         return {"success": False, "error": "Taslak sipariş bulunamadı"}
 
     added_count = 0
     for it in order.get("items", []):
-        if it.get("source") == "robotistan" or it.get("url"):
+        if (it.get("source") == "robotistan" or it.get("url")) and not it.get("is_purchased") and it.get("source") != "inventory":
             add_to_cart(
                 title=it["title"],
                 url=it.get("url", ""),
@@ -1013,6 +1056,54 @@ def apply_draft_order_to_cart(draft_id: int, db_path: str = DB_PATH) -> Dict[str
         "added_items_count": added_count,
         "message": f"'{order['title']}' taslağındaki {added_count} ürün Robotistan sepetine aktarıldı!"
     }
+
+
+def fulfill_draft_item_from_inventory(item_id: int, comp_id: Optional[int] = None, db_path: str = DB_PATH) -> Dict[str, Any]:
+    """
+    Taslak siparişteki bir kalemin zaten atölye stoğunda mevcut olduğunu belirterek
+    dışarıdan satın alma listesinden çıkarıp 'atölyeden karşılandı' olarak işaretler.
+    Stoğa yeniden ekleme YAPMAZ (çift stok oluşmasını engeller).
+    """
+    with get_connection(db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM draft_order_items WHERE id = ?", (item_id,))
+        item_row = cursor.fetchone()
+        if not item_row:
+            return {"success": False, "error": f"Kalem #{item_id} bulunamadı"}
+
+        item = dict(item_row)
+        draft_id = item["draft_order_id"]
+        now = datetime.now().isoformat()
+
+        target_comp_id = comp_id or item.get("matched_inventory_id")
+        if not target_comp_id:
+            title = item.get("title", "").strip()
+            from component_matcher import normalize_compact
+            target_norm = normalize_compact(title)
+            cursor.execute("SELECT id, name FROM components WHERE status = 'working'")
+            for c in cursor.fetchall():
+                if c["name"].strip().lower() == title.lower() or normalize_compact(c["name"]) == target_norm:
+                    target_comp_id = c["id"]
+                    break
+
+        cursor.execute("""
+            UPDATE draft_order_items
+            SET source = 'inventory',
+                matched_inventory_id = ?,
+                is_purchased = 1,
+                purchased_at = COALESCE(purchased_at, ?),
+                transferred_to_inventory = 1,
+                inventory_component_id = ?
+            WHERE id = ?
+        """, (target_comp_id, now, target_comp_id, item_id))
+
+        cursor.execute("""
+            UPDATE draft_orders 
+            SET updated_at = ?
+            WHERE id = ?
+        """, (now, draft_id))
+        conn.commit()
+        return {"success": True, "draft_order_id": draft_id, "matched_inventory_id": target_comp_id}
 
 
 def mark_draft_order_item_purchased(item_id: int, is_purchased: bool = True, db_path: str = DB_PATH) -> bool:
