@@ -369,6 +369,11 @@ TOOLS = [
                     "type": "string",
                     "description": "Proje fikri veya devre gereksinimi (örn: 'ESP32 ile WiFi kontrollü otomatik çiçek sulama sistemi')"
                 },
+                "required_components": {
+                    "type": "array",
+                    "description": "Opsiyonel: Proje için gereken kesin parça / BOM listesi (örn: ['XL6009 Boost Kartı', 'PD65W Type-C Tetikleyici', '0-100V 10A Voltmetre Ampermetre', '6x30mm Sigorta Yuvası']). Belirtilirse genel şablon yerine doğrudan bu parçalar stokta taranır ve eksikler piyasada aranır.",
+                    "items": {"type": "string"}
+                },
                 "auto_create_draft": {
                     "type": "boolean",
                     "description": "Eksik parçalar için taslak sipariş listesi otomatik oluşturulup kaydedilsin mi (varsayılan: true)",
@@ -1166,9 +1171,11 @@ class MCPServer:
 
             elif tool_name == "electro_plan_project_draft_order":
                 desc = args.get("project_description", "")
+                custom_reqs = args.get("required_components") or args.get("custom_requirements")
                 auto_draft = args.get("auto_create_draft", True)
                 analysis = project_matcher.match_project_components(
                     project_description=desc,
+                    custom_requirements=custom_reqs,
                     check_robotistan=True,
                     auto_create_draft_order=auto_draft
                 )

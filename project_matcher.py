@@ -76,12 +76,20 @@ COMPONENT_KNOWLEDGE_BASE = [
         "role": "Mekanik Hareket / Açısal Konumlandırma"
     },
     {
-        "keywords": ["besleme", "pil", "18650", "adaptör", "şarj", "tp4056", "güç"],
-        "name": "Güç / Şarj Modülü (TP4056 / Buck Converter)",
+        "keywords": ["lipo", "18650", "pil şarj", "batarya şarj", "tp4056"],
+        "name": "Li-ion / LiPo Pil Şarj Devresi (TP4056)",
         "category": "power",
-        "search_terms": ["tp4056", "lm2596", "regülatör", "18650"],
+        "search_terms": ["tp4056", "pil şarj"],
         "critical": True,
-        "role": "Güç Dağıtımı ve Şarj"
+        "role": "Lityum Batarya Şarj Modülü"
+    },
+    {
+        "keywords": ["step-down", "step-up", "buck", "boost", "regülatör", "voltaj düşürücü", "voltaj yükseltici"],
+        "name": "Voltaj Regülatör Modülü (Buck / Boost)",
+        "category": "power",
+        "search_terms": ["lm2596", "xl6009", "step-down", "step-up", "regülatör"],
+        "critical": True,
+        "role": "Voltaj Çevirici / Regülatör"
     },
     {
         "keywords": ["direnç", "pull-up", "led direnci", "akım sınırlama"],
