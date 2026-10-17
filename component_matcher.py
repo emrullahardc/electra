@@ -115,6 +115,7 @@ class ComponentSpec:
     is_multi_cell_range: bool = False
     pitch_mm: List[float] = field(default_factory=list)
     mounting: Optional[str] = None          # 'SMD' veya 'THT'
+    mounting_preferred: Optional[str] = None # 'SMD' veya 'THT' (belirtilmediğinde varsayılan tercih)
     smd_footprints: List[str] = field(default_factory=list)
     polarity: Optional[str] = None          # 'P-CH', 'N-CH'
     chemistry: Optional[str] = None         # 'LIFEPO4', 'LIPO_LIION'
@@ -233,6 +234,13 @@ def _detect_functional_role(t_tr: str) -> str:
     if any(k in t_tr for k in ["sarj devre", "sarj modul", "sarj kart", "sarj cihaz", "sarj alet", "lipo sarj", "charger"]):
         return "CHARGER_MODULE"
 
+    # 7.5 Konnektör / Soket / Fiş / Terminal (JST, Dupont, Klemens, Header vb.)
+    # "batarya konektörü" veya "lipo soket" pil hücresi DEĞİL, konnektördür!
+    if any(k in t_tr for k in [
+        "konektor", "konnektor", "connector", "header", "klemens", "terminal"
+    ]) or (any(k in t_tr for k in ["soket", "socket", "kablo"]) and any(c in t_tr for c in ["jst", "dupont", "pin", "batarya", "pil", "lipo"])):
+        return "CONNECTOR"
+
     # 8. Pil / Batarya Hücresi
     has_mah = bool(re.search(r'\b\d+\s*mah\b', t_tr))
     if any(k in t_tr for k in ["pil", "batarya", "battery", "lipo", "li-po", "lityum polimer", "li-polymer", "18650"]) or has_mah:
@@ -300,6 +308,11 @@ def parse_component_spec(text: str) -> ComponentSpec:
     elif "2.54mm" in t_tr or "2.54 mm" in t_tr:
         if "jst" in t_tr or "xh" in t_tr:
             spec.connector_family = "jst-xh"
+    elif "jst" in t_tr:
+        if any(k in t_tr for k in ["batarya", "pil", "lipo"]):
+            spec.connector_family = "jst-ph"
+        else:
+            spec.connector_family = "jst"
 
     # 8. Montaj Tipi (SMD vs THT) ve Kılıf Boyutu
     smd_pkgs = [("0805" if p == "805" else p) for p in re.findall(r'\b(0402|0603|0805|805|1206|1210|2512|sot-?23|sot-?89|sot-?223|soic|qfn)\b', t_tr)]
@@ -354,6 +367,10 @@ def parse_component_spec(text: str) -> ComponentSpec:
     spec.is_passive = bool(spec.capacitance_pf or spec.resistance_ohm or spec.inductance_uh) or any(
         k in t_tr for k in ["kondansator", "kapasitor", "capacitor", "direnc", "resistor", "bobin", "induktor"]
     )
+    if spec.mounting:
+        spec.mounting_preferred = spec.mounting
+    elif spec.is_passive:
+        spec.mounting_preferred = "THT"
 
     stop_words = {
         "ve", "ile", "icin", "adet", "set", "uyumlu", "li", "lu",
@@ -493,17 +510,39 @@ def get_component_search_aliases(query: str) -> List[str]:
             _add("TP4056 Şarj Devresi")
             _add("TP4056 Type-C")
 
-    elif spec.connector_family:
-        cf_u = spec.connector_family.upper()
+    elif spec.connector_family or spec.role == "CONNECTOR":
+        p = spec.pins[0] if spec.pins else None
+        cf = spec.connector_family or "jst"
+        cf_u = cf.upper()
         cf_sp = cf_u.replace('-', ' ')
-        if spec.pins:
-            p = spec.pins[0]
-            _add(f"{cf_u} {p} Pin")
-            _add(f"{cf_sp} {p} Pin")
-            _add(f"{cf_u} {p}P")
+
+        if "jst" in cf:
+            if p:
+                _add(f"JST-PH {p}-Pin")
+                _add(f"JST-PH {p} Pin")
+                _add(f"JST {p}-Pin")
+                _add(f"JST {p} Pin")
+                _add(f"JST-PH {p}P")
+                _add(f"JST {p}P")
+                _add(f"JST-PH {p}")
+                _add(f"JST {p}")
+                _add("JST-PH 2.0mm")
+                _add("JST-PH")
+            else:
+                _add("JST-PH")
+                _add("JST Konnektör")
+                _add("JST Konektör")
+            _add("JST Konnektör")
+            _add("JST Konektör")
         else:
-            _add(cf_u)
-            _add(cf_sp)
+            if p:
+                _add(f"{cf_u} {p}-Pin")
+                _add(f"{cf_u} {p} Pin")
+                _add(f"{cf_sp} {p} Pin")
+                _add(f"{cf_u} {p}P")
+            else:
+                _add(cf_u)
+                _add(cf_sp)
 
     elif spec.capacitance_pf:
         pf = spec.capacitance_pf[0]
@@ -514,13 +553,18 @@ def get_component_search_aliases(query: str) -> List[str]:
         else:
             cap_str = f"{pf:g}pF"
         if spec.dielectric == "CERAMIC":
-            _add(f"{cap_str} Seramik Kondansatör")
-            _add(f"{cap_str} SMD Kondansatör")
+            if spec.mounting == "SMD":
+                _add(f"{cap_str} SMD Seramik Kondansatör")
+                _add(f"{cap_str} SMD Kondansatör")
+            else:
+                _add(f"{cap_str} Seramik Kondansatör")
+                _add(f"{cap_str} Kondansatör")
         elif spec.mounting == "SMD":
             _add(f"{cap_str} SMD Kondansatör")
             _add(f"{cap_str} 0805")
         else:
             _add(f"{cap_str} Kondansatör")
+            _add(f"{cap_str} Elektrolitik Kondansatör")
 
     elif spec.resistance_ohm:
         ohm = spec.resistance_ohm[0]
@@ -532,9 +576,14 @@ def get_component_search_aliases(query: str) -> List[str]:
             r_str = f"{ohm:g}R"
         if spec.mounting == "SMD":
             _add(f"{r_str} SMD Direnç")
-        else:
-            _add(f"{r_str} Direnç")
+        elif spec.mounting == "THT":
             _add(f"{r_str} 1/4W Direnç")
+            _add(f"{r_str} Direnç")
+        else:
+            _add(f"{r_str} 1/4W Direnç")
+            _add(f"{r_str} Direnç")
+            _add(f"{r_str} 1/4 W Direnç")
+            _add(f"1/4W {r_str} Direnç")
 
     return aliases
 
@@ -556,6 +605,12 @@ def _evaluate_single_spec_relevance(q_spec: ComponentSpec, t_spec: ComponentSpec
 
     if q_spec.role == "PROTECTION_BMS" and t_spec.role != "PROTECTION_BMS":
         return False, 0.0, f"BMS/Koruma devresi istendi ancak ürün '{t_spec.role}'."
+
+    if q_spec.role == "CONNECTOR" and t_spec.role != "CONNECTOR":
+        return False, 0.0, f"Konnektör istendi ancak ürün '{t_spec.role}'."
+
+    if q_spec.role != "CONNECTOR" and t_spec.role == "CONNECTOR":
+        return False, 0.0, f"Ürün konnektör/soket ancak istenen '{q_spec.role}'."
 
     # 2. FİZİKSEL VE ELEKTRİKSEL PARAMETRE DOĞRULAMASI
     # 2a. Pil Kimyası ve Hücre Sayısı
@@ -579,8 +634,9 @@ def _evaluate_single_spec_relevance(q_spec: ComponentSpec, t_spec: ComponentSpec
 
     # 2b. Konnektör Ailesi ve Pin Sayısı
     if q_spec.connector_family:
-        if t_spec.connector_family != q_spec.connector_family:
-            return False, 0.0, f"Konnektör serisi uyuşmuyor: İstenen {q_spec.connector_family.upper()}."
+        if q_spec.connector_family != "jst" and t_spec.connector_family and t_spec.connector_family != "jst":
+            if t_spec.connector_family != q_spec.connector_family:
+                return False, 0.0, f"Konnektör serisi uyuşmuyor: İstenen {q_spec.connector_family.upper()}."
 
     if q_spec.pins and t_spec.pins:
         if q_spec.pins[0] not in t_spec.pins:

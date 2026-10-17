@@ -465,15 +465,26 @@ def search_market(
             it["unit_price"] = it.get("price_value", 0.0)
             it["price_display"] = it.get("price", "")
 
-    # Önce yüksek uyumluluk kademesi (relevance_score >= 0.65), sonra fiyat küçükten büyüğe sırala
+    # Montaj tipi tercihi (Örn: 100k direnç istendiğinde el lehimine uygun THT / bacaklı öne gelsin)
+    q_spec = parse_component_spec(q)
+    pref_tht = (q_spec.mounting_preferred == "THT" and q_spec.mounting is None)
+
+    def _item_sort_key(x):
+        in_stock_rank = 0 if (x.get("price_value", 0) > 0 and x.get("in_stock")) else 1
+        rel_rank = 0 if x.get("relevance_score", 0.0) >= 0.65 else 1
+        mounting_rank = 0
+        if pref_tht:
+            t_spec = parse_component_spec(x.get("title", ""))
+            if t_spec.mounting == "SMD":
+                mounting_rank = 1
+            else:
+                mounting_rank = 0
+        price_rank = x.get("price_value", 999999) if x.get("price_value", 0) > 0 else 999999
+        return (in_stock_rank, rel_rank, mounting_rank, price_rank)
+
+    # Önce stok ve uyumluluk kademesi, sonra montaj tercihi, sonra fiyat küçükten büyüğe sırala
     if sort_by_price:
-        candidate_items.sort(
-            key=lambda x: (
-                0 if (x.get("price_value", 0) > 0 and x.get("in_stock")) else 1,
-                0 if x.get("relevance_score", 0.0) >= 0.65 else 1,
-                x.get("price_value", 999999) if x.get("price_value", 0) > 0 else 999999
-            )
-        )
+        candidate_items.sort(key=_item_sort_key)
 
     # En ucuz olanı belirle (SADECE uyumlu adaylar arasından)
     cheapest = None
@@ -484,10 +495,15 @@ def search_market(
             break
 
     # Robotistan seçeneğini tespit et (SADECE uyumlu adaylar arasından)
-    robotistan_item = next(
-        (x for x in candidate_items if x.get("vendor_key") == "robotistan" and x.get("in_stock") and x.get("price_value", 0) > 0),
-        None
-    )
+    robotistan_candidates = [
+        x for x in candidate_items
+        if x.get("vendor_key") == "robotistan" and x.get("in_stock") and x.get("price_value", 0) > 0
+    ]
+    if pref_tht and robotistan_candidates:
+        tht_rob = next((x for x in robotistan_candidates if parse_component_spec(x.get("title", "")).mounting != "SMD"), None)
+        robotistan_item = tht_rob or robotistan_candidates[0]
+    else:
+        robotistan_item = robotistan_candidates[0] if robotistan_candidates else None
 
     # Akıllı Karar & Tedarikçi Tavsiyesi (Robotistan Önceliği ve Kargo Maliyeti Hesabı)
     decision_advice: Dict[str, Any] = {}
@@ -641,6 +657,8 @@ def compare_bom_prices(
     prompt_questions: List[Dict[str, Any]] = []
     unfound_items: List[Dict[str, Any]] = []
     local_inventory_hits: List[Dict[str, Any]] = []
+    inventory_covered_items: List[Dict[str, Any]] = []
+    total_inventory_savings = 0.0
     assigned_urls: set = set()
 
     total_smart_parts_cost = 0.0
@@ -672,10 +690,12 @@ def compare_bom_prices(
         rob_item = search_res.get("robotistan_option")
         decision = search_res.get("decision_advice", {})
 
+        is_covered = len(local_matches) > 0
         comp = {
             "part_query": part_name,
-            "found": len(results) > 0,
-            "in_local_inventory": len(local_matches) > 0,
+            "found": len(results) > 0 or is_covered,
+            "in_local_inventory": is_covered,
+            "covered_by_inventory": is_covered,
             "local_inventory": local_matches,
             "cheapest_option": cheapest,
             "robotistan_option": rob_item,
@@ -683,6 +703,25 @@ def compare_bom_prices(
             "options": results[:6]
         }
         item_comparisons.append(comp)
+
+        # 0.5. Parça kullanıcının çalışan yerel envanterinde mevcutsa sepete ekleme! (0 TL net ek maliyet)
+        if is_covered:
+            est_mkt_val = (
+                rob_item.get("price_value", 0.0) if rob_item
+                else (cheapest.get("price_value", 0.0) if cheapest else 0.0)
+            )
+            total_inventory_savings += est_mkt_val
+            inventory_covered_items.append({
+                "part_query": part_name,
+                "inventory_item": local_matches[0]["name"],
+                "quantity_available": local_matches[0]["quantity"],
+                "status": local_matches[0].get("status", "working"),
+                "location": local_matches[0].get("location", "Bilinmiyor"),
+                "estimated_market_price": round(est_mkt_val, 2),
+                "cost": 0.0,
+                "note": f"Envanterinizde mevcut ({local_matches[0]['quantity']} adet). Satın alma sepetinden çıkarıldı (0 TL ek maliyet)."
+            })
+            continue
 
         # 1. Naive Sepet (Kargo hesaba katılmayan salt en ucuz)
         if cheapest:
@@ -780,6 +819,10 @@ def compare_bom_prices(
         "found_items_count": len(clean_parts) - len(unfound_items),
         "unfound_items_count": len(unfound_items),
         "unfound_items": unfound_items,
+        "inventory_covered_count": len(inventory_covered_items),
+        "inventory_covered_items": inventory_covered_items,
+        "total_inventory_savings": round(total_inventory_savings, 2),
+        "items_to_purchase_count": sum(len(v) for v in active_smart.values()),
         "local_inventory_hits": local_inventory_hits,
         "items": item_comparisons,
         "smart_plan": active_smart,
@@ -958,13 +1001,58 @@ def get_universal_product_details(url: str) -> Dict[str, Any]:
             clean_s = html_lib.unescape(re.sub(r"<[^>]+>", "", raw_li).strip())
             clean_s = re.sub(r"\s+", " ", clean_s)
             if 5 < len(clean_s) < 150 and clean_s not in specs:
-                if ":" in clean_s or any(u in clean_s for u in ["V", "A", "mm", "mAh", "MHz", "GHz", "Ohm", "Ω", "Pin", "GPIO", "I2C", "SPI", "UART", "°C"]):
+                if ":" in clean_s or any(u in clean_s for u in ["V", "A", "mm", "mAh", "MHz", "GHz", "Ohm", "Ω", "Pin", "GPIO", "I2C", "SPI", "UART", "°C", "Paket", "Adet", "W"]):
                     specs.append(clean_s)
+
+        if not specs:
+            body_m = re.search(r'id=[\"\']product-features[\"\'][^>]*>(.*?)</div>', html, re.DOTALL)
+            if not body_m:
+                body_m = re.search(r'id=[\"\']product-fullbody[\"\'][^>]*>(.*?)</div>', html, re.DOTALL)
+            if body_m:
+                clean_body = html_lib.unescape(re.sub(r'<[^>]+>', '\n', body_m.group(1))).strip()
+                for line in clean_body.split('\n'):
+                    line = re.sub(r'\s+', ' ', line).strip()
+                    if 6 < len(line) < 180 and any(c in line for c in [":", "W", "V", "A", "Ohm", "Ω", "F", "Paket", "Adet"]):
+                        if line not in specs:
+                            specs.append(line)
+
+    # 4. Paket ve Adet Miktarı (Pack Quantity & Unit Price)
+    pack_quantity = 1
+    m_url_pack = re.search(r'[-_](\d+)[-_](?:adet|li|lu|pack|pcs)\b', url_lower)
+    if m_url_pack:
+        q_cand = int(m_url_pack.group(1))
+        if q_cand in (2, 3, 5, 10, 20, 25, 50, 100, 200, 500, 1000):
+            pack_quantity = q_cand
+
+    if pack_quantity == 1:
+        m_title_pack = re.search(r'\b(\d+)\s*(?:adet|li\s*paket|lu\s*paket|lü\s*paket|\'li\b|\'lu\b|pack|pcs)\b', title, re.I)
+        if m_title_pack:
+            q_cand = int(m_title_pack.group(1))
+            if q_cand in (2, 3, 5, 10, 20, 25, 50, 100, 200, 500, 1000):
+                pack_quantity = q_cand
+
+    if pack_quantity == 1:
+        for s in specs:
+            m_s = re.search(r'(?:paket\s*(?:içeriği|miktarı)?|adet|miktar)\s*[:=-]?\s*(\d+)', s, re.I)
+            if m_s:
+                q_cand = int(m_s.group(1))
+                if q_cand in (2, 3, 5, 10, 20, 25, 50, 100, 200, 500, 1000):
+                    pack_quantity = q_cand
+                    break
+
+    unit_price = round(price_val / pack_quantity, 2) if pack_quantity > 0 and price_val > 0 else price_val
+    package_info = f"{pack_quantity} Adet / Paket (Birim Fiyat: {unit_price:.2f} TL)" if pack_quantity > 1 else "1 Adet"
+    if pack_quantity > 1:
+        specs.insert(0, f"Paket Miktarı: {pack_quantity} Adet (Birim: {unit_price:.2f} TL)")
 
     return {
         "title": title or "Bilinmeyen Ürün",
         "price": f"{price_val:.2f} TL" if price_val > 0 else "Fiyat Belirtilmedi",
         "price_value": price_val,
+        "pack_quantity": pack_quantity,
+        "unit_price": f"{unit_price:.2f} TL",
+        "unit_price_val": unit_price,
+        "package_info": package_info,
         "in_stock": in_stock,
         "stock_status": stock_status,
         "category_name": category_name,
