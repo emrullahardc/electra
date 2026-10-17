@@ -128,21 +128,28 @@
   - Auto-fills canonical name, category, package, and electrical value.
   - Automatically moves cursor focus to `#form-quantity`.
 
-### B. Direct Inline Stock Quantity Editing
+### B. Storage Location (Saklama Yeri) Autocomplete & Quick Chips
+- **Live Autocomplete Dropdown:** Focusing `#form-location` reveals existing locations with physical component counts (e.g. `📁 direnç kutusu (14 parça)`).
+- **Fuzzy Filtering:** As you type (e.g. `çek` or `org`), matches update dynamically.
+- **New Location Creation:** If typing an unregistered box/drawer, offers `➕ Yeni Yer: "${query}"` on the fly.
+- **One-Click Quick Chips:** Top 4-5 most populated locations render directly under the input as compact pill buttons for instant 1-tap selection.
+- **Keyboard Navigation:** Full `ArrowUp`, `ArrowDown`, `Enter`, `Escape` support.
+
+### C. Direct Inline Stock Quantity Editing
 - All table quantity columns (Inventory table, Cart table, Draft Orders table) feature:
   - Minus button (`-`), Number Input (`<input type="number">`), Plus button (`+`).
   - Clicking the number automatically highlights it (`onfocus="this.select()"`).
   - Users can type numbers like `50` or `100` and press `Enter` or click outside (`blur`).
   - Sends direct `PUT /api/components/<id>` or `POST /adjust` to update SQLite and log the audit entry.
 
-### C. Multi-Vendor Market Search & Price Comparison
+### D. Multi-Vendor Market Search & Price Comparison
 - Scrapes 4 major Turkish vendors: **Robotistan**, **Robotronik**, **Direnc.net**, **Motorobit**.
 - **Motorobit Protection:** Explicitly rejects `-en` subdomains to prevent corrupted currency exchange rates.
 - **Spec & Role Distinction:** Separates bare ICs from breakout boards (e.g. SOP-8 TP4056 chip at 8 TL vs. TP4056 charging module with protection at 14 TL).
 - **Pack Multipliers:** Detects pack quantities like "10'lu", "5 Adet" to calculate accurate per-unit costs.
 - **Same-Day Shipping Consolidation Rule:** If Robotistan is within 100 TL of the cheapest competitor, Robotistan is recommended to save on split cargo fees and delivery delays.
 
-### D. Draft Orders Purchase Tracking & Inventory Transfer
+### E. Draft Orders Purchase Tracking & Inventory Transfer
 - Items in drafts can be flagged as **"Satın Aldım"** (`is_purchased = 1`).
 - Once marked, they move to the "Satın Alınanlar" section with a **"Stoğa Aktar"** action.
 - "Stoğa Aktar" checks if the component already exists in `components` (incrementing stock) or creates a new component entry, setting `transferred_to_inventory = 1` and recording `inventory_component_id`.
