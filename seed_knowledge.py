@@ -457,8 +457,29 @@ INITIAL_COMPONENT_KNOWLEDGE: List[Dict[str, Any]] = [
 ]
 
 
+INITIAL_BREAKOUT_ALIASES = [
+    ("neo6m", "GY-NEO6MV2", "gyneo6mv2"),
+    ("neo6m", "GY-NEO6M", "gyneo6m"),
+    ("neo7m", "GY-NEO7M", "gyneo7m"),
+    ("neom8n", "GY-NEO8M", "gyneo8m"),
+    ("mpu6050", "GY-521", "gy521"),
+    ("hmc5883l", "GY-271", "gy271"),
+    ("bmp280", "GY-BMP280", "gybmp280"),
+    ("bme280", "GY-BME280", "gybme280"),
+    ("adxl345", "GY-291", "gy291"),
+    ("lis3dh", "LIS3DH Breakout", "lis3dhbreakout"),
+    ("tp4056", "TP4056 Modül", "tp4056modul"),
+    ("tp4056", "TP4056 Type-C", "tp4056typec"),
+    ("tp4056", "TP4056 Micro USB", "tp4056microusb"),
+    ("ina219", "INA219 Modül", "ina219modul"),
+    ("aht20", "AHT20 Modül", "aht20modul"),
+    ("ao3401", "AO3401A", "ao3401a"),
+    ("ht7833", "HT7833-1", "ht78331"),
+]
+
+
 def seed_baseline_knowledge(db_path: Optional[str] = None) -> int:
-    """Başlangıç komponent bilgilerini SQLite `component_knowledge` tablosuna aktarır."""
+    """Başlangıç komponent bilgilerini SQLite `component_knowledge` ve `component_aliases` tablolarına aktarır."""
     actual_path = db_path or electro_db.DB_PATH
     electro_db.init_db(actual_path)
     count = 0
@@ -475,9 +496,13 @@ def seed_baseline_knowledge(db_path: Optional[str] = None) -> int:
                 cons=p.get("cons", ""),
                 keywords=keywords,
                 summary=summary,
-                db_path=db_path or electro_db.DB_PATH
+                db_path=actual_path
             )
             count += 1
+
+    for canon, term, alias_comp in INITIAL_BREAKOUT_ALIASES:
+        electro_db.save_learned_alias(canon, term, alias_comp, source="curated_seed", db_path=actual_path)
+
     return count
 
 

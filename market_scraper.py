@@ -24,6 +24,7 @@ from component_matcher import (
     evaluate_component_relevance,
     get_component_search_aliases,
     discover_cooccurring_aliases,
+    parse_component_spec,
 )
 
 USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
@@ -444,7 +445,7 @@ def search_market(
                     pass
 
         vendors_with_stock = {r.get("vendor_key") for r in valid_results if r.get("in_stock")}
-        if len(vendors_with_stock) >= min(2, len(active_funcs)):
+        if len(vendors_with_stock) >= len(active_funcs):
             break
 
     # Mağaza başına geçerli ürün sayıları
@@ -454,6 +455,15 @@ def search_market(
     }
 
     candidate_items = list(valid_results)
+    for it in candidate_items:
+        it_sp = parse_component_spec(it.get("title", ""))
+        it["pack_quantity"] = it_sp.pack_quantity
+        if it_sp.pack_quantity > 1 and it.get("price_value"):
+            it["unit_price"] = round(it["price_value"] / it_sp.pack_quantity, 2)
+            it["price_display"] = f"{it['price']} ({it_sp.pack_quantity}'li Paket • Adet: {it['unit_price']:.2f} TL)"
+        else:
+            it["unit_price"] = it.get("price_value", 0.0)
+            it["price_display"] = it.get("price", "")
 
     # Önce yüksek uyumluluk kademesi (relevance_score >= 0.65), sonra fiyat küçükten büyüğe sırala
     if sort_by_price:

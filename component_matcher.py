@@ -120,6 +120,8 @@ class ComponentSpec:
     chemistry: Optional[str] = None         # 'LIFEPO4', 'LIPO_LIION'
     dielectric: Optional[str] = None        # 'CERAMIC', 'ELECTROLYTIC', 'TANTALUM'
     connector_family: Optional[str] = None  # 'jst-ph', 'jst-xh', 'xt60', 'xt30' vb.
+    form_factor: Optional[str] = None       # 'MODULE' (modül/kart/devre/breakout) veya 'IC' (entegre/çip/sop8/dip8)
+    pack_quantity: int = 1                  # Paket içindeki adet (örn: 10 adet -> 10)
     is_passive: bool = False
     tokens: List[str] = field(default_factory=list)
 
@@ -223,16 +225,16 @@ def _detect_functional_role(t_tr: str) -> str:
     if any(k in t_tr for k in ["kapasite gosterge", "pil gosterge", "seviye gosterge", "pil test", "voltmetre", "lipo alarm", "lipo buzzer"]):
         return "METER_INDICATOR"
 
-    # 6. BMS / Pil Koruma Devresi (Eğer gerçek mAh kapasiteli pil değilse)
-    has_mah = bool(re.search(r'\b\d+\s*mah\b', t_tr))
-    if any(k in t_tr for k in ["bms", "koruma kart", "koruma devre", "koruma modul", "batarya koruyucu", "balans devre", "pcm"]) and not has_mah:
+    # 6. BMS / Pil Koruma Devresi
+    if any(k in t_tr for k in ["bms", "koruma kart", "koruma devre", "koruma modul", "batarya koruyucu", "balans devre", "pcm"]):
         return "PROTECTION_BMS"
 
     # 7. Şarj Devresi / Şarj Aleti
-    if any(k in t_tr for k in ["sarj devre", "sarj modul", "sarj kart", "sarj cihaz", "sarj alet", "lipo sarj", "charger"]) and not has_mah:
+    if any(k in t_tr for k in ["sarj devre", "sarj modul", "sarj kart", "sarj cihaz", "sarj alet", "lipo sarj", "charger"]):
         return "CHARGER_MODULE"
 
     # 8. Pil / Batarya Hücresi
+    has_mah = bool(re.search(r'\b\d+\s*mah\b', t_tr))
     if any(k in t_tr for k in ["pil", "batarya", "battery", "lipo", "li-po", "lityum polimer", "li-polymer", "18650"]) or has_mah:
         # Nikel şerit, punta, makaron gibi sarf malzemeleri pil değildir
         if any(k in t_tr for k in ["nikel serit", "lehim serid", "punta", "pil band", "makaron"]):
@@ -324,8 +326,30 @@ def parse_component_spec(text: str) -> ComponentSpec:
     # 11. Pil Kimyası
     if any(k in t_tr for k in ["lifepo4", "li-fe", "demir fosfat", "3.2v"]):
         spec.chemistry = "LIFEPO4"
+    elif any(k in t_tr for k in ["ni-cd", "nicd", "ni-mh", "nimh", "nikel", "1.2v"]):
+        spec.chemistry = "NIMH_NICD"
     elif any(k in t_tr for k in ["lipo", "li-po", "li-ion", "lityum", "polimer", "polymer", "18650", "3.7v"]):
         spec.chemistry = "LIPO_LIION"
+
+    # 12. Form Faktörü (Modül / Devre Kartı vs Yalın Entegre / IC Çip)
+    has_mod_kw = any(k in t_tr for k in ["modul", "modulu", "karti", "kart", "devresi", "devre", "breakout", "shield", "board"])
+    has_ic_kw = any(k in t_tr for k in ["entegre", "entegresi", "kontrol entegresi", "smd sop8", "smd dip", "sop-8", "sop8", "dip-8", "dip8", "soic-8", "soic8", "qfn", "ic chip", "yalın entegre"])
+    if has_mod_kw and not has_ic_kw:
+        spec.form_factor = "MODULE"
+    elif has_ic_kw and not has_mod_kw:
+        spec.form_factor = "IC"
+    elif has_mod_kw and has_ic_kw:
+        if any(k in t_tr for k in ["sarj modul", "sarj devre", "gps modul", "sensor modul", "breakout"]):
+            spec.form_factor = "MODULE"
+        else:
+            spec.form_factor = "IC"
+
+    # 13. Paket / Adet Miktarı (Pack Quantity)
+    m_pack = re.search(r'\b(\d+)\s*(?:adet|li paket|lu paket|pack|pcs)\b', t_tr)
+    if m_pack:
+        q_val = int(m_pack.group(1))
+        if q_val in (2, 5, 10, 20, 25, 50, 100):
+            spec.pack_quantity = q_val
 
     spec.is_passive = bool(spec.capacitance_pf or spec.resistance_ohm or spec.inductance_uh) or any(
         k in t_tr for k in ["kondansator", "kapasitor", "capacitor", "direnc", "resistor", "bobin", "induktor"]
@@ -362,13 +386,16 @@ def discover_cooccurring_aliases(query: str, matched_titles: List[str]) -> List[
 
     for title in matched_titles:
         t_models = extract_model_identifiers(title)
-        for tm in t_models:
-            if tm.compact not in q_compacts and len(tm.compact) >= 4:
-                term_upper = tm.raw.upper()
-                if term_upper not in discovered:
-                    discovered.append(term_upper)
-                if electro_db:
-                    for qm in q_spec.models:
+        t_compacts = {tm.compact for tm in t_models}
+        for qm in q_spec.models:
+            if qm.compact not in t_compacts and qm.base_root not in t_compacts:
+                continue
+            for tm in t_models:
+                if tm.compact not in q_compacts and len(tm.compact) >= 4:
+                    term_upper = tm.raw.upper()
+                    if term_upper not in discovered:
+                        discovered.append(term_upper)
+                    if electro_db:
                         electro_db.save_learned_alias(qm.compact, term_upper, tm.compact, source="cross_vendor")
 
     return discovered
@@ -397,12 +424,14 @@ def get_component_search_aliases(query: str) -> List[str]:
     spec = parse_component_spec(parts[0] if parts else query)
     q_raw = parts[0] if parts else query.strip()
 
-    # 1. SQLite veritabanında öğrenilmiş alias'ları çek
+    # 1. SQLite veritabanında öğrenilmiş alias'ları ve bilgi bankası anahtar kelimelerini çek
     try:
         import electro_db
+        # A) component_aliases tablosu
         for m in spec.models:
             for row in electro_db.get_learned_aliases(m.compact):
                 _add(row["alias_term"])
+
     except Exception:
         pass
 
@@ -420,25 +449,49 @@ def get_component_search_aliases(query: str) -> List[str]:
             _add(f"{fam_u}-{sub_u}")
             _add(f"{fam_u}{sub_u}")
             _add(f"{fam_u} {sub_u}")
+            # Evrensel Çin / Maker Breakout kuralı (GY- prefiksli modüller: GY-NEO6MV2, GY-521, GY-271, GY-BMP280)
+            if m.family == "neo":
+                _add(f"GY-{fam_u}{sub_u}V2")
+                _add(f"GY-{fam_u}{sub_u}")
+            elif m.family in ("mpu", "hmc", "bmp", "bme", "mlx", "vl"):
+                _add(f"GY-{sub_u}")
+                _add(f"GY-{fam_u}{sub_u}")
         if m.base_root and m.base_root != m.compact:
             _add(m.base_root.upper())
 
     # 4. Parametrik Çekirdek Sorgu Üretimi (Mağaza arama motorlarının çok kelimeli sorgularda 0 dönmesini önler)
     if spec.role == "BATTERY_CELL":
-        mah_str = f"{int(spec.capacity_mah[0])}mAh" if spec.capacity_mah else ""
-        if mah_str:
-            _add(f"3.7V {mah_str} Lipo Pil")
-            _add(f"{mah_str} Lipo Pil")
-            _add(f"1S {mah_str} Lipo")
+        cell_str = f"{spec.cells_s[0]}S" if spec.cells_s else "1S"
+        mah_val = int(spec.capacity_mah[0]) if spec.capacity_mah else None
+        if mah_val:
+            _add(f"{mah_val}mAh Pil")
+            _add(f"{mah_val}mAh Li-Po")
+            _add(f"{mah_val}mAh")
+            _add(f"{cell_str} {mah_val}mAh Lipo")
+            _add(f"{cell_str} Lipo Pil")
+            _add(f"{cell_str} Lipo")
+            _add(f"{cell_str} Batarya")
         else:
-            _add("3.7V Lipo Pil")
-            _add("1S Lipo Pil")
+            _add(f"{cell_str} Lipo Pil")
+            _add(f"{cell_str} Lipo")
+            _add("Lipo Pil")
 
     elif spec.role == "PROTECTION_BMS":
         cell_str = f"{spec.cells_s[0]}S" if spec.cells_s else "1S"
         _add(f"{cell_str} BMS")
         _add(f"{cell_str} Koruma Kartı")
+        _add(f"{cell_str} Pil Koruma Kartı")
+        _add(f"{cell_str} LiPo Koruma Kartı")
         _add(f"{cell_str} Li-ion Koruma")
+        _add("1S Koruma Kartı")
+        _add("Pil Koruma Kartı")
+
+    elif spec.role == "CHARGER_MODULE":
+        if any(m.family == "tp" for m in spec.models):
+            _add("TP4056 Modül")
+            _add("TP4056 Şarj Modülü")
+            _add("TP4056 Şarj Devresi")
+            _add("TP4056 Type-C")
 
     elif spec.connector_family:
         cf_u = spec.connector_family.upper()
@@ -507,8 +560,8 @@ def _evaluate_single_spec_relevance(q_spec: ComponentSpec, t_spec: ComponentSpec
     # 2. FİZİKSEL VE ELEKTRİKSEL PARAMETRE DOĞRULAMASI
     # 2a. Pil Kimyası ve Hücre Sayısı
     if q_spec.role in ("BATTERY_CELL", "PROTECTION_BMS", "CHARGER_MODULE"):
-        if q_spec.chemistry != "LIFEPO4" and t_spec.chemistry == "LIFEPO4":
-            return False, 0.0, "Pil kimyası uyuşmuyor: Standart 3.7V LiPo/Li-ion yerine 3.2V LiFePO4."
+        if q_spec.chemistry == "LIPO_LIION" and t_spec.chemistry in ("LIFEPO4", "NIMH_NICD"):
+            return False, 0.0, f"Pil kimyası uyuşmuyor: Standart 3.7V LiPo/Li-ion yerine {t_spec.chemistry}."
         if q_spec.chemistry == "LIFEPO4" and t_spec.chemistry != "LIFEPO4":
             return False, 0.0, "Pil kimyası uyuşmuyor: LiFePO4 istendi."
 
@@ -565,9 +618,22 @@ def _evaluate_single_spec_relevance(q_spec: ComponentSpec, t_spec: ComponentSpec
     if q_spec.polarity and t_spec.polarity and q_spec.polarity != t_spec.polarity:
         return False, 0.0, f"Kanal tipi uyuşmuyor: İstenen {q_spec.polarity}, üründeki {t_spec.polarity}."
 
+    # 2g. Form Faktörü (Modül / Devre Kartı vs Yalın Entegre / IC Çip)
+    if q_spec.form_factor == "MODULE" and t_spec.form_factor == "IC":
+        return False, 0.0, "Modül / devre kartı istendi; ürün yalın entegre (IC çip)."
+    if q_spec.form_factor == "IC" and t_spec.form_factor == "MODULE":
+        return False, 0.0, "Yalın entegre (IC çip) istendi; ürün hazır modül / devre kartı."
+
     # 3. SENTAKTİK MODEL KODU VE ALT-VARYANT DOĞRULAMASI
     for qm in q_spec.models:
         accepted = {qm.compact, qm.base_root}
+        if qm.family == "neo":
+            accepted.add(f"gy{qm.family}{qm.subvariant}v2")
+            accepted.add(f"gy{qm.family}{qm.subvariant}")
+        elif qm.family in ("mpu", "hmc", "bmp", "bme", "mlx", "vl"):
+            accepted.add(f"gy{qm.subvariant}")
+            accepted.add(f"gy{qm.family}{qm.subvariant}")
+
         # SQLite'da öğrenilmiş çapraz alias varsa kabul listesine ekle
         try:
             import electro_db
