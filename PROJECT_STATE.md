@@ -149,15 +149,29 @@
 - **Pack Multipliers:** Detects pack quantities like "10'lu", "5 Adet" to calculate accurate per-unit costs.
 - **Same-Day Shipping Consolidation Rule:** If Robotistan is within 100 TL of the cheapest competitor, Robotistan is recommended to save on split cargo fees and delivery delays.
 
-### E. Draft Orders Purchase Tracking & Inventory Transfer
-- Items in drafts can be flagged as **"Satın Aldım"** (`is_purchased = 1`).
-- Once marked, they move to the "Satın Alınanlar" section with a **"Stoğa Aktar"** action.
-- "Stoğa Aktar" checks if the component already exists in `components` (incrementing stock) or creates a new component entry, setting `transferred_to_inventory = 1` and recording `inventory_component_id`.
+### E. Draft Orders Purchase Tracking & In-Place Smooth UX
+- **In-Place State Transition (No Scroll Jumping / Jarring Movement):**
+  - Marking an item as **"Satın Aldım"** (`is_purchased = 1`) preserves exact scroll position without destructive container wiping or full-page spinners.
+  - In default `Tümü` tab view, items remain in their original position in the list, updating seamlessly in-place with an emerald tint, `✓ Alındı` badge, and immediate **"Stoğa Aktar"** + **"↩ Geri Al"** buttons right next to the item.
+  - Features quick-filter tabs on each draft order card: `[ Tümü (${total}) | Alınacak (${pending}) | Satın Alınan (${purchased}) ]`.
+  - Subtle green pulse animation visually confirms the updated item without user losing their place.
+- **"Stoğa Aktar":** Checks if the component already exists in `components` (incrementing stock) or creates a new component entry, setting `transferred_to_inventory = 1` and recording `inventory_component_id`.
 
 ### F. Defect Splitting & Smart Repair Merging (Arızaya Ayırma & Akıllı Tamir)
 - **Partial/Total Stock Split to Defective:** Clicking the warning icon (`⚠️`) on any working stock item opens `#move-to-defective-modal`. Users choose quantity to split (e.g. 1 out of 5), defect reason, and storage location (default: "Arızalı Kutusu"). Working quantity decrements (5 -> 4) and a linked defective record is created with 1 piece, recording complete audit logs.
 - **Smart Repair Merging:** When "Tamir Edildi" is clicked in the Defective tab, the system checks for an existing `working` record of the same component and automatically merges the repaired quantity back (4 + 1 = 5), eliminating messy duplicate rows.
 - **MCP Tools:** Supported via `electro_move_to_defective` and `electro_mark_repaired`.
+
+### G. Component Unit Tracking: Serials, IMEIs, Phone Numbers & MAC Addresses
+- **Purpose:** Solves the reality of electronics labs where components with quantity > 1 (e.g. 5x SIM800L, 5x IoT SIM Cards, 3x ESP32) have distinct physical identifiers (different IMEIs, different phone numbers, MAC addresses, serials, BTK registration notes).
+- **Database Schema:** Dedicated `component_units` table with foreign key to `components(id)`, tracking `unit_identifier`, `unit_type` (`imei`, `phone`, `mac`, `serial`, `custom`), `status` (`working`, `defective`, `in_use`, `untested`), and `notes`.
+- **Auto-Detection:** Automatically infers `imei` (15-digit numbers), `phone` (Turkish mobile format), `mac` (standard hex colon/dash format), or `serial`.
+- **Bulk Import (Barkod / Not Defteri):** Users can paste multiple lines from barcode scanners or notes (e.g. `861234... - BTK Kayıtlı`) to batch register all units in 1 tap.
+- **Global Inventory Search:** Searching an IMEI, phone number, or MAC address in the main search bar immediately matches and displays the parent component with a direct badge (e.g. `🎯 861234045678901 (BTK Kayıtlı)`).
+- **Defective & Repair Sync:**
+  - When splitting a component to defective, users can select the exact unit(s) that failed. Those specific units are reassigned to the new defective component record.
+  - When repaired, units are automatically transferred back to the consolidated working component.
+- **MCP Tools:** `electro_list_component_units`, `electro_add_component_unit`, `electro_bulk_add_component_units`, `electro_update_component_unit`, `electro_delete_component_unit`.
 
 ---
 

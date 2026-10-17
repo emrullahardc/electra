@@ -235,6 +235,21 @@ def init_db(db_path: str = DB_PATH) -> None:
             )
         """)
 
+        # Bileşen Birimleri / Seri No / IMEI / Telefon No Takip Tablosu
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS component_units (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                component_id INTEGER NOT NULL,
+                unit_identifier TEXT NOT NULL,
+                unit_type TEXT DEFAULT 'custom', -- 'imei', 'phone', 'mac', 'serial', 'custom'
+                status TEXT NOT NULL DEFAULT 'working', -- 'working', 'defective', 'in_use', 'untested'
+                notes TEXT DEFAULT '',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (component_id) REFERENCES components(id) ON DELETE CASCADE
+            )
+        """)
+
         # Varsayılan kullanıcı kontrolü (Yoksa oluştur)
         cursor.execute("SELECT COUNT(*) FROM users")
         if cursor.fetchone()[0] == 0:
@@ -255,6 +270,8 @@ def init_db(db_path: str = DB_PATH) -> None:
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_session_token ON sessions(token)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_alias_canon ON component_aliases(canonical_compact)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_alias_comp ON component_aliases(alias_compact)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_comp_units_comp_id ON component_units(component_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_comp_units_ident ON component_units(unit_identifier)")
 
         # Fiyat yuvarlama ve veri tutarlılığı temizliği
         cursor.execute("UPDATE draft_orders SET total_estimated_price = ROUND(total_estimated_price, 2)")
@@ -414,7 +431,10 @@ def get_component(component_id: int, db_path: str = DB_PATH) -> Optional[Dict[st
         cursor.execute("SELECT * FROM components WHERE id = ?", (component_id,))
         row = cursor.fetchone()
         if row:
-            return dict(row)
+            res = dict(row)
+            res["units"] = get_component_units(component_id, db_path)
+            res["unit_count"] = len(res["units"])
+            return res
     return None
 
 
@@ -430,7 +450,8 @@ def search_components(
     """
     Gelişmiş filtreleme ve esnek donanım araması.
     Tire/boşluk/bitişik yazım farklarını (örn: 'ESP32-C3 SuperMini' <-> 'esp32 c3 super mini'),
-    Türkçe karakterleri ve ek açıklama kelimelerini ('SIM800L Modül' <-> 'sim800l') tolere eder.
+    Türkçe karakterleri, ek açıklama kelimelerini ('SIM800L Modül' <-> 'sim800l') ve
+    kayıtlı birimlerin (IMEI, Seri No, Tel No) değerlerini tolere eder.
     """
     with get_connection(db_path) as conn:
         cursor = conn.cursor()
@@ -460,6 +481,12 @@ def search_components(
         cursor.execute(sql, tuple(params))
         all_rows = [dict(r) for r in cursor.fetchall()]
 
+        # Birim sayılarını tek sorguda eşleştir
+        cursor.execute("SELECT component_id, COUNT(*) as cnt FROM component_units GROUP BY component_id")
+        unit_counts = {r["component_id"]: r["cnt"] for r in cursor.fetchall()}
+        for r in all_rows:
+            r["unit_count"] = unit_counts.get(r["id"], 0)
+
         if not query or not query.strip():
             return all_rows[:limit]
 
@@ -468,6 +495,18 @@ def search_components(
         clean_q = query.strip()
         q_tr = normalize_tr(clean_q)
         q_compact = normalize_compact(clean_q)
+
+        # Birim kimliği (IMEI, telefon no, seri no) eşleşmesi kontrolü
+        cursor.execute("""
+            SELECT * FROM component_units 
+            WHERE unit_identifier LIKE ? OR notes LIKE ?
+        """, (f"%{clean_q}%", f"%{clean_q}%"))
+        matched_unit_rows = cursor.fetchall()
+        matched_comp_units = {}
+        for mu in matched_unit_rows:
+            cid = mu["component_id"]
+            if cid not in matched_comp_units:
+                matched_comp_units[cid] = dict(mu)
 
         filler_words = {
             "modul", "modulu", "kart", "karti", "devre", "devresi",
@@ -480,6 +519,12 @@ def search_components(
 
         scored_matches = []
         for row in all_rows:
+            # 0. Birim kimliği (IMEI / Tel No / Seri No) doğrudan eşleşmesi
+            if row["id"] in matched_comp_units:
+                row["matched_unit"] = matched_comp_units[row["id"]]
+                scored_matches.append((1.1, row))
+                continue
+
             full_blob = f"{row.get('name', '')} {row.get('value', '')} {row.get('package', '')} {row.get('notes', '')} {row.get('tags', '')} {row.get('category', '')}"
             blob_tr = normalize_tr(full_blob)
             blob_compact = normalize_compact(full_blob)
@@ -1527,6 +1572,7 @@ def move_component_to_defective(
     target_status: str = "defective",
     defect_notes: str = "",
     new_location: str = "Arızalı Kutusu",
+    unit_ids: Optional[List[int]] = None,
     db_path: str = DB_PATH
 ) -> Dict[str, Any]:
     """
@@ -1534,6 +1580,7 @@ def move_component_to_defective(
     Eğer tüm stok ayrılıyorsa mevcut kaydın durumunu günceller.
     Eğer kısmi stok ayrılıyorsa (örn: 5 taneden 1'i), sağlam stoğu 4'e düşürür ve
     1 adetlik yeni bir arızalı parça kaydı açar.
+    Opsiyonel unit_ids parametresi ile arızalanan spesifik IMEI/seri no'lar yeni arızalı kayda bağlanır.
     """
     with get_connection(db_path) as conn:
         cursor = conn.cursor()
@@ -1571,6 +1618,13 @@ def move_component_to_defective(
                 INSERT INTO stock_logs (component_id, change_amount, new_quantity, reason)
                 VALUES (?, ?, ?, ?)
             """, (component_id, 0, current_qty, f"Durum '{old_status}' -> '{target_status}' olarak değiştirildi ({qty_to_move} adet)"))
+
+            if unit_ids:
+                cursor.execute(f"""
+                    UPDATE component_units
+                    SET status = ?, updated_at = ?
+                    WHERE id IN ({','.join('?' * len(unit_ids))})
+                """, (target_status, now, *unit_ids))
 
             conn.commit()
             return {
@@ -1618,6 +1672,13 @@ def move_component_to_defective(
             VALUES (?, ?, ?, ?)
         """, (new_defective_id, qty_to_move, qty_to_move, f"Sağlam stoktan (#{component_id}) arızaya ayrıldı"))
 
+        if unit_ids:
+            cursor.execute(f"""
+                UPDATE component_units
+                SET component_id = ?, status = ?, updated_at = ?
+                WHERE id IN ({','.join('?' * len(unit_ids))})
+            """, (new_defective_id, target_status, now, *unit_ids))
+
         conn.commit()
         return {
             "success": True,
@@ -1643,7 +1704,7 @@ def mark_component_repaired(
     Arızalı/çıkma bir parçayı tamir edildiğinde sağlam stoğa geri alır.
     Eğer aynı parçanın (isim, kategori) mevcut bir 'working' kaydı varsa,
     tamir edilen adet doğrudan o sağlam kaydın stok adedine eklenir ve mükerrer
-    kayıt oluşması önlenir.
+    kayıt oluşması önlenir. Parçaya bağlı birimler de otomatik olarak sağlam kayda birleştirilir.
     """
     with get_connection(db_path) as conn:
         cursor = conn.cursor()
@@ -1689,6 +1750,13 @@ def mark_component_repaired(
                 VALUES (?, ?, ?, ?)
             """, (w_id, qty, new_w_qty, f"Tamir edildi (#{defective_id} arızalı kaydından stoğa birleştirildi)"))
 
+            # Arızalı kaydın birimlerini de sağlam kayda devret
+            cursor.execute("""
+                UPDATE component_units
+                SET component_id = ?, status = 'working', updated_at = ?
+                WHERE component_id = ?
+            """, (w_id, now, defective_id))
+
             # Arızalı kaydı güncelle veya sil
             if qty >= current_qty:
                 cursor.execute("DELETE FROM stock_logs WHERE component_id = ?", (defective_id,))
@@ -1729,6 +1797,12 @@ def mark_component_repaired(
                     INSERT INTO stock_logs (component_id, change_amount, new_quantity, reason)
                     VALUES (?, ?, ?, ?)
                 """, (defective_id, 0, current_qty, "Tamir edildi -> Sağlam duruma geçirildi"))
+
+                cursor.execute("""
+                    UPDATE component_units
+                    SET status = 'working', updated_at = ?
+                    WHERE component_id = ?
+                """, (now, defective_id))
 
                 conn.commit()
                 return {
@@ -1773,6 +1847,145 @@ def mark_component_repaired(
                     "new_working_quantity": qty,
                     "message": f"'{comp['name']}' parçasından {qty} adet tamir edilip sağlam stoğa alındı!"
                 }
+
+
+# ==========================================
+# BİLEŞEN BİRİM / SERİ NO / IMEI / TEL NO TAKİBİ
+# ==========================================
+
+def detect_unit_type(identifier: str) -> str:
+    """Kimlik dizgisine göre tip tahmini yapar (imei, phone, mac, serial)."""
+    raw = identifier.strip()
+    digits_only = re.sub(r'\D', '', raw)
+    if len(digits_only) == 15 and raw.isdigit():
+        return "imei"
+    if re.fullmatch(r'(\+?90|0)?5\d{9}', digits_only):
+        return "phone"
+    if re.fullmatch(r'([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})', raw):
+        return "mac"
+    return "serial"
+
+
+def get_component_units(component_id: int, db_path: str = DB_PATH) -> List[Dict[str, Any]]:
+    """Bir parçaya ait kayıtlı tüm tekil birimleri (IMEI, Seri No, Tel No vb.) listeler."""
+    with get_connection(db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT * FROM component_units
+            WHERE component_id = ?
+            ORDER BY id ASC
+        """, (component_id,))
+        return [dict(r) for r in cursor.fetchall()]
+
+
+def add_component_unit(
+    component_id: int,
+    unit_identifier: str,
+    unit_type: str = "auto",
+    status: str = "working",
+    notes: str = "",
+    db_path: str = DB_PATH
+) -> int:
+    """Tekil bir IMEI, seri no veya telefon no kaydı ekler."""
+    ident = unit_identifier.strip()
+    if not ident:
+        raise ValueError("Birim kimliği (IMEI, Seri No, Tel No) boş olamaz.")
+    
+    u_type = unit_type
+    if not u_type or u_type == "auto":
+        u_type = detect_unit_type(ident)
+
+    with get_connection(db_path) as conn:
+        cursor = conn.cursor()
+        now = datetime.now().isoformat()
+        cursor.execute("""
+            INSERT INTO component_units (component_id, unit_identifier, unit_type, status, notes, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, (component_id, ident, u_type, status, notes.strip(), now, now))
+        conn.commit()
+        return cursor.lastrowid
+
+
+def bulk_add_component_units(
+    component_id: int,
+    units_text: str,
+    default_type: str = "auto",
+    status: str = "working",
+    notes: str = "",
+    db_path: str = DB_PATH
+) -> List[Dict[str, Any]]:
+    """
+    Alt alta veya virgülle girilen çoklu IMEI / seri no / telefon no listesini topluca kaydeder.
+    Her satırda opsiyonel olarak '861234... - BTK Kayıtlı' formatında not verilebilir.
+    """
+    lines = [line.strip() for line in re.split(r'[\r\n,]+', units_text) if line.strip()]
+    added = []
+    with get_connection(db_path) as conn:
+        cursor = conn.cursor()
+        now = datetime.now().isoformat()
+        for line in lines:
+            parts = line.split(" - ", 1)
+            ident = parts[0].strip()
+            unit_notes = (parts[1].strip() if len(parts) > 1 else notes).strip()
+            u_type = default_type
+            if not u_type or u_type == "auto":
+                u_type = detect_unit_type(ident)
+
+            cursor.execute("""
+                INSERT INTO component_units (component_id, unit_identifier, unit_type, status, notes, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, (component_id, ident, u_type, status, unit_notes, now, now))
+            added.append({
+                "id": cursor.lastrowid,
+                "component_id": component_id,
+                "unit_identifier": ident,
+                "unit_type": u_type,
+                "status": status,
+                "notes": unit_notes
+            })
+        conn.commit()
+    return added
+
+
+def update_component_unit(
+    unit_id: int,
+    unit_identifier: Optional[str] = None,
+    unit_type: Optional[str] = None,
+    status: Optional[str] = None,
+    notes: Optional[str] = None,
+    db_path: str = DB_PATH
+) -> bool:
+    """Kayıtlı bir birimin bilgilerini veya durumunu günceller."""
+    with get_connection(db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM component_units WHERE id = ?", (unit_id,))
+        existing = cursor.fetchone()
+        if not existing:
+            return False
+
+        new_ident = unit_identifier.strip() if unit_identifier is not None else existing["unit_identifier"]
+        new_type = unit_type if unit_type is not None else existing["unit_type"]
+        new_status = status if status is not None else existing["status"]
+        new_notes = notes.strip() if notes is not None else existing["notes"]
+        now = datetime.now().isoformat()
+
+        cursor.execute("""
+            UPDATE component_units
+            SET unit_identifier = ?, unit_type = ?, status = ?, notes = ?, updated_at = ?
+            WHERE id = ?
+        """, (new_ident, new_type, new_status, new_notes, now, unit_id))
+        conn.commit()
+        return cursor.rowcount > 0
+
+
+def delete_component_unit(unit_id: int, db_path: str = DB_PATH) -> bool:
+    """Kayıtlı bir birimi siler."""
+    with get_connection(db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM component_units WHERE id = ?", (unit_id,))
+        conn.commit()
+        return cursor.rowcount > 0
+
 
 
 

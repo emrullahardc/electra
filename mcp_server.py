@@ -220,6 +220,83 @@ TOOLS = [
         }
     },
     {
+        "name": "electro_list_component_units",
+        "description": (
+            "Bir parçaya ait kayıtlı tüm tekil birimleri (IMEI, telefon numarası, MAC adresi, seri numarası) listeler. "
+            "Örneğin 5 adet SIM800L veya 5 adet SIM kartın her birinin ayrı IMEI, telefon no veya durumlarını döner."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "component_id": {"type": "integer", "description": "Birimleri listelenecek parçanın ID numarası"}
+            },
+            "required": ["component_id"]
+        }
+    },
+    {
+        "name": "electro_add_component_unit",
+        "description": (
+            "Bir bileşene tekil bir IMEI, telefon numarası, MAC adresi veya seri numarası kaydeder. "
+            "Örn: SIM800L için IMEI: '861234045678901', SIM Kart için Tel No: '05321234567' gibi."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "component_id": {"type": "integer", "description": "Bileşenin ID numarası"},
+                "unit_identifier": {"type": "string", "description": "IMEI, seri numarası, telefon numarası veya MAC adresi"},
+                "unit_type": {"type": "string", "enum": ["auto", "imei", "phone", "mac", "serial", "custom"], "description": "Birim türü (varsayılan: auto)"},
+                "status": {"type": "string", "enum": ["working", "defective", "in_use", "untested"], "description": "Birim durumu (varsayılan: working)"},
+                "notes": {"type": "string", "description": "Özel not (örn: 'BTK Kayıtlı', 'Turkcell IoT Hat', 'Yedek')"}
+            },
+            "required": ["component_id", "unit_identifier"]
+        }
+    },
+    {
+        "name": "electro_bulk_add_component_units",
+        "description": (
+            "Bir bileşene alt alta veya virgülle ayrılmış çoklu IMEI/seri no/telefon no listesini tek seferde kaydeder."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "component_id": {"type": "integer", "description": "Bileşenin ID numarası"},
+                "units_text": {"type": "string", "description": "Alt alta veya virgülle ayrılmış IMEI/Seri no listesi. Satır formatı opsiyonel '861234... - Not' olabilir."},
+                "default_type": {"type": "string", "enum": ["auto", "imei", "phone", "mac", "serial", "custom"], "default": "auto"},
+                "status": {"type": "string", "enum": ["working", "defective", "in_use", "untested"], "default": "working"},
+                "notes": {"type": "string", "description": "Genel not"}
+            },
+            "required": ["component_id", "units_text"]
+        }
+    },
+    {
+        "name": "electro_update_component_unit",
+        "description": (
+            "Kayıtlı bir tekil birimin (IMEI/seri no/tel no) durumunu ('working', 'defective', 'in_use'), kimliğini veya notunu günceller."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "unit_id": {"type": "integer", "description": "Birim ID numarası"},
+                "unit_identifier": {"type": "string", "description": "Yeni kimlik dizgisi (isteğe bağlı)"},
+                "unit_type": {"type": "string", "enum": ["imei", "phone", "mac", "serial", "custom"], "description": "Yeni birim türü"},
+                "status": {"type": "string", "enum": ["working", "defective", "in_use", "untested"], "description": "Yeni durum"},
+                "notes": {"type": "string", "description": "Yeni not"}
+            },
+            "required": ["unit_id"]
+        }
+    },
+    {
+        "name": "electro_delete_component_unit",
+        "description": "Kayıtlı bir tekil birimi siler.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "unit_id": {"type": "integer", "description": "Silinecek birimin ID numarası"}
+            },
+            "required": ["unit_id"]
+        }
+    },
+    {
         "name": "electro_get_defective_parts",
         "description": (
             "Kullanıcının atölyesinde bulunan tüm arızalı, hurda veya test bekleyen parçaları ve arıza notlarını listeler. "
@@ -902,6 +979,94 @@ class MCPServer:
                     "result": {
                         "content": [{"type": "text", "text": f"✅ {res['message']}"}],
                         "data": res
+                    }
+                }
+
+            elif tool_name == "electro_list_component_units":
+                comp_id = int(args.get("component_id"))
+                comp = electro_db.get_component(comp_id)
+                if not comp:
+                    raise ValueError(f"ID #{comp_id} olan bileşen bulunamadı.")
+                units = electro_db.get_component_units(comp_id)
+                md = [f"## 📱 '{comp['name']}' Tekil Birim / IMEI / Seri No Listesi ({len(units)} adet)\n"]
+                if not units:
+                    md.append("Bu parçaya kayıtlı IMEI, seri no veya telefon no bulunmuyor.")
+                else:
+                    for u in units:
+                        st = electro_db.STATUSES.get(u['status'], u['status'])
+                        md.append(f"- **{u['unit_identifier']}** `[{u['unit_type'].upper()}]` — Durum: **{st}**")
+                        if u.get('notes'):
+                            md.append(f"  📝 Not: {u['notes']}")
+                return {
+                    "jsonrpc": "2.0",
+                    "id": msg_id,
+                    "result": {
+                        "content": [{"type": "text", "text": "\n".join(md)}],
+                        "units": units
+                    }
+                }
+
+            elif tool_name == "electro_add_component_unit":
+                comp_id = int(args.get("component_id"))
+                ident = str(args.get("unit_identifier", "")).strip()
+                u_type = str(args.get("unit_type", "auto"))
+                st = str(args.get("status", "working"))
+                notes = str(args.get("notes", "")).strip()
+
+                uid = electro_db.add_component_unit(comp_id, ident, unit_type=u_type, status=st, notes=notes)
+                return {
+                    "jsonrpc": "2.0",
+                    "id": msg_id,
+                    "result": {
+                        "content": [{"type": "text", "text": f"✅ Birim ({ident}) başarıyla kaydedildi (ID: #{uid})"}],
+                        "unit_id": uid
+                    }
+                }
+
+            elif tool_name == "electro_bulk_add_component_units":
+                comp_id = int(args.get("component_id"))
+                text = str(args.get("units_text", "")).strip()
+                def_type = str(args.get("default_type", "auto"))
+                st = str(args.get("status", "working"))
+                notes = str(args.get("notes", "")).strip()
+
+                added = electro_db.bulk_add_component_units(comp_id, text, default_type=def_type, status=st, notes=notes)
+                return {
+                    "jsonrpc": "2.0",
+                    "id": msg_id,
+                    "result": {
+                        "content": [{"type": "text", "text": f"✅ Toplam {len(added)} adet birim (IMEI/seri no) başarıyla kaydedildi."}],
+                        "added_count": len(added),
+                        "units": added
+                    }
+                }
+
+            elif tool_name == "electro_update_component_unit":
+                uid = int(args.get("unit_id"))
+                ident = args.get("unit_identifier")
+                u_type = args.get("unit_type")
+                st = args.get("status")
+                notes = args.get("notes")
+
+                success = electro_db.update_component_unit(uid, unit_identifier=ident, unit_type=u_type, status=st, notes=notes)
+                return {
+                    "jsonrpc": "2.0",
+                    "id": msg_id,
+                    "result": {
+                        "content": [{"type": "text", "text": f"✅ Birim #{uid} güncellendi." if success else f"❌ Birim #{uid} bulunamadı."}],
+                        "success": success
+                    }
+                }
+
+            elif tool_name == "electro_delete_component_unit":
+                uid = int(args.get("unit_id"))
+                success = electro_db.delete_component_unit(uid)
+                return {
+                    "jsonrpc": "2.0",
+                    "id": msg_id,
+                    "result": {
+                        "content": [{"type": "text", "text": f"🗑️ Birim #{uid} silindi." if success else f"❌ Birim #{uid} bulunamadı."}],
+                        "success": success
                     }
                 }
 

@@ -240,6 +240,14 @@ class ElectroRequestHandler(http.server.SimpleHTTPRequestHandler):
             self.send_json(res)
             return
 
+        # 2.6 API: Parçanın Kayıtlı Tekil Birimleri (IMEI, Seri No, Tel No)
+        elif path.startswith("/api/components/") and path.endswith("/units"):
+            parts = path.split("/")
+            comp_id = int(parts[3])
+            units = electro_db.get_component_units(comp_id)
+            self.send_json({"success": True, "units": units, "component_id": comp_id})
+            return
+
         # 3. API: Arızalı ve Çıkma Parçalar
         elif path == "/api/defective":
             items = electro_db.get_defective_components()
@@ -485,13 +493,15 @@ class ElectroRequestHandler(http.server.SimpleHTTPRequestHandler):
             status_val = data.get("status", "defective")
             notes = data.get("notes", "")
             loc = data.get("location", "Arızalı Kutusu")
+            unit_ids = data.get("unit_ids")
             try:
                 res = electro_db.move_component_to_defective(
                     component_id=comp_id,
                     qty_to_move=qty,
                     target_status=status_val,
                     defect_notes=notes,
-                    new_location=loc
+                    new_location=loc,
+                    unit_ids=unit_ids
                 )
                 self.send_json(res)
             except Exception as e:
@@ -511,6 +521,36 @@ class ElectroRequestHandler(http.server.SimpleHTTPRequestHandler):
                     target_location=loc
                 )
                 self.send_json(res)
+            except Exception as e:
+                self.send_json({"error": str(e)}, status=400)
+            return
+
+        # 2.8 API: Parçaya Tekil Birim Ekle (Tekli)
+        elif path.startswith("/api/components/") and path.endswith("/units"):
+            parts = path.split("/")
+            comp_id = int(parts[3])
+            ident = data.get("unit_identifier", "")
+            u_type = data.get("unit_type", "auto")
+            st = data.get("status", "working")
+            notes = data.get("notes", "")
+            try:
+                uid = electro_db.add_component_unit(comp_id, ident, unit_type=u_type, status=st, notes=notes)
+                self.send_json({"success": True, "unit_id": uid, "message": "Birim başarıyla kaydedildi"})
+            except Exception as e:
+                self.send_json({"error": str(e)}, status=400)
+            return
+
+        # 2.9 API: Parçaya Toplu Birim Ekle (Çoklu / Barkod)
+        elif path.startswith("/api/components/") and path.endswith("/units/bulk"):
+            parts = path.split("/")
+            comp_id = int(parts[3])
+            text = data.get("text", "")
+            def_type = data.get("unit_type", "auto")
+            st = data.get("status", "working")
+            notes = data.get("notes", "")
+            try:
+                added = electro_db.bulk_add_component_units(comp_id, text, default_type=def_type, status=st, notes=notes)
+                self.send_json({"success": True, "added_count": len(added), "units": added})
             except Exception as e:
                 self.send_json({"error": str(e)}, status=400)
             return
@@ -620,7 +660,23 @@ class ElectroRequestHandler(http.server.SimpleHTTPRequestHandler):
             self.send_json({"error": "Kimlik doğrulaması gerekli.", "authenticated": False}, status=401)
             return
 
-        if path.startswith("/api/components/"):
+        if path.startswith("/api/components/units/"):
+            unit_id = int(path.split("/")[4])
+            length = int(self.headers.get("Content-Length", 0))
+            body = self.rfile.read(length).decode("utf-8") if length > 0 else "{}"
+            try:
+                data = json.loads(body)
+                ident = data.get("unit_identifier")
+                u_type = data.get("unit_type")
+                st = data.get("status")
+                notes = data.get("notes")
+                success = electro_db.update_component_unit(unit_id, unit_identifier=ident, unit_type=u_type, status=st, notes=notes)
+                self.send_json({"success": success})
+            except Exception as e:
+                self.send_json({"error": str(e)}, status=400)
+            return
+
+        elif path.startswith("/api/components/"):
             comp_id = int(path.split("/")[3])
             length = int(self.headers.get("Content-Length", 0))
             body = self.rfile.read(length).decode("utf-8") if length > 0 else "{}"
@@ -684,7 +740,13 @@ class ElectroRequestHandler(http.server.SimpleHTTPRequestHandler):
             self.send_json({"error": "Kimlik doğrulaması gerekli.", "authenticated": False}, status=401)
             return
 
-        if path.startswith("/api/components/"):
+        if path.startswith("/api/components/units/"):
+            unit_id = int(path.split("/")[4])
+            success = electro_db.delete_component_unit(unit_id)
+            self.send_json({"success": success, "message": "Birim kaydı silindi"})
+            return
+
+        elif path.startswith("/api/components/"):
             comp_id = int(path.split("/")[3])
             success = electro_db.delete_component(comp_id)
             self.send_json({"success": success})

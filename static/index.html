@@ -1013,6 +1013,19 @@
           </div>
         </div>
 
+        <!-- Birim Seçimi (Eğer parça için kayıtlı IMEI/Seri No varsa) -->
+        <div id="move-def-units-section" class="hidden bg-white/5 border border-white/5 rounded-xl p-3 space-y-2">
+          <div class="flex items-center justify-between">
+            <label class="text-[11px] font-medium text-white flex items-center gap-1.5">
+              <i class="fa-solid fa-barcode text-amber-400"></i> Arızalanan Birimi Seçin (Opsiyonel)
+            </label>
+            <span class="text-[10px] text-[#8e8e93]">Seçilen birim arızalıya devredilir</span>
+          </div>
+          <div id="move-def-units-list" class="max-h-28 overflow-y-auto space-y-1 text-xs">
+            <!-- Checkbox listesi dinamik doldurulur -->
+          </div>
+        </div>
+
         <!-- Miktar & Durum -->
         <div class="grid grid-cols-2 gap-3">
           <div>
@@ -1058,6 +1071,110 @@
           </button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- Bileşen Birimleri / Seri No / IMEI / Tel No Yönetim Modalı -->
+  <div id="component-units-modal" onclick="if(event.target === this) closeComponentUnitsModal()" class="fixed inset-0 bg-black/70 backdrop-blur-md z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-[#18181b] border border-[#2c2c2e] rounded-2xl w-full max-w-xl overflow-hidden shadow-2xl animate-fade-in flex flex-col max-h-[90vh]">
+      <!-- Header -->
+      <div class="px-5 py-3.5 border-b border-[#28282b] flex items-center justify-between flex-shrink-0">
+        <div class="flex items-center gap-2">
+          <i class="fa-solid fa-barcode text-blue-400 text-sm"></i>
+          <div>
+            <h3 class="font-semibold text-white text-sm flex items-center gap-2">
+              <span id="units-modal-comp-name">Bileşen Adı</span>
+              <span id="units-modal-badge" class="apple-badge apple-badge-blue text-[10px]">0 Birim</span>
+            </h3>
+            <p id="units-modal-comp-sub" class="text-[11px] text-[#8e8e93]">Stok: 0 Adet • IMEI / Seri No / Tel No Takibi</p>
+          </div>
+        </div>
+        <button onclick="closeComponentUnitsModal()" class="text-[#8e8e93] hover:text-white p-1"><i class="fa-solid fa-xmark text-sm"></i></button>
+      </div>
+
+      <!-- Content Area (Scrollable) -->
+      <div class="p-5 overflow-y-auto space-y-4 text-xs flex-1">
+        <input type="hidden" id="units-modal-comp-id" value="">
+
+        <!-- Tab Seçimi: Tekli Ekle vs Toplu Yapıştır -->
+        <div class="bg-[#121214] p-3 rounded-xl border border-[#28282b] space-y-3">
+          <div class="flex items-center justify-between border-b border-white/5 pb-2">
+            <span class="font-medium text-white text-xs flex items-center gap-1.5">
+              <i class="fa-solid fa-plus-circle text-blue-400"></i> Yeni Birim Kaydet
+            </span>
+            <div class="flex items-center gap-1 bg-black/40 p-0.5 rounded-lg border border-white/5 text-[11px]">
+              <button type="button" id="unit-tab-single-btn" onclick="switchUnitAddTab('single')" class="px-2.5 py-1 rounded-md bg-blue-600 text-white font-medium transition">Tekli</button>
+              <button type="button" id="unit-tab-bulk-btn" onclick="switchUnitAddTab('bulk')" class="px-2.5 py-1 rounded-md text-[#8e8e93] hover:text-white transition">Toplu Yapıştır</button>
+            </div>
+          </div>
+
+          <!-- Tekli Ekleme Formu -->
+          <div id="unit-add-single-form" class="space-y-2.5">
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              <div class="sm:col-span-2">
+                <label class="block text-[11px] text-[#8e8e93] mb-1">Kimlik (IMEI / Tel No / Seri No / MAC) *</label>
+                <input type="text" id="unit-single-ident" placeholder="Örn: 861234045678901 veya 05321234567" class="apple-input w-full px-3 py-1.5 font-mono text-xs">
+              </div>
+              <div>
+                <label class="block text-[11px] text-[#8e8e93] mb-1">Tip</label>
+                <select id="unit-single-type" class="apple-input w-full px-2 py-1.5 text-xs">
+                  <option value="auto">Otomatik Algıla</option>
+                  <option value="imei">📱 IMEI</option>
+                  <option value="phone">📞 Telefon No</option>
+                  <option value="mac">🌐 MAC Adresi</option>
+                  <option value="serial">🏷️ Seri No</option>
+                  <option value="custom">Özel</option>
+                </select>
+              </div>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              <div>
+                <label class="block text-[11px] text-[#8e8e93] mb-1">Durum</label>
+                <select id="unit-single-status" class="apple-input w-full px-2 py-1.5 text-xs">
+                  <option value="working">🟢 Sağlam</option>
+                  <option value="defective">🔴 Arızalı</option>
+                  <option value="in_use">🔵 Kullanımda / Devrede</option>
+                  <option value="untested">🟡 Test Bekliyor</option>
+                </select>
+              </div>
+              <div class="sm:col-span-2">
+                <label class="block text-[11px] text-[#8e8e93] mb-1">Not / Açıklama</label>
+                <div class="flex gap-2">
+                  <input type="text" id="unit-single-notes" placeholder="Örn: BTK Kayıtlı, Turkcell IoT 100MB..." class="apple-input flex-1 px-3 py-1.5 text-xs">
+                  <button type="button" onclick="submitAddSingleUnit()" class="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-medium flex items-center gap-1 transition flex-shrink-0">
+                    <i class="fa-solid fa-plus text-xs"></i> <span>Ekle</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Toplu Yapıştırma Formu -->
+          <div id="unit-add-bulk-form" class="hidden space-y-2.5">
+            <p class="text-[11px] text-[#8e8e93]">Barkod okuyucudan okuttuğunuz veya not defterinizdeki IMEI / telefon / seri numaralarını alt alta yapıştırın:</p>
+            <textarea id="unit-bulk-text" rows="3" placeholder="861234045678901&#10;861234045678902 - BTK Kayıtlı&#10;861234045678903" class="apple-input w-full px-3 py-2 font-mono text-xs"></textarea>
+            <div class="flex items-center justify-between gap-2">
+              <span class="text-[10px] text-[#71717a]">Satır sonuna ' - Not' ekleyerek birime özel açıklama yazabilirsiniz.</span>
+              <button type="button" onclick="submitAddBulkUnits()" class="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-medium flex items-center gap-1 transition flex-shrink-0">
+                <i class="fa-solid fa-file-import text-xs"></i> <span>Topluca Ekle</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Kayıtlı Birimler Listesi -->
+        <div class="space-y-2">
+          <div class="flex items-center justify-between">
+            <h4 class="font-medium text-white text-xs flex items-center gap-1.5">
+              <i class="fa-solid fa-list-check text-[#8e8e93]"></i> Kayıtlı Tekil Birimler
+            </h4>
+            <span id="units-list-count" class="text-[11px] text-[#8e8e93] font-mono">0 Kayıt</span>
+          </div>
+          <div id="units-list-container" class="space-y-1.5">
+            <!-- Dinamik doldurulur -->
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 
